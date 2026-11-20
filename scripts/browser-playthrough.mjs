@@ -3,7 +3,7 @@
 import {spawn} from 'node:child_process';import {mkdir,writeFile,readFile,readdir} from 'node:fs/promises';import {createHash} from 'node:crypto';
 import {level,stepPlayer,worldWidth} from '../dist/core.js';
 import {routesFor} from './playtest-routes.mjs';
-const runtimeHashes={};for(const file of await readdir('dist'))runtimeHashes[file]=createHash('sha256').update(await readFile(`dist/${file}`)).digest('hex');
+const runtimeHashes={};for(const file of (await readdir('dist',{withFileTypes:true})).filter(entry=>entry.isFile()).map(entry=>entry.name))runtimeHashes[file]=createHash('sha256').update(await readFile(`dist/${file}`)).digest('hex');
 const complete=process.env.ENDING==='complete';const out=process.env.EVIDENCE_DIR||(complete?'docs/evidence/dev2/complete':'docs/evidence/dev2/normal');await mkdir(out,{recursive:true});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));const port=Number(process.env.PORT||8792),debug=Number(process.env.DEBUG_PORT||9232);
 const server=spawn('python3',['-m','http.server',String(port),'-d','dist'],{stdio:'ignore'});

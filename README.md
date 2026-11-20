@@ -1,6 +1,25 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
+## 3D edition · 3.0.0-rc.1
+
+[Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
+
+```sh
+npm ci
+npm start
+# Open http://127.0.0.1:8786/3d/
+npm test
+npm run check
+python3 scripts/package-3d.py
+```
+
+- WASD moves and mouse or arrow keys look. X switches memories, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. Touch controls support drag-to-look.
+- WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The rooms, props and animated ghosts are modeled in code. Web Audio synthesizes the score, room reverb, positional threats and foley.
+- The 3D edition uses a separate save. The expanded 2D edition remains available at the server root and from the 3D title screen. The existing trailer shows the 2D edition.
+
+## Expanded 2D edition · 2.0.0-rc.1
+
 **Local release candidate: `2.0.0-rc.1`. Expanded gameplay and both endings verified; subjective listening and external-device review remain unverified.**
 
 Eli is a living adult returning to finish a handover. Day is 17:59 before the fire; night is what remained at 18:00. Twelve years ago Gary returned to release the fire doors, but the register incorrectly said he had already evacuated. The task is to acknowledge the person the record omitted—not to kill an evil Gary.
@@ -73,7 +92,7 @@ Chrome defaults to the macOS installation; override `CHROME`. Playtests stop at 
 
 Still unverified: subjective headphone/speaker listening, physical touch devices, full Firefox/Safari runs, full-map target-device performance and external final art/design sign-off. Desktop/headless smoke and numeric audio checks are not those reviews. This is a release candidate, not a fabricated all-platform sign-off.
 
-Historical root jam ZIPs, dev.1 archives, [itch.io game](https://tomhao.itch.io/last-light), [jam entry](https://itch.io/jam/game-off-2026/rate/5327077) and the existing `LAST_LIGHT_trailer.mp4` have not been replaced or publicly republished.
+The [jam entry](https://itch.io/jam/game-off-2026/rate/5327077) and the existing `LAST_LIGHT_trailer.mp4` document the original edition.
 
 ## Credits and disclosure
 

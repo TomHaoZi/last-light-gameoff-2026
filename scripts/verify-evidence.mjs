@@ -1,7 +1,7 @@
 // Fail rather than inherit claims from an earlier runtime or fixture.
 import {readFile,readdir,mkdir,writeFile} from 'node:fs/promises';import {createHash} from 'node:crypto';
 const json=async p=>JSON.parse(await readFile(p,'utf8')),sha=b=>createHash('sha256').update(b).digest('hex');
-const hashes={};for(const name of await readdir('dist'))hashes[name]=sha(await readFile(`dist/${name}`));
+const hashes={};for(const name of (await readdir('dist',{withFileTypes:true})).filter(entry=>entry.isFile()).map(entry=>entry.name))hashes[name]=sha(await readFile(`dist/${name}`));
 const reports={normal:'docs/evidence/expanded/normal-rc1-ready/attempt.json',complete:'docs/evidence/expanded/complete-rc1/attempt.json',revisit:'docs/evidence/expanded/revisit-rc1/report.json'};
 const findings=[];for(const [name,path] of Object.entries(reports)){
  const r=await json(path);if(!r.passed)throw Error(`${name}: not passed`);for(const [file,hash] of Object.entries(hashes))if(r.hashes[file]!==hash)throw Error(`${name}: stale runtime ${file}`);

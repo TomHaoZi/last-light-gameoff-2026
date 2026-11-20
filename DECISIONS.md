@@ -22,3 +22,9 @@
 
 - 2026-11-12: Packaging is now fail-closed on verify-evidence.mjs rather than relying on an unenforced documentation instruction. RC metadata describes current functional verification without inventing subjective audio sign-off.
 - Primary release is the public itch RC and GitHub commit. Do not represent the stalled optional Sites mirror as current. Preserve numeric and subjective QA distinctions in release notes.
+
+## 3D edition
+
+- The first-person edition has its own entry point, simulation and save namespace. The browser package contains the expanded 2D edition at `classic/`.
+- Every crossing uses the current gameplay phase for geometry and collision. The visual shift animates light and camera over 0.18 seconds. Ghost patrols use navigable cells in the current phase, while lamp zones shelter the player.
+- The 3D environments use original code-built props, procedural materials and temporally animated lighting. Three.js is vendored at r187 with its license. Web Audio generates directional threats, room responses and a shared score with two arrangements.

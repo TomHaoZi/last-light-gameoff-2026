@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101515">
+  <meta name="description" content="A first-person horror game about a shift that never ended.">
+  <title>LAST LIGHT — One More Shift | 3D</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body>
+  <main id="stage">
+    <canvas id="scene" aria-label="Last Light first-person game" tabindex="0"></canvas>
+    <div id="veil" aria-hidden="true"></div>
+    <header class="topbar">
+      <a href="./" class="brand">LAST LIGHT</a>
+      <div class="top-actions">
+        <button id="language" aria-label="Switch language">中文</button>
+        <button id="mute" aria-pressed="false" aria-label="Mute audio">Sound on</button>
+        <button id="pause" hidden>Pause</button>
+      </div>
+    </header>
+
+    <section id="intro" class="screen" aria-labelledby="screen-title">
+      <div class="title-card">
+        <p class="timecode" id="screen-strap">17:59 / THE FINAL HANDOVER</p>
+        <h1 id="screen-title">LAST<br>LIGHT</h1>
+        <p class="subtitle" id="screen-subtitle">ONE MORE SHIFT</p>
+        <p class="story" id="screen-story">At 17:59, Gary went back for the people still inside. The register says he was gone. You're here to close the building. The building has other plans.</p>
+        <div class="menu-actions">
+          <button class="primary" id="start">Enter the building</button>
+          <button id="settings-button">Settings</button>
+        </div>
+        <a class="archive" href="../" id="classic-link">Original 2D edition</a>
+        <p class="tip" id="screen-tip">Headphones recommended · Contains flashing lights and horror themes</p>
+      </div>
+    </section>
+
+    <section id="hud" aria-label="Game status" hidden>
+      <div class="status-bar">
+        <div class="status-card">
+          <p class="label" id="floor-label"></p>
+          <p class="room-title" id="room-title"></p>
+          <p class="objective" id="objective"></p>
+        </div>
+        <div class="phase-badge" id="phase-badge"><span id="phase-time">17:59</span><span id="phase-label">BEFORE THE FIRE</span></div>
+      </div>
+      <div class="reticle" aria-hidden="true"></div>
+      <p class="interaction" id="interaction" hidden></p>
+      <p class="notice" id="notice" aria-live="polite" hidden></p>
+      <div class="bottom-bar">
+        <div class="vitals">
+          <div id="health-label" class="label">INTEGRITY</div>
+          <div class="hp" id="health" aria-label="3 HP"><i></i><i></i><i></i></div>
+          <div class="stamina" role="meter" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="stamina-meter"><div id="stamina"></div></div>
+        </div>
+        <button id="journal" title="Journal (J)">Journal <kbd>J</kbd></button>
+      </div>
+      <div class="touch" aria-label="Touch controls">
+        <div class="pad"><button data-touch="KeyW" aria-label="Forward">↑</button><button data-touch="KeyA" aria-label="Left">←</button><button data-touch="KeyS" aria-label="Back">↓</button><button data-touch="KeyD" aria-label="Right">→</button></div>
+        <div class="touch-actions"><button data-touch="ShiftLeft" id="touch-sprint">Sprint</button><button data-touch="KeyC" id="touch-quiet">Quiet</button><button data-touch="Space" id="touch-jump">Jump</button><button data-touch="KeyX" id="touch-shift">Shift</button><button data-touch="KeyE" id="touch-use">Use</button></div>
+      </div>
+    </section>
+
+    <div id="flash" aria-hidden="true"></div>
+    <div id="death" aria-live="polite" hidden><p id="death-copy"></p></div>
+    <dialog id="panel">
+      <div class="panel-header"><h2 id="panel-title">Settings</h2><button id="close-panel" aria-label="Close">×</button></div>
+      <div id="settings">
+        <label><span id="volume-label">Master volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
+        <label><span id="quality-label">Graphics</span><select id="quality"><option value="high">High</option><option value="low">Performance</option></select></label>
+        <label class="checkbox"><input id="reduced" type="checkbox"><span id="reduced-label">Reduce visual effects</span></label>
+        <p id="controls-copy"></p>
+        <button id="restart" hidden>Restart 3D shift</button>
+        <button id="confirm-restart" hidden>Confirm restart</button>
+      </div>
+      <div id="journal-view" hidden><p id="journal-summary"></p><div id="journal-list"></div></div>
+    </dialog>
+    <noscript><p class="noscript">Enable JavaScript to run Last Light 3D. <a href="../">Original 2D edition</a></p></noscript>
+  </main>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>

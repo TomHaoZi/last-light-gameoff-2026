@@ -5,7 +5,7 @@ import {buildSector} from '../dist/world.js';import {stepPlayer,updateMovingPlat
 import {createGhost,updateGhost} from '../dist/enemies.js';
 const complete=process.env.ENDING==='complete',limit=Number(process.env.MAX_SECTORS||18),out=process.env.EVIDENCE_DIR||`docs/evidence/expanded/${complete?'complete':'normal'}-${limit}`;
 await mkdir(out,{recursive:true});const audit=JSON.parse(await readFile('docs/evidence/expanded/space-audit.json','utf8'));
-const hashes={};for(const name of await readdir('dist'))hashes[name]=createHash('sha256').update(await readFile(`dist/${name}`)).digest('hex');
+const hashes={};for(const name of (await readdir('dist',{withFileTypes:true})).filter(entry=>entry.isFile()).map(entry=>entry.name))hashes[name]=createHash('sha256').update(await readFile(`dist/${name}`)).digest('hex');
 const port=Number(process.env.PORT||8793),debug=Number(process.env.DEBUG_PORT||9233),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const server=spawn('python3',['-m','http.server',String(port),'-d','dist'],{stdio:'ignore'});
 const profile=process.env.CHROME_PROFILE||`/tmp/last-light-expanded-${process.pid}`;
