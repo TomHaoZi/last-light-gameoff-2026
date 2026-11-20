@@ -30,3 +30,5 @@
 - The 3D environments use original code-built props, procedural materials and temporally animated lighting. Three.js is vendored at r187 with its license. Web Audio generates directional threats, room responses and a shared score with two arrangements.
 
 The 3D renderer now generates surface maps, light probes, city shapes, props and signs in code. Surface weathering follows world coordinates across tile boundaries. The high graphics preset renders depth-aware shafts and contact shading. The controls guide names X as the phase key and explains the first bridge. The phase button, drag-to-look and arrow keys work in a browser embed without pointer lock.
+
+Desktop play captures the mouse inside the Start or Resume click. Relative mouse motion turns the camera, and Escape or loss of game focus pauses the shift. An embed that blocks capture still accepts free mouse motion inside the game canvas. Touch keeps drag-to-look.

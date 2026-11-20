@@ -22,13 +22,13 @@ const strings = {
     chapter: 'CHAPTER', hp: 'INTEGRITY', journal: 'Journal', archive: 'Original 2D edition',
     tip: 'Headphones recommended · Flashing lights and horror themes',
     controlsTitle: 'Controls', phaseControl: 'Switch day / night', toDay: 'Switch to day', toNight: 'Switch to night',
-    move: 'Move', look: 'Look around', use: 'Interact', jump: 'Jump', dragArrows: 'Drag / arrow keys',
+    move: 'Move', look: 'Look around', use: 'Interact', jump: 'Jump', mouse: 'Move the mouse',
     drag: 'Drag the scene', onScreen: 'On-screen buttons', tapDayNight: 'Day / Night button', space: 'Space',
     firstSteps: 'Use the emergency lamp ahead to save your progress. Then switch to night to reveal the first bridge.',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
-    legend: 'WASD Move · Drag / arrows Look · E Interact', capturedLegend: 'WASD Move · Mouse Look · E Interact · Esc Pause and release mouse',
-    capture: 'Capture mouse', captureFailed: 'Mouse capture is unavailable. Drag the scene or use the arrow keys to look around.',
-    controls: 'X switches between day and night. WASD moves. Drag the scene or use the arrow keys to look around. Use Capture mouse for continuous mouse look and Esc to release. Space jumps, E interacts, Shift sprints, C walks quietly, J opens the journal and M mutes. On touch screens, drag the scene and use the on-screen buttons.',
+    legend: 'WASD Move · Mouse Look · E Interact', capturedLegend: 'WASD Move · Mouse Look · E Interact · Esc Pause and release mouse',
+    capture: 'Capture mouse', captureFailed: 'This browser blocked mouse capture. Move the mouse within the scene to look around.',
+    controls: 'X switches between day and night. WASD moves. Move the mouse to look around. The game captures it when you start or resume. Esc pauses and releases the mouse. Space jumps, E interacts, Shift sprints, C walks quietly, J opens the journal and M mutes. On touch screens, drag the scene and use the on-screen buttons.',
     volume: 'Master volume', quality: 'Graphics', high: 'High', medium: 'Balanced', low: 'Performance', reduced: 'Reduce visual effects',
     restart: 'Restart 3D shift', restartConfirm: 'Confirm 3D restart', lift: 'Open exit', lampAction: 'Rest at emergency lamp', powerAction: 'Power the exit light', work: 'Operate station', clue: 'Read evidence',
     workDone: 'Handover logged.', clueFound: 'Evidence recorded.', lamp: 'Checkpoint saved. Integrity restored.',
@@ -50,13 +50,13 @@ const strings = {
     resume: '继续值班', before: '白天 · 火灾之前', after: '黑夜 · 火灾之后', chapter: '章节', hp: '生命', journal: '日志', archive: '原始 2D 版',
     tip: '推荐戴耳机 · 含闪光与恐怖元素',
     controlsTitle: '操作指南', phaseControl: '切换白天 / 黑夜', toDay: '切到白天', toNight: '切到黑夜',
-    move: '移动', look: '转动视角', use: '互动', jump: '跳跃', dragArrows: '拖动画面 / 方向键',
+    move: '移动', look: '转动视角', use: '互动', jump: '跳跃', mouse: '直接移动鼠标',
     drag: '拖动画面', onScreen: '屏幕按钮', tapDayNight: '「昼夜」按钮', space: '空格',
     firstSteps: '走到前方的应急灯旁互动，保存进度。切到黑夜后，前方会出现第一座桥。',
     lampSteps: '切到黑夜，让前方的桥出现。',
-    legend: 'WASD 移动 · 拖动 / 方向键转视角 · E 互动', capturedLegend: 'WASD 移动 · 鼠标转视角 · E 互动 · Esc 暂停并释放鼠标',
-    capture: '捕获鼠标', captureFailed: '浏览器未捕获鼠标。可拖动画面或按方向键转动视角。',
-    controls: 'X 切换白天和黑夜，WASD 移动。拖动画面或按方向键转动视角。点击「捕获鼠标」后可直接用鼠标转动视角，按 Esc 释放。空格跳跃，E 互动，Shift 冲刺，C 轻声走，J 打开日志，M 静音。触屏可拖动画面并使用屏幕按钮。',
+    legend: 'WASD 移动 · 鼠标转视角 · E 互动', capturedLegend: 'WASD 移动 · 鼠标转视角 · E 互动 · Esc 暂停并释放鼠标',
+    capture: '捕获鼠标', captureFailed: '浏览器未捕获鼠标。将鼠标移到画面内即可转动视角。',
+    controls: 'X 切换白天和黑夜，WASD 移动。移动鼠标即可转动视角。进入或继续值班时自动捕获鼠标，按 Esc 暂停并释放。空格跳跃，E 互动，Shift 冲刺，C 轻声走，J 打开日志，M 静音。触屏可拖动画面并使用屏幕按钮。',
     volume: '总音量', quality: '画质', high: '高', medium: '均衡', low: '性能', reduced: '减弱视觉特效', restart: '重开 3D 值班', restartConfirm: '确认重开 3D 版',
     lift: '打开出口', lampAction: '在应急灯休息', powerAction: '给出口灯通电', work: '操作设备', clue: '查看线索', workDone: '交班已记录。', clueFound: '线索已记下。',
     lamp: '检查点已保存，生命恢复。', power: '你离开后，应急灯也会继续亮着。', locked: '先完成本区的三项交接工作。',
@@ -73,6 +73,7 @@ const strings = {
 
 const prefs = read(settingsKey) ?? {};
 const coarsePointer = matchMedia('(pointer: coarse)');
+const finePointer = matchMedia('(any-pointer: fine)');
 let lang = ['en', 'zh'].includes(prefs.lang) ? prefs.lang : (navigator.language?.startsWith('zh') ? 'zh' : 'en');
 let muted = prefs.muted === true;
 let volume = Number.isFinite(prefs.volume) ? Math.max(0, Math.min(1, prefs.volume)) : .8;
@@ -82,7 +83,7 @@ state.reduceMotion = typeof prefs.reduced === 'boolean' ? prefs.reduced : matchM
 const sound = new HorrorAudio();
 const keys = new Set();
 let edges = {}, noticeUntil = 0, lastChapter = -1, lastFrame = 0, accumulator = 0;
-let previouslyLocked = false, dragging = null, previousHUD = '', visual = null, error = null;
+let previouslyLocked = false, freeMouse = null, dragging = null, previousHUD = '', visual = null, error = null;
 let overlayMode = '';
 const t = () => strings[lang];
 const screenText = (id, value) => { $(id).textContent = value; };
@@ -168,7 +169,7 @@ function labels() {
   $('guide-phase-key').replaceChildren(touch ? copy.tapDayNight : keyCap('X'));
   $('primer-key').replaceChildren(touch ? copy.tapDayNight : keyCap('X'));
   $('guide-move-key').replaceChildren(touch ? copy.onScreen : keyCap('WASD'));
-  $('guide-look-key').replaceChildren(touch ? copy.drag : copy.dragArrows);
+  $('guide-look-key').replaceChildren(touch ? copy.drag : copy.mouse);
   $('guide-use-key').replaceChildren(touch ? copy.onScreen : keyCap('E'));
   $('guide-jump-key').replaceChildren(touch ? copy.onScreen : keyCap(copy.space));
   document.querySelectorAll('.pad button').forEach((button, index) => button.setAttribute('aria-label', copy.directions[index]));
@@ -241,20 +242,23 @@ function clearInput() {
   keys.clear();
   edges = {};
   dragging = null;
+  freeMouse = null;
 }
 
 function focusScene() { canvas.focus({ preventScroll: true }); }
 
 function updateMouseLook() {
   const locked = document.pointerLockElement === canvas;
-  $('mouse-look').hidden = Boolean(error) || state.mode !== 'playing' || coarsePointer.matches || !canvas.requestPointerLock || locked;
+  $('mouse-look').hidden = Boolean(error) || state.mode !== 'playing' || !finePointer.matches || !canvas.requestPointerLock || locked;
   screenText('key-legend', locked ? t().capturedLegend : t().legend);
 }
 
 function requestMouseLook() {
-  if (state.mode !== 'playing' || !canvas.requestPointerLock) return;
-  focusScene();
-  try { canvas.requestPointerLock()?.catch(() => notice(t().captureFailed, 5)); }
+  if (state.mode !== 'playing' || !finePointer.matches ||
+    !canvas.requestPointerLock || document.pointerLockElement === canvas) return;
+  // Request during the trusted click, before audio startup or other async work.
+  // Older implementations signal a failure through pointerlockerror only.
+  try { canvas.requestPointerLock()?.catch(() => {}); }
   catch { notice(t().captureFailed, 5); }
 }
 
@@ -269,6 +273,7 @@ function start() {
   sound.setMuted(muted);
   sound.setVolume(volume);
   focusScene();
+  requestMouseLook();
   sound.start().catch(e => console.warn('Audio unavailable.', e));
 }
 
@@ -324,7 +329,7 @@ $('settings-button').onclick = () => showPanel('settings');
 $('journal').onclick = () => showPanel('journal');
 $('close-panel').onclick = () => $('panel').close();
 $('pause').onclick = pause;
-$('mouse-look').onclick = requestMouseLook;
+$('mouse-look').onclick = () => { focusScene(); requestMouseLook(); };
 $('phase-badge').onclick = () => { edges.shift = true; focusScene(); };
 $('language').onclick = () => {
   lang = lang === 'en' ? 'zh' : 'en';
@@ -333,6 +338,7 @@ $('language').onclick = () => {
   savePrefs();
 };
 coarsePointer.addEventListener('change', labels);
+finePointer.addEventListener('change', updateMouseLook);
 function toggleSound() { muted = !muted; sound.setMuted(muted); labels(); savePrefs(); }
 $('mute').onclick = toggleSound;
 $('volume').value = String(volume);
@@ -353,14 +359,22 @@ $('confirm-restart').onclick = () => {
 };
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
-  if (!locked && previouslyLocked) pause();
+  const wasLocked = previouslyLocked;
   previouslyLocked = locked;
+  freeMouse = null;
+  if (locked && state.mode !== 'playing') document.exitPointerLock();
+  if (!locked && wasLocked) pause();
   updateMouseLook();
 });
-document.addEventListener('pointerlockerror', () => notice(t().captureFailed, 5));
-document.addEventListener('mousemove', event => {
-  if (document.pointerLockElement === canvas) state.look(event.movementX * .0023, -event.movementY * .0023);
+document.addEventListener('pointerlockerror', () => {
+  if (state.mode === 'playing') notice(t().captureFailed, 5);
 });
+function mouseLook(dx, dy) { state.look(dx * .0023, -dy * .0023); }
+
+document.addEventListener('mousemove', event => {
+  if (document.pointerLockElement === canvas) mouseLook(event.movementX, event.movementY);
+});
+canvas.addEventListener('pointerleave', () => { freeMouse = null; });
 
 const actions = { Space: 'jump', KeyX: 'shift', KeyE: 'interact' };
 const playKeys = new Set(['KeyW','KeyA','KeyS','KeyD','KeyC','ShiftLeft','ShiftRight','Space','KeyX','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
@@ -404,10 +418,18 @@ for (const button of document.querySelectorAll('[data-touch]')) {
 canvas.addEventListener('pointerdown', event => {
   if (state.mode !== 'playing' || event.button !== 0 || document.pointerLockElement === canvas || dragging) return;
   focusScene();
+  if (event.pointerType === 'mouse') return;
   canvas.setPointerCapture(event.pointerId);
   dragging = { id: event.pointerId, x: event.clientX, y: event.clientY };
 });
 canvas.addEventListener('pointermove', event => {
+  if (event.pointerType === 'mouse') {
+    if (state.mode !== 'playing' || document.pointerLockElement === canvas) return;
+    const { clientX: x, clientY: y } = event;
+    if (freeMouse) mouseLook(x - freeMouse.x, y - freeMouse.y);
+    freeMouse = { x, y };
+    return;
+  }
   if (event.pointerId !== dragging?.id) return;
   state.look((event.clientX - dragging.x) * .005, (dragging.y - event.clientY) * .005);
   dragging.x = event.clientX;
@@ -454,7 +476,8 @@ requestAnimationFrame(frame);
 window.lastLight3D = Object.freeze({
   snapshot: () => ({
     chapter: state.levelIndex, mode: state.mode, phase: state.night ? 'night' : 'day',
-    x: state.x, y: state.y, z: state.z, hp: state.hp, deaths: state.progress.deaths,
+    x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch,
+    mouseLocked: document.pointerLockElement === canvas, hp: state.hp, deaths: state.progress.deaths,
     work: [...state.completed], evidence: [...state.progress.evidence], life: state.life,
     webgl: Boolean(visual && !error), ending: state.mode === 'won' ? state.ending : null
   })

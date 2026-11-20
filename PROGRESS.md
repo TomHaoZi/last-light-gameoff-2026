@@ -45,3 +45,9 @@ The 63-test suite passes, including a zero-death complete-ending route driven by
 ## 3D edition · 3.0.0-rc.2
 
 Added weathered physical materials, procedural reflections, light shafts, new cloud layers, a deeper rooftop skyline and detailed props for the boiler room, office and roof. Controls now appear in the title and pause screens. The HUD phase button works by click or touch. X switches day/night and the first bridge appears at night. An itch-sized Chrome iframe with pointer lock denied passed both phase controls, the lamp save, a live first-bridge crossing and pause. Mobile touch controls were verified in Chrome emulation. Native browser scene checks covered all three floors. The 63 automated gameplay/audio tests still pass.
+
+## 3D edition · 3.0.0-rc.3
+
+Desktop mouse look is the default when entering or resuming the shift. Moving the mouse turns the view without holding a button. Escape releases the cursor and pauses. The menu, HUD and settings explain the desktop binding, while touch still has its own controls. All 63 existing automated tests and the syntax check passed.
+
+Chrome verified that moving the mouse with no buttons pressed turns the camera, Escape pauses and releases capture, and Resume captures again. An isolated sandbox that blocks pointer lock still accepted free mouse movement and X. The packaged Classic link now points to its explicit index page for itch.io hosting.
