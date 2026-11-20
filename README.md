@@ -1,7 +1,7 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 3D edition · 3.0.0-rc.1
+## 3D edition · 3.0.0-rc.2
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -14,8 +14,8 @@ npm run check
 python3 scripts/package-3d.py
 ```
 
-- WASD moves and mouse or arrow keys look. X switches memories, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. Touch controls support drag-to-look.
-- WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The rooms, props and animated ghosts are modeled in code. Web Audio synthesizes the score, room reverb, positional threats and foley.
+- Press **X** or click the phase button to switch day and night. WASD moves, dragging or the arrow keys look, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. The first bridge exists at night. Mouse capture is optional, and touch screens have a dedicated phase button.
+- WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The rooms, props and animated ghosts are modeled in code. Runtime-generated color, normal, roughness and metalness maps produce different aged materials. The high preset adds depth-aware light shafts and contact shading. Balanced and Performance reduce rendering cost. Web Audio synthesizes the score, room reverb, positional threats and foley.
 - The 3D edition uses a separate save. The expanded 2D edition remains available at the server root and from the 3D title screen. The existing trailer shows the 2D edition.
 
 ## Expanded 2D edition · 2.0.0-rc.1

@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { applyWorldWeather, createSurfaceSet } from './surfaces.js';
+import { decorateModels } from './models.js';
+import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -46,85 +49,6 @@ function canvasTexture(width, height, paint) {
   return texture;
 }
 
-function masonry(seed, plaster = false) {
-  return canvasTexture(256, 256, (ctx, w, h) => {
-    const rng = random(seed);
-    ctx.fillStyle = '#b6b4ad';
-    ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 5900; i++) {
-      const shade = Math.floor(65 + rng() * 180);
-      ctx.fillStyle = `rgba(${shade},${shade},${shade},${rng() * .28})`;
-      ctx.fillRect(rng() * w, rng() * h, 1 + rng() * 3, 1 + rng() * 3);
-    }
-    for (let i = 0; i < 46; i++) {
-      const x = rng() * w;
-      const y = rng() * h;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, 6 + rng() * 50);
-      g.addColorStop(0, `rgba(32,25,20,${rng() * .34})`);
-      g.addColorStop(1, 'rgba(32,25,20,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, w, h);
-    }
-    if (!plaster) {
-      ctx.strokeStyle = '#3b3d39';
-      ctx.lineWidth = 2;
-      for (let row = 0; row < 5; row++) {
-        const y = row * 52;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-        for (let x = row % 2 ? 33 : 0; x < w; x += 65) {
-          ctx.moveTo(x, y);
-          ctx.lineTo(x, y + 52);
-        }
-        ctx.stroke();
-      }
-    }
-    const streak = ctx.createLinearGradient(0, 0, 0, 256);
-    streak.addColorStop(0, '#13181343');
-    streak.addColorStop(.45, '#17141100');
-    streak.addColorStop(1, '#1815135c');
-    ctx.fillStyle = streak;
-    ctx.fillRect(0, 0, w, h);
-  });
-}
-
-function floorTexture(theme) {
-  return canvasTexture(256, 256, (ctx, w, h) => {
-    const rng = random(theme + 720);
-    ctx.fillStyle = ['#92908b', '#a7a09a', '#888e91'][theme];
-    ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 3300; i++) {
-      ctx.fillStyle = rng() > .5 ? '#1e222421' : '#f4eacb18';
-      ctx.fillRect(rng() * w, rng() * h, 1 + rng() * 5, 1 + rng() * 2);
-    }
-    for (let i = 0; i < 100; i++) {
-      const x = rng() * w;
-      const y = rng() * h;
-      ctx.strokeStyle = rng() > .75 ? '#d9d9d740' : '#181a1c30';
-      ctx.lineWidth = .7 + rng();
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + rng() * 19, y + rng() * 6);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = '#242321b0';
-    ctx.lineWidth = 3;
-    const seams = theme === 1 ? 5 : 3;
-    for (let i = 0; i < seams; i++) {
-      const t = i * 256 / seams;
-      ctx.strokeRect(t, 0, 256 / seams, 256);
-      if (theme !== 2) ctx.strokeRect(0, t, 256, 256 / seams);
-    }
-    if (theme === 0) {
-      ctx.fillStyle = '#ddd1b32d';
-      for (let y = 12; y < 256; y += 22) for (let x = 12; x < 256; x += 24) {
-        ctx.fillRect(x + (y % 3) * 3, y, 4, 10);
-      }
-    }
-  });
-}
-
 function glowTexture() {
   return canvasTexture(96, 96, (ctx, w, h) => {
     const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
@@ -154,8 +78,44 @@ function spriteText(text, ink = '#fff4d4', caption = '') {
   });
 }
 
+function coatGeometry() {
+  const levels = [
+    [.07, .22], [.24, .26], [.49, .28], [.72, .32],
+    [1.00, .31], [1.24, .37], [1.38, .30], [1.50, .17]
+  ];
+  const sides = 30;
+  const points = [];
+  const uv = [];
+  const indices = [];
+  for (let row = 0; row < levels.length; row++) {
+    const [height, radius] = levels[row];
+    for (let column = 0; column <= sides; column++) {
+      const theta = column / sides * Math.PI * 2;
+      const fold = (.024 * Math.sin(theta * 7 + row * .36) + .014 * Math.cos(theta * 11 - row * .83))
+        * Math.max(.4, 1 - height * .36);
+      const hem = row < 2 ? .076 * Math.sin(theta * 5) + .062 * Math.sin(theta * 7 + .32) : 0;
+      points.push(
+        Math.cos(theta) * (radius + fold) + .018 * Math.sin(row * 2),
+        height + hem,
+        Math.sin(theta) * (radius * .70 + fold)
+      );
+      uv.push(column / sides, row / (levels.length - 1));
+      if (row === levels.length - 1 || column === sides) continue;
+      const a = row * (sides + 1) + column;
+      const b = a + sides + 1;
+      indices.push(a, b, b + 1, a, b + 1, a + 1);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
-const unitCylinder = new THREE.CylinderGeometry(.5, .5, 1, 13);
+const unitCylinder = new THREE.CylinderGeometry(.5, .5, 1, 24);
 const unitSphere = new THREE.SphereGeometry(.5, 12, 8);
 const unitPlane = new THREE.PlaneGeometry(1, 1);
 const delta = new THREE.Vector3();
@@ -257,22 +217,45 @@ float noise(vec2 p) {
   vec2 w = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1,0)), w.x), mix(hash(i + vec2(0,1)), hash(i+1.0), w.x), w.y);
 }
+float fbm(vec2 p) {
+  mat2 turn = mat2(.86, .51, -.51, .86);
+  float value = 0.;
+  float weight = .54;
+  for (int i = 0; i < 5; i++) {
+    value += noise(p) * weight;
+    p = turn * p * 2.06 + vec2(24.7, 17.4);
+    weight *= .5;
+  }
+  return value;
+}
 void main() {
   vec3 d = normalize(direction);
   float h = max(d.y, 0.0);
-  vec3 dusk = mix(vec3(.53,.27,.15), vec3(.11,.25,.37), sqrt(h));
-  vec3 dark = mix(vec3(.031,.064,.118), vec3(.004,.015,.048), sqrt(h));
-  vec3 sky = mix(dusk,dark,night);
-  vec2 skyUv = vec2(atan(d.z,d.x) / 6.283185 + 0.5,h);
-  vec2 stars = skyUv * vec2(820.0,350.0);
-  float star = 1.0 - smoothstep(.045,.13,length(fract(stars)-.5));
-  sky += vec3(.40,.63,.85) * star * step(.988,hash(floor(stars))) * night * smoothstep(.02,.25,h);
-  float vapor = noise(skyUv*vec2(27,42)+vec2(time*.006,0.0))*.6 + noise(skyUv*vec2(56,108))*.4;
-  sky += smoothstep(.51,.8,vapor) * smoothstep(.011,.24,h) * (1.0-smoothstep(.32,.78,h)) * mix(vec3(.31,.13,.047),vec3(.017,.032,.062),night);
-  vec3 sun = normalize(vec3(-.64,.13,-.75));
-  float alignment = max(dot(d,sun),0.0);
-  sky += mix(vec3(.7,.27,.05),vec3(.020,.048,.094),night)*pow(alignment,22.);
-  sky += mix(vec3(1.0,.65,.32),vec3(.58,.73,.84),night)*smoothstep(.9993,.9997,alignment);
+  vec3 sunset = mix(vec3(.38,.20,.117), vec3(.053,.16,.29), smoothstep(0.,.61,sqrt(h)));
+  vec3 darkness = mix(vec3(.022,.044,.076), vec3(.003,.010,.033), smoothstep(0.,.63,sqrt(h)));
+  vec3 sun = normalize(vec3(-.64,.15,-.75));
+  vec3 moon = normalize(vec3(.28,.44,-.75));
+  float sundot = max(dot(d,sun),0.0);
+  float moondot = max(dot(d,moon),0.0);
+  sunset += vec3(.45,.19,.058) * pow(sundot,8.0) * (1.0 - h * .68);
+  sunset += vec3(5.0,2.45,.85) * smoothstep(.99954,.99976,sundot);
+  darkness += vec3(.048,.083,.141) * pow(moondot,24.);
+  darkness += vec3(.91,1.20,1.40) * smoothstep(.99978,.99989,moondot);
+  vec3 sky = mix(sunset,darkness,night);
+
+  vec2 plane = d.xz / max(d.y + .115, .08);
+  vec2 p = plane * vec2(1.7, 1.42) + vec2(time * .014, -time * .007);
+  float clumps = fbm(p);
+  float front = smoothstep(.53, .69, clumps) * smoothstep(.0,.17,h);
+  float obliqueLight = max(0.0, clumps - fbm(p + vec2(.19,.13))) * 3.2;
+  vec3 cloudDay = mix(vec3(.126,.106,.137),vec3(.69,.38,.23),clamp(obliqueLight + pow(sundot, 4.) * .52,0.,1.));
+  vec3 cloudNight = mix(vec3(.008,.015,.037),vec3(.059,.09,.137),clamp(obliqueLight,0.,1.));
+  sky = mix(sky, mix(cloudDay,cloudNight,night), front * .82);
+  float highSheet = smoothstep(.55,.75, fbm(plane * vec2(4.9, .92) - vec2(time * .009,11.0)));
+  sky += highSheet * smoothstep(.10,.34,h) * mix(vec3(.115,.14,.22),vec3(.012,.022,.043),night) * (1.0-front);
+  vec2 stars = vec2(atan(d.z,d.x)/6.283185 + .5,h) * vec2(860.0,385.0);
+  float star = (1.0 - smoothstep(.04,.15,length(fract(stars)-.5))) * step(.993,hash(floor(stars)));
+  sky += vec3(.26,.36,.61) * star * night * smoothstep(.12,.31,h) * (1.0-front);
   gl_FragColor = vec4(sky,1.);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -284,40 +267,69 @@ void main() { coords = uv; gl_Position = vec4(position.xy * 2.0, 0.0, 1.0); }
 `;
 const POST_FRAGMENT = `
 uniform sampler2D frameTex;
+uniform sampler2D depthTex;
+uniform sampler2D shaftsTex;
 uniform vec2 texel;
+uniform float nearPlane;
+uniform float farPlane;
+uniform float shafts;
+uniform float effects;
 uniform float time;
 uniform float night;
 uniform float shift;
 uniform float life;
 uniform float danger;
 varying vec2 coords;
-float hash(vec2 p) { return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
+float eyeDepth(vec2 uv) {
+  float d = texture2D(depthTex, uv).r;
+  return nearPlane * farPlane / (farPlane - d * (farPlane - nearPlane));
+}
+float contact(vec2 uv, float depth) {
+  vec2 radius = texel * clamp(45.0 / max(depth, 1.2), 2.5, 20.0);
+  float angle = .37;
+  float result = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec2 offset = vec2(cos(angle), sin(angle)) * radius;
+    float delta = depth - eyeDepth(uv + offset);
+    result += smoothstep(.04, .17, delta) * (1.0 - smoothstep(.38, .98, delta));
+    angle += 1.0472;
+  }
+  return result / 6.0;
+}
+vec3 glowSample(vec2 uv) {
+  vec3 color = texture2D(frameTex, uv).rgb;
+  float brightness = max(max(color.r,color.g),color.b);
+  return color * smoothstep(.55, 2.2, brightness);
+}
 void main() {
   vec2 uv = coords;
   vec2 center = uv - .5;
   float range = length(center);
-  float ring = 1.0 - smoothstep(.008,.045,abs(range-(1.0-shift)*.80));
+  float ring = 1.0 - smoothstep(.008,.058,abs(range-(1.0-shift)*.80));
   float ripple = shift * ring;
-  vec2 jitter = center * (.022 * life * sin(time*23.0) + .023 * ripple);
-  vec3 base = texture2D(frameTex, uv+jitter).rgb;
-  float spread = .0015 + .007 * ripple + .003 * life;
-  base.r = texture2D(frameTex,uv+jitter+center*spread).r;
-  base.b = texture2D(frameTex,uv+jitter-center*spread).b;
-  vec3 rays = vec3(0.);
-  rays += max(texture2D(frameTex,uv+vec2(3.,2.)*texel).rgb-.56,0.0);
-  rays += max(texture2D(frameTex,uv-vec2(3.,2.)*texel).rgb-.56,0.0);
-  rays += max(texture2D(frameTex,uv+vec2(-2.,4.)*texel).rgb-.56,0.0);
-  rays += max(texture2D(frameTex,uv+vec2(2.,-4.)*texel).rgb-.56,0.0);
-  base += rays * .065;
-  float vignette = 1.0 - smoothstep(.20,.75,range) * (.25+.18*night+.25*life);
+  vec2 jitter = center * (.018 * life * sin(time*23.0) + .021 * ripple);
+  vec2 sampleUv = uv + jitter;
+  vec3 base = texture2D(frameTex, sampleUv).rgb;
+  float spread = .006 * ripple + .0025 * life;
+  if (spread > .0001) {
+    base.r = texture2D(frameTex,sampleUv+center*spread).r;
+    base.b = texture2D(frameTex,sampleUv-center*spread).b;
+  }
+  float depth = eyeDepth(sampleUv);
+  if (effects > .5 && depth < 21.0) base *= 1.0 - contact(sampleUv, depth) * .36;
+  vec2 offset = texel * 5.0;
+  vec3 glow = glowSample(sampleUv+offset) + glowSample(sampleUv-offset)
+    + glowSample(sampleUv+vec2(-offset.x,offset.y)) + glowSample(sampleUv+vec2(offset.x,-offset.y));
+  base += glow * .045;
+  if (shafts > .5) base += texture2D(shaftsTex, sampleUv).rgb;
+  float vignette = 1.0 - smoothstep(.24,.76,range) * (.19+.13*night+.27*life);
   base *= vignette;
-  base = mix(base,base*vec3(.73,1.03,1.13),night*.32);
-  base += vec3(.028,.10,.14)*ripple;
-  base = mix(base,base*vec3(1.29,.52,.51),smoothstep(.22,.71,range)*danger*.58);
+  base = mix(base,base*vec3(.81,1.01,1.12),night*.41);
+  base += vec3(.025,.080,.106)*ripple;
+  base = mix(base,base*vec3(1.29,.59,.56),smoothstep(.26,.71,range)*danger*.56);
   gl_FragColor = vec4(max(base,0.),1.);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
-  gl_FragColor.rgb += (hash(gl_FragCoord.xy + floor(time * 24.0)) - .5) * .016;
 }
 `;
 
@@ -331,7 +343,11 @@ export class Visual {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.14;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
+    this.shadowTime = -1;
     this.renderer.setClearColor('#11181d');
+    this.probes = new Map();
+    this.atmosphere = makeAtmosphere();
     this.rig = new THREE.Group();
     this.scene.add(this.rig, this.camera);
     this.fill = new THREE.HemisphereLight('#c9dae2', '#362e29', 1.01);
@@ -357,12 +373,16 @@ export class Visual {
     const sampleFormats = gl.getInternalformatParameter(gl.RENDERBUFFER, hdr ? gl.RGBA16F : gl.RGBA8, gl.SAMPLES);
     this.frameTarget = new THREE.WebGLRenderTarget(1, 1, {
       minFilter: THREE.LinearFilter, type: hdr ? THREE.HalfFloatType : THREE.UnsignedByteType,
-      samples: sampleFormats?.length ? Math.min(2, sampleFormats[0]) : 0
+      samples: sampleFormats?.length ? Math.min(2, sampleFormats[0]) : 0,
+      depthTexture: new THREE.DepthTexture(1, 1, THREE.UnsignedIntType)
     });
     this.postScene = new THREE.Scene();
     this.grade = new THREE.ShaderMaterial({
       uniforms: {
         frameTex: { value: this.frameTarget.texture }, texel: { value: new THREE.Vector2(1, 1) },
+        depthTex: { value: this.frameTarget.depthTexture }, shaftsTex: { value: this.atmosphere.target.texture },
+        nearPlane: { value: this.camera.near }, farPlane: { value: this.camera.far },
+        shafts: { value: 0 }, effects: { value: 1 },
         time: { value: 0 }, night: { value: 0 }, shift: { value: 0 },
         life: { value: 0 }, danger: { value: 0 }
       },
@@ -388,6 +408,9 @@ export class Visual {
     this.theme = ['boiler', 'office', 'roof'].indexOf(level.theme || level.id);
     if (this.theme < 0) this.theme = /roof|garden|antenna/i.test(level.id) ? 2 : /office|archive/i.test(level.id) ? 1 : 0;
     this.palette = [BOILER, OFFICE, ROOF][this.theme];
+    const outdoors = this.theme === 2;
+    if (!this.probes.has(outdoors)) this.probes.set(outdoors, makeReflectionProbe(outdoors));
+    this.scene.environment = this.probes.get(outdoors);
     this.stage = new THREE.Group();
     this.scene.add(this.stage);
     this.objects = new Map();
@@ -399,6 +422,7 @@ export class Visual {
     this.velocity = 0;
     this.walk = 0;
     this.nightBlend = 0;
+    this.shadowTime = -1;
     this.ghosts = new Map();
     this.fogWarm = new THREE.Color(this.palette.daySky);
     this.fogCold = new THREE.Color(this.palette.nightSky);
@@ -415,6 +439,7 @@ export class Visual {
     for (const floor of decoded.floors) this.makeFloor(floor);
     this.makePropClusters();
     this.makeArrival();
+    decorateModels(this);
     for (const lamp of decoded.lamps) this.makeSafeLamp(lamp);
     for (const station of decoded.stations) this.makeStation(station);
     if (decoded.power) this.makeStation(decoded.power, true);
@@ -434,7 +459,8 @@ export class Visual {
       if (object.geometry && ![unitBox, unitCylinder, unitSphere, unitPlane].includes(object.geometry)) {
         transientGeometries.add(object.geometry);
       }
-      if (object.material) materials.add(object.material);
+      if (Array.isArray(object.material)) object.material.forEach(material => materials.add(material));
+      else if (object.material) materials.add(object.material);
     });
     for (const material of Object.values(this.materials)) materials.add(material);
     for (const geo of transientGeometries) geo.dispose();
@@ -446,23 +472,24 @@ export class Visual {
   }
 
   makeMaterials() {
-    const wallMap = masonry(20 + this.theme, this.theme !== 0);
-    const tileMap = floorTexture(this.theme);
-    this.localTextures.push(wallMap, tileMap);
+    const surfaces = createSurfaceSet(this.theme, this.palette, Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
+    this.localTextures.push(...surfaces.textures);
+    const { normalMap, normalScale } = surfaces.steel;
+    const gratingSurface = { normalMap, normalScale };
     return {
-      wall: standard(this.palette.wall, { map: wallMap, roughness: .96 }),
-      floor: standard(this.palette.floor, { map: tileMap, roughness: this.theme === 1 ? .8 : .63 }),
-      ceiling: standard(this.palette.ceiling, { map: wallMap }),
+      wall: applyWorldWeather(standard(this.palette.wall, surfaces.wall), 'wall', this.theme),
+      floor: applyWorldWeather(standard(this.palette.floor, surfaces.floor), 'floor', this.theme),
+      ceiling: applyWorldWeather(standard(this.palette.ceiling, surfaces.ceiling), 'ceiling', this.theme),
       low: standard(this.palette.low, { roughness: .92 }),
-      steel: standard(this.palette.steel, { roughness: .50, metalness: .28 }),
+      steel: standard(this.palette.steel, surfaces.steel),
       dark: standard('#202a2c', { roughness: .61, metalness: .20 }),
-      accent: standard(this.palette.accent, { roughness: .50, metalness: .15 }),
+      accent: standard(this.palette.accent, surfaces.accent),
       copper: standard('#8d5a37', { roughness: .38, metalness: .31 }),
       rust: standard('#89413c', { roughness: .71 }),
       bone: standard('#c4b6a2', { roughness: .7 }),
       brass: standard('#a28c60', { metalness: .36, roughness: .46 }),
-      day: standard('#b5873d', { map: tileMap, metalness: .22, roughness: .42, emissive: '#9a541b', emissiveIntensity: .24 }),
-      night: standard('#3e697b', { map: tileMap, metalness: .15, roughness: .32, emissive: '#1e7b9e', emissiveIntensity: .34 }),
+      day: standard('#826032', { ...gratingSurface, metalness: .53, roughness: .47, emissive: '#9a571b', emissiveIntensity: .14 }),
+      night: standard('#406877', { ...gratingSurface, metalness: .58, roughness: .39, emissive: '#1e6e93', emissiveIntensity: .27 }),
       dayLine: emit('#ffb649', 1.4), nightLine: emit('#5bc5f5', 1.65),
       unsafe: emit('#d34933', 1.3), lamp: emit('#f6d3a1', 1.4), safe: emit('#72e6bf', 1.35)
     };
@@ -541,7 +568,10 @@ export class Visual {
     const m = this.materials;
     const variant = random(col + 3211 * row + 7001 * this.theme);
     const material = PHASE[kind] ? m[PHASE[kind]] : m.floor;
-    batch.box(material, x, -.14, z, TILE - .025, .28, TILE - .025, 0, tint(variant()));
+    if (!PHASE[kind]) {
+      const angle = (col * 3 + row * 7) % 3 ? 0 : Math.PI;
+      batch.box(material, x, -.14, z, TILE - .013, .28, TILE - .013, angle, tint(variant()));
+    }
     if (this.theme !== 2) {
       this.batches.neutral.box(m.ceiling, x, 3.34, z, TILE + .013, .15, TILE + .013);
       if ((col + row * 2) % 4 === 0) this.batches.neutral.box(m.dark, x, 3.12, z + .85, TILE + .025, .2, .16);
@@ -550,13 +580,22 @@ export class Visual {
     if (PHASE[kind]) {
       const phase = PHASE[kind];
       const light = m[phase + 'Line'];
-      batch.box(m.dark, x, -.26, z, TILE - .08, .23, TILE - .08);
-      for (const edge of [-1, 1]) {
-        batch.box(light, x, .009, z + edge * 1.12, TILE - .16, .021, .027);
-        batch.box(light, x + edge * 1.12, .009, z, .027, .021, TILE - .16);
+      const rail = phase === 'day' ? m.brass : m.steel;
+      for (let tread = 0; tread < 9; tread++) {
+        const u = (tread - 4) * .246;
+        batch.box(material, x + u, -.049, z, .172, .098, 2.24, 0, tint(variant()));
+        for (const offset of [-.62, .62]) batch.box(m.dark, x + u, -.006, z + offset, .149, .016, .043);
       }
-      for (let i = -2; i <= 2; i++) {
-        batch.box(m.dark, x + i * .38, .004, z, .04, .022, 2.10);
+      for (const direction of [-1, 1]) {
+        batch.box(rail, x + direction * 1.144, -.043, z, .09, .087, TILE - .015);
+        batch.box(rail, x, -.043, z + direction * 1.145, TILE - .017, .086, .087);
+        batch.box(m.dark, x, -.14, z + direction * .975, TILE - .04, .085, .1);
+        if (this.decoded.get(col + direction, row)?.kind !== kind) {
+          batch.box(light, x + direction * 1.144, .005, z, .020, .018, 2.19);
+        }
+        if (this.decoded.get(col, row + direction)?.kind !== kind) {
+          batch.box(light, x, .005, z + direction * 1.145, 2.23, .017, .020);
+        }
       }
       return;
     }
@@ -643,27 +682,6 @@ export class Visual {
     const batch = this.batches.neutral;
     const { x, z } = this.decoded.spawn;
     if (this.theme === 0) {
-      const panelX = x - 4.65;
-      const panelZ = z - 5.75;
-      batch.box(m.steel, panelX, 1.29, panelZ, 1.82, 1.57, .24);
-      batch.box(m.dark, panelX, 1.29, panelZ + .125, 1.73, 1.43, .06);
-      for (const side of [-1, 1]) {
-        this.batches.neutral.pipe(m.copper, new THREE.Vector3(panelX + side * .63, 2.03, panelZ + .08),
-          new THREE.Vector3(panelX + side * .63, 2.46, panelZ + .08), .14);
-        batch.box(m.brass, panelX + side * .63, 2.15, panelZ + .084, .22, .11, .24);
-        batch.box(m.dark, panelX + side * .85, .82, panelZ + .19, .039, .23, .04);
-        batch.add(unitCylinder, m.brass, [panelX + side * .48, 1.28, panelZ + .225], [.29, .09, .29],
-          { x: Math.PI / 2, y: 0, z: 0 });
-        batch.add(unitCylinder, m.bone, [panelX + side * .48, 1.28, panelZ + .28], [.238, .025, .238],
-          { x: Math.PI / 2, y: 0, z: 0 });
-        batch.box(m.rust, panelX + side * .45, 1.30, panelZ + .296, .015, .09, .009, 0);
-      }
-      const label = spriteText('B2 • BOILER', '#edc697', 'DUTY STATION');
-      this.localTextures.push(label);
-      const plaque = mesh(this.stage, unitPlane, new THREE.MeshBasicMaterial({ map: label }),
-        [panelX, 1.74, panelZ + .17], [1.42, .355, 1]);
-      plaque.receiveShadow = false;
-      this.lightSource(panelX + .30, 2.13, panelZ + .52, 10, 'general', .44);
       for (let i = 0; i < 8; i++) {
         const stripe = m[i % 2 ? 'dark' : 'brass'];
         batch.box(stripe, x - 1.1 + i * .3, .013, z - 5.44, .28, .022, .13);
@@ -672,11 +690,6 @@ export class Visual {
     } else if (this.theme === 1) {
       const wallZ = z - 4.81;
       const wallX = x - 2.48;
-      batch.box(m.accent, wallX, .44, wallZ + .23, 1.78, .88, .56);
-      batch.box(m.steel, wallX, .91, wallZ + .24, 1.87, .085, .59);
-      for (let j = 0; j < 3; j++) {
-        batch.box(m.bone, wallX + (j - 1) * .23, .982 + j * .017, wallZ + .29, .31, .025, .24, j * .11);
-      }
       const label = spriteText('F4 • PERSONNEL', '#e4dfbe', 'ARCHIVE / LUNCHROOM');
       this.localTextures.push(label);
       for (const side of [-1, 1]) {
@@ -686,13 +699,6 @@ export class Visual {
         [wallX, 1.97, wallZ], [1.68, .42, 1]);
       this.lightSource(wallX + .18, 2.20, wallZ + .47, 10, 'general', .46);
     } else {
-      const plant = this.decoded.get(this.decoded.spawn.col + 2, this.decoded.spawn.row - 2);
-      if (plant) {
-        batch.box(m.steel, plant.x, .64, plant.z + .5, 1.68, 1.28, .71);
-        batch.box(m.accent, plant.x, 1.31, plant.z + .5, 1.79, .1, .77);
-        this.makeFan(plant.x, .79, plant.z + .87, .60);
-      }
-      for (let i = 0; i < 3; i++) this.planter(x - 4.8 - i * .6, z - 4.65 - i * .14, 0, i);
       const tank = this.decoded.get(20, 6);
       if (tank) this.makeTank(tank.x, tank.z);
     }
@@ -771,13 +777,24 @@ export class Visual {
   makeSafeLamp(tile) {
     const m = this.materials;
     const b = this.batches.neutral;
-    const { x, z } = this.edgeOffset(tile, .72);
-    b.box(m.dark, x, .07, z, .42, .14, .37);
-    b.box(m.steel, x, .64, z, .12, 1.15, .12);
-    b.box(m.dark, x, 1.23, z, .42, .18, .34);
-    b.box(m.safe, x, 1.32, z, .32, .05, .25);
-    b.box(m.dark, x, 1.37, z, .42, .052, .34);
-    const beacon = this.lightSource(x, 1.36, z, 11, 'safe', .96);
+    const { x, z, angle } = this.edgeOffset(tile, .72);
+    b.box(m.dark, x, .08, z, .38, .16, .34, angle);
+    b.box(m.steel, x, .168, z, .31, .035, .28, angle);
+    for (const dx of [-.12, .12]) for (const dz of [-.103, .103]) {
+      b.add(unitCylinder, m.brass, [x + dx, .20, z + dz], [.046, .025, .046]);
+    }
+    b.add(unitCylinder, m.steel, [x, .72, z], [.096, 1.08, .096]);
+    b.add(unitCylinder, m.dark, [x, .24, z], [.171, .095, .171]);
+    b.add(unitCylinder, m.dark, [x, 1.16, z], [.155, .081, .155]);
+    b.add(unitCylinder, m.dark, [x, 1.255, z], [.33, .075, .33]);
+    b.add(unitCylinder, m.safe, [x, 1.34, z], [.273, .108, .273]);
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      b.add(unitCylinder, m.steel, [x + Math.sin(a) * .15, 1.34, z + Math.cos(a) * .15], [.024, .116, .024]);
+    }
+    b.add(unitCylinder, m.dark, [x, 1.418, z], [.342, .05, .342]);
+    b.add(unitCylinder, m.steel, [x, 1.449, z], [.257, .035, .257]);
+    const beacon = this.lightSource(x, 1.35, z, 10, 'safe', .73);
     const mat = new THREE.MeshBasicMaterial({
       map: this.glow, color: '#accf95', transparent: true, opacity: .19,
       depthWrite: false, blending: THREE.AdditiveBlending
@@ -924,30 +941,57 @@ export class Visual {
     const rng = random(3197);
     const mx = this.decoded.width * TILE / 2;
     const mz = this.decoded.depth * TILE / 2;
-    const city = standard('#36434d', { roughness: 1, fog: false });
+    const city = standard('#4c5456', { roughness: .86, fog: false });
+    const concrete = standard('#596063', { roughness: .88, fog: false });
+    const glass = standard('#283944', { metalness: .3, roughness: .24, fog: false });
+    const distant = standard('#676a70', { roughness: 1, fog: false });
     const windows = new THREE.MeshBasicMaterial({ color: '#b3a076', fog: false });
     const street = new THREE.MeshBasicMaterial({ color: '#453738', fog: false });
-    this.materials.city = city;
-    this.materials.windows = windows;
-    this.materials.street = street;
-    b.box(street, mx, -20, mz, 216, .1, 216);
-    const radius = Math.hypot(mx, mz) + 17;
-    for (let i = 0; i < 64; i++) {
-      const angle = i / 64 * Math.PI * 2;
-      const r = radius + rng() * 16;
-      const x = mx + Math.cos(angle) * r;
-      const z = mz + Math.sin(angle) * r;
-      const width = 2 + rng() * 5;
-      const depth = 2.5 + rng() * 4;
-      const h = 5 + rng() * 22;
-      b.box(city, x, (h + 3) / 2 - 20, z, width, h + 3, depth, 0, tint(rng()));
-      if (i % 3 === 0) b.box(m.dark, x, h - 15.9, z, .08, 2.4, .08);
-      for (let y = h - 17.8; y > Math.max(-10, h - 26); y -= .7) {
-        for (let u = -width * .4; u < width * .4; u += .65) {
-          if (rng() > .64) b.box(windows, x + u, y, z + (mz > z ? 1 : -1) * (depth / 2 + .013), .28, .16, .018);
+    Object.assign(this.materials, { city, concrete, glass, distant, windows, street });
+    b.box(street, mx, -22, mz, 216, .1, 216);
+    for (let i = 0; i < 68; i++) {
+      const a = i / 68 * Math.PI * 2 + rng() * .09;
+      const radius = 73 + rng() * 24;
+      const width = 2.3 + rng() * 5.4;
+      const height = 5.0 + rng() ** 2 * 21.5;
+      const x = mx + Math.cos(a) * radius;
+      const z = mz + Math.sin(a) * radius;
+      b.box(distant, x, height / 2 - 22, z, width, height, width, .13 + rng() * .18, tint(rng()));
+      if (i % 3 === 0) b.box(distant, x, height - 21.3, z, width * .64, 1.4, width * .55, .15);
+    }
+    for (let i = 0; i < 48; i++) {
+      const angle = i / 48 * Math.PI * 2 + rng() * .073;
+      const radius = 48 + rng() * 18;
+      const x = mx + Math.cos(angle) * radius;
+      const z = mz + Math.sin(angle) * radius;
+      const width = 2.9 + rng() * 5.4;
+      const depth = 3.1 + rng() * 5.3;
+      const height = 10 + rng() ** 1.8 * 24;
+      const top = height - 22;
+      const facade = tint(.3 + rng() * .65);
+      const facingX = mx > x ? 1 : -1;
+      const facingZ = mz > z ? 1 : -1;
+      const front = z + facingZ * (depth / 2 + .018);
+      const side = x + facingX * (width / 2 + .018);
+      b.box(city, x, height / 2 - 22, z, width, height, depth, 0, facade);
+      b.box(concrete, x, top + .095, z, width + .17, .19, depth + .17, 0, facade);
+      if (i % 2 === 0) b.box(city, x - width * .13, top + .55, z, width * .52, 1.1, depth * .55, 0, facade);
+      if (i % 4 === 0) b.box(concrete, x, top + 1.23, z, .09, 2.2, .09);
+      const activity = .61 + rng() * .35;
+      const columns = Math.floor(width / .89);
+      const rows = Math.floor(depth / .89);
+      const step = i % 3 === 0 ? 1.18 : .92;
+      for (let y = top - .72; y > Math.max(-13, top - 13); y -= step) {
+        b.box(concrete, x, y + .31, front, width, .066, .08, 0, facade);
+        for (let column = 0; column < columns; column++) {
+          const u = (column / columns - .5 + .5 / columns) * width;
+          const open = rng() > activity;
+          b.box(open ? windows : glass, x + u, y, front, .45, .36, .026, 0, open ? tint(rng()) : facade);
         }
-        for (let u = -depth * .4; u < depth * .4; u += .65) {
-          if (rng() > .68) b.box(windows, x + (mx > x ? 1 : -1) * (width / 2 + .013), y, z + u, .018, .16, .26);
+        for (let column = 0; column < rows; column++) {
+          const u = (column / rows - .5 + .5 / rows) * depth;
+          const open = rng() > activity + .075;
+          b.box(open ? windows : glass, side, y, z + u, .026, .34, .44, 0, open ? tint(rng()) : facade);
         }
       }
     }
@@ -971,30 +1015,41 @@ export class Visual {
   makeGhost() {
     const g = new THREE.Group();
     const cloak = new THREE.MeshStandardMaterial({
-      color: '#192727', emissive: '#234b50', emissiveIntensity: .5,
-      transparent: true, opacity: .83, depthWrite: false, roughness: .52
+      color: '#21262a', roughness: .93, side: THREE.DoubleSide,
+      emissive: '#192c2d', emissiveIntensity: .35,
+      transparent: true, opacity: .9, depthWrite: false
     });
-    const headMaterial = emit('#9dc2c3', .34);
-    const eyesMaterial = new THREE.MeshBasicMaterial({ color: '#c2f6f3', toneMapped: false });
-    const drape = new THREE.LatheGeometry([
-      new THREE.Vector2(.03, 0), new THREE.Vector2(.16, .22), new THREE.Vector2(.22, .45),
-      new THREE.Vector2(.32, .73), new THREE.Vector2(.39, 1.02), new THREE.Vector2(.29, 1.13)
-    ], 12);
-    mesh(g, drape, cloak, [0, .27, 0], [1, 1, .65]);
-    mesh(g, unitSphere, cloak, [0, 1.36, 0], [.68, .47, .37]);
-    mesh(g, unitSphere, headMaterial, [0, 1.72, .036], [.33, .44, .30]);
-    mesh(g, unitSphere, cloak, [0, 1.80, -.095], [.38, .41, .25]);
-    const mask = new THREE.MeshBasicMaterial({ color: '#17262b' });
-    mesh(g, unitSphere, mask, [0, 1.67, .158], [.25, .22, .079]);
-    const eyes = [-.077, .077].map(x => mesh(g, unitSphere, eyesMaterial, [x, 1.76, .165], [.07, .034, .021]));
+    const skin = standard('#75847d', { roughness: .83, emissive: '#304848', emissiveIntensity: .23 });
+    const bone = standard('#899189', { roughness: .87, emissive: '#192a28', emissiveIntensity: .11 });
+    const socket = standard('#202725', { roughness: .94 });
+    const eyesMaterial = new THREE.MeshBasicMaterial({ color: '#a2c8c0', toneMapped: false });
+    mesh(g, coatGeometry(), cloak, [0, .075, 0], [1, 1, 1]);
+    mesh(g, unitSphere, cloak, [0, 1.51, -.035], [.385, .40, .36]);
+    mesh(g, unitSphere, skin, [0, 1.63, .057], [.263, .36, .247]);
+    mesh(g, unitSphere, bone, [0, 1.528, .118], [.152, .192, .111]);
+    mesh(g, unitSphere, bone, [0, 1.606, .178], [.039, .099, .063]);
+    const eyes = [-1, 1].map(side => {
+      const brow = mesh(g, unitSphere, bone, [side * .063, 1.704, .158], [.104, .034, .042]);
+      brow.rotation.z = side * .19;
+      const cheek = mesh(g, unitSphere, skin, [side * .081, 1.591, .153], [.083, .068, .065]);
+      cheek.rotation.z = side * -.36;
+      const hole = mesh(g, unitSphere, socket, [side * .057, 1.662, .168], [.071, .056, .039]);
+      hole.rotation.z = side * -.14;
+      return mesh(g, unitSphere, eyesMaterial, [side * .057, 1.662, .188], [.021, .0125, .009]);
+    });
+    mesh(g, unitSphere, socket, [0, 1.53, .168], [.089, .038, .022]);
     const arms = [-1, 1].map(side => {
       const arm = new THREE.Group();
       arm.position.set(side * .27, 1.38, 0);
       arm.rotation.z = side * .25;
       g.add(arm);
-      mesh(arm, unitSphere, cloak, [0, -.28, 0], [.16, .70, .16]);
-      for (let i = 0; i < 3; i++) {
-        mesh(arm, unitSphere, headMaterial, [(i - 1) * .038, -.65, .028], [.035, .17, .045]);
+      mesh(arm, unitSphere, cloak, [0, -.22, 0], [.18, .54, .196]);
+      mesh(arm, unitSphere, cloak, [side * .025, -.465, .06], [.141, .31, .147]);
+      mesh(arm, unitSphere, skin, [side * .025, -.614, .101], [.092, .122, .061]);
+      for (let i = 0; i < 4; i++) {
+        const finger = mesh(arm, unitSphere, skin, [(i - 1.5) * .023 + side * .026, -.712, .105],
+          [.021, .092 + (i % 2) * .024, .026]);
+        finger.rotation.z = (i - 1.5) * .15;
       }
       return arm;
     });
@@ -1080,8 +1135,8 @@ export class Visual {
       const threat = typeof ghost.alert === 'number' ? ghost.alert : Number(Boolean(ghost.chase || ghost.state === 'chase'));
       actor.g.position.set(ghost.x, Math.sin(time * 3.6 + index) * .044 + (ghost.y || 0), ghost.z);
       actor.g.rotation.y = Math.atan2(state.x - ghost.x, state.z - ghost.z);
-      actor.cloak.opacity = .82 + Math.sin(time * 9 + index * 7) * .06;
-      actor.eyesMaterial.color.set(threat > .4 ? '#ff9c5a' : '#b0ffed');
+      actor.cloak.opacity = .93 + Math.sin(time * 4 + index * 7) * .042;
+      actor.eyesMaterial.color.set(threat > .4 ? '#f3c2a2' : '#a2c8c0');
       actor.halo.material.opacity = .14 + threat * .12;
       for (let i = 0; i < 2; i++) {
         actor.arms[i].rotation.x = -.15 - threat * .74 + Math.sin(time * 4 + i * 2) * .11;
@@ -1105,20 +1160,22 @@ export class Visual {
     const rw = Math.max(1, Math.floor(width * ratio));
     const rh = Math.max(1, Math.floor(height * ratio));
     this.frameTarget.setSize(rw, rh);
+    this.atmosphere.target.setSize(Math.max(1, Math.round(rw / 3)), Math.max(1, Math.round(rh / 3)));
     this.grade.uniforms.texel.value.set(1 / rw, 1 / rh);
   }
 
   updateLights(state, time, night) {
     const roof = this.theme === 2;
     this.fill.color.set('#dce3ed').lerp(COLD, night * .8);
-    this.fill.intensity = roof ? 1.65 - night * .33 : 1.17 - night * .42;
+    this.fill.intensity = roof ? 1.50 - night * .39 : .94 - night * .22;
+    this.scene.environmentIntensity = roof ? .63 - night * .31 : .57 - night * .19;
     this.rim.color.copy(WARM).lerp(COLD, night);
     this.rim.intensity = roof ? 1.85 - night * .18 : .64 - night * .12;
     this.lamp.color.copy(WARM).lerp(PALE, night);
     this.lamp.position.copy(this.camera.position);
     this.lamp.position.y -= .11;
     this.lamp.target.position.copy(this.camera.position).addScaledVector(this.view, 18);
-    this.lamp.intensity = (roof ? 5.8 : 10.2) + night * 12 + Math.sin(time * 18) * .15 * night;
+    this.lamp.intensity = (roof ? 5.8 : 14.8) + night * 15 + Math.sin(time * 18) * .15 * night;
     this.eyeFill.position.copy(this.camera.position);
     this.eyeFill.intensity = .55 + night * .66;
     const near = this.ambience
@@ -1139,6 +1196,18 @@ export class Visual {
       light.color.copy(source.color);
       if (source.type === 'general') light.color.lerp(COLD, night * .91);
       light.intensity = source.strength * pulse * (1 - Math.min(1, distance / 400) ** 1.4);
+    }
+    const { bulbs, tints } = this.atmosphere.uniforms;
+    for (let i = 0; i < bulbs.value.length; i++) {
+      const entry = near[i];
+      if (!entry) {
+        bulbs.value[i].set(0, 0, 0, 0);
+        continue;
+      }
+      const { source } = entry;
+      const ceilingSource = source.y > 2.3;
+      bulbs.value[i].set(source.x, source.y, source.z, ceilingSource ? source.strength * .095 : 0);
+      tints.value[i].copy(this.nearLights[i].color);
     }
     for (const source of this.ambience) {
       if (source.type === 'general') source.sprite.material.color.copy(WARM).lerp(COLD, night * .9);
@@ -1168,7 +1237,7 @@ export class Visual {
     this.groups.night.visible = Boolean(state.night);
     this.scene.background.copy(this.fogWarm).lerp(this.fogCold, night);
     this.scene.fog.color.copy(this.scene.background);
-    this.scene.fog.density = (this.theme === 2 ? .016 : .042) + night * (this.theme === 2 ? .003 : .024);
+    this.scene.fog.density = (this.theme === 2 ? .019 : .037) + night * (this.theme === 2 ? .004 : .024);
     this.resize(quality);
 
     const distance = this.last ? Math.hypot(state.x - this.last.x, state.z - this.last.z) : 0;
@@ -1205,6 +1274,8 @@ export class Visual {
       this.sky.material.uniforms.night.value = night;
       this.sky.material.uniforms.time.value = time;
       this.materials.street.color.set('#463938').lerp(this.fogCold, night);
+      this.materials.windows.color.setRGB(.29 + night * .95, .21 + night * .66, .11 + night * .25);
+      this.materials.distant.color.copy(this.scene.background).lerp(COLD, .15 + .08 * night);
     }
     for (const { rotor, speed } of this.kinetics) rotor.rotateZ(dt * speed * (1 - night * .92));
     this.updateParticles(state, time, quality);
@@ -1212,6 +1283,15 @@ export class Visual {
       this.renderQuality = quality;
       this.renderer.shadowMap.enabled = quality === 'high';
       this.lamp.castShadow = quality === 'high';
+      this.shadowTime = -1;
+    }
+    if (quality === 'high' && (time < this.shadowTime || time - this.shadowTime > .051 ||
+      this.shadowPhase !== state.night || this.shadowYaw !== yaw || this.shadowPitch !== pitch)) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this.shadowTime = time;
+      this.shadowPhase = state.night;
+      this.shadowYaw = yaw;
+      this.shadowPitch = pitch;
     }
     const uniforms = this.grade.uniforms;
     uniforms.time.value = time;
@@ -1224,8 +1304,21 @@ export class Visual {
       this.renderer.render(this.scene, this.camera);
       return;
     }
+    const cinematic = quality === 'high';
     this.renderer.setRenderTarget(this.frameTarget);
     this.renderer.render(this.scene, this.camera);
+    if (cinematic) {
+      const mist = this.atmosphere;
+      mist.uniforms.sceneDepth.value = this.frameTarget.depthTexture;
+      mist.uniforms.inverseProjection.value.copy(this.camera.projectionMatrixInverse);
+      mist.uniforms.cameraToWorld.value.copy(this.camera.matrixWorld);
+      mist.uniforms.time.value = time;
+      mist.uniforms.outdoors.value = this.theme === 2 ? 1 : 0;
+      this.renderer.setRenderTarget(mist.target);
+      this.renderer.render(mist.scene, mist.camera);
+    }
+    uniforms.effects.value = cinematic ? 1 : 0;
+    uniforms.shafts.value = cinematic ? 1 : 0;
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.postScene, this.postCamera);
   }
