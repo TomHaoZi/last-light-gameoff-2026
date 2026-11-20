@@ -1,5 +1,14 @@
+import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
+
 const SILENCE = 0.0001;
 const MAX_VOICES = 70;
+const CUE_COOLDOWN = { step: .105, warning: 1.38, howl: 7.8, snarl: 2.65 };
+const VOCAL_GAIN = {
+  howl: .57,    // At range its reverb and shape carry before the peak level.
+  scream: .69,  // The short alert must sit above the pursuit score.
+  snarl: .49,   // Audible beside footsteps without constant high-energy spikes.
+  grab: .85,    // The attack has a quick crest with headroom left for the impact.
+};
 const ROOMS = [
   { decay: 1.65, reflections: [0.023, 0.051, 0.11], rumble: 47, air: 610, room: 0.38 },
   { decay: 0.86, reflections: [0.016, 0.033, 0.074], rumble: 58, air: 400, room: 0.24 },
@@ -72,6 +81,8 @@ export class HorrorAudio {
     this.player = { x: 0, z: 0, yaw: 0 };
     this.lastFrame = -Infinity;
     this.lastCues = new Map();
+    this.vocalBuffers = new Map();
+    this.vocalEmitters = new Set();
     this.random = rng(0xfad24);
     this.liveVoices = 0;
     this.scoreIndex = 0;
@@ -145,6 +156,8 @@ export class HorrorAudio {
     this.nextScore = context.currentTime + 0.15;
     this.nextHeartbeat = this.nextScore;
     this.nextRoomEvent = this.nextScore + 3.5;
+    this.nextHowl = context.currentTime + 3.4;
+    this.nextSnarl = context.currentTime + 1.0;
     this.syncMaster();
   }
 
@@ -180,10 +193,9 @@ export class HorrorAudio {
     const pan = context.createStereoPanner();
     gate.gain.value = 0;
     input.connect(gate).connect(pan).connect(this.worldBus);
-    const breath = this.texture(context.createGain(), 'bandpass', 740 - index * 83, 1.8, 0.31, input);
-    this.drone(92 + index * 8.1, 0.083, input, 'triangle');
-    this.drone(93.25 + index * 8.1, 0.09, input);
-    return { breath, gate, pan };
+    const breath = this.texture(context.createGain(), 'bandpass', 740 - index * 83, 1.55, 0, input);
+    const wheeze = this.texture(context.createGain(), 'bandpass', 2330 - index * 141, 1.15, 0, input);
+    return { breath, wheeze, gate, pan };
   }
 
   setVolume(value) {
@@ -249,20 +261,7 @@ export class HorrorAudio {
     if (paused || now - this.lastFrame < 0.045) return;
     this.lastFrame = now;
 
-    const nearby = ghosts
-      .filter(ghost => ghost.active !== false && ghost.visible !== false)
-      .map(ghost => this.spatial(ghost))
-      .filter(channel => channel.distance < 13)
-      .sort((a, b) => a.distance - b.distance);
-    this.ghosts.forEach((slot, index) => {
-      const ghost = nearby[index];
-      const level = ghost ? ghost.amplitude * (0.18 + this.tension * 0.22) : 0;
-      ramp(slot.gate.gain, now, level, 0.10);
-      if (ghost) {
-        ramp(slot.pan.pan, now, ghost.pan, 0.10);
-        ramp(slot.breath.filter.frequency, now, 550 + ghost.amplitude * 400, 0.15);
-      }
-    });
+    this.updateCreatureSounds(now, ghosts);
     if (now + 0.09 >= this.nextScore) {
       this.score(Math.max(now + 0.02, this.nextScore));
       this.nextScore = Math.max(now, this.nextScore) + 0.48;
@@ -277,6 +276,81 @@ export class HorrorAudio {
       this.roomEvent(now + 0.05);
       this.nextRoomEvent = now + 4.7 + this.random() * 4.5;
     }
+  }
+
+  updateCreatureSounds(now, ghosts) {
+    const nearby = ghosts
+      .filter(ghost => ghost.active !== false && ghost.visible !== false)
+      .map(ghost => ({ ...this.spatial(ghost), ghost }))
+      .filter(channel => channel.distance < 27)
+      .sort((a, b) => a.distance - b.distance);
+    const grabbed = now - (this.lastCues.get('death') ?? -Infinity) < 1.55;
+    this.ghosts.forEach((slot, index) => {
+      const source = grabbed ? null : nearby[index];
+      const proximity = source ? clamp((7.1 - source.distance) / 4.9, 0, 1) : 0;
+      ramp(slot.gate.gain, now, proximity * (source?.amplitude ?? 0) * .63, 0.11);
+      if (proximity <= 0) return;
+      const alert = clamp(finite(source.ghost.alert, this.tension), 0, 1);
+      const rhythm = now * (2.05 + alert * 2.8) + index * 2.37 + .24 * Math.sin(now * 1.83);
+      const inhale = (.5 - .5 * Math.sin(rhythm)) ** 3.1;
+      const rattle = .77 + .23 * Math.sin(now * 33 + index * 6);
+      ramp(slot.pan.pan, now, source.pan, 0.08);
+      ramp(slot.breath.filter.frequency, now, 490 + inhale * 420 + alert * 235, 0.11);
+      ramp(slot.breath.gain.gain, now, (.12 + inhale * .64) * rattle, 0.08);
+      ramp(slot.wheeze.gain.gain, now, (.048 + inhale * .27) * (.64 + alert * .36), 0.08);
+    });
+
+    for (const emitter of this.vocalEmitters) {
+      if (emitter.finished) continue;
+      const present = emitter.position.key == null || (
+        emitter.floor === this.level && ghosts.includes(emitter.position)
+      );
+      if (!present || emitter.position.active === false || emitter.position.visible === false) {
+        // Finish this phrase after a shift. A return to the old phase gets a new call.
+        emitter.finished = true;
+        ramp(emitter.gain.gain, now, 0, .075);
+        continue;
+      }
+      const located = this.spatial(emitter.position);
+      ramp(emitter.gain.gain, now, located.amplitude, .075);
+      ramp(emitter.pan.pan, now, located.pan, .075);
+      ramp(emitter.filter.frequency, now, this.distanceCutoff(located.distance), .10);
+    }
+
+    if (grabbed || this.muted) return;
+    const closest = nearby[0];
+    if (now >= this.nextSnarl && closest && closest.distance < 6.0) {
+      this.cue('snarl', closest.ghost);
+      this.nextSnarl = now + 2.9 + this.random() * 2.8;
+    }
+    if (now >= this.nextHowl && this.tension < .39) {
+      const distant = nearby.find(source => source.distance > 7.0 && finite(source.ghost.alert) < .32);
+      if (distant) {
+        this.cue('howl', distant.ghost);
+        this.nextHowl = now + 9.8 + this.random() * 6.4;
+      }
+    }
+  }
+
+  creatureCue(name, at, position) {
+    if (this.muted || this.liveVoices >= MAX_VOICES) return;
+    const variant = (this.level + Math.floor(this.random() * 3)) % 3;
+    const key = name + '/' + variant;
+    let buffer = this.vocalBuffers.get(key);
+    if (!buffer) {
+      const samples = renderCreatureVoice(name, variant);
+      buffer = this.context.createBuffer(1, samples.length, CREATURE_SAMPLE_RATE);
+      buffer.copyToChannel(samples, 0);
+      this.vocalBuffers.set(key, buffer);
+    }
+    const source = this.context.createBufferSource();
+    const fader = this.context.createGain();
+    fader.gain.value = VOCAL_GAIN[name];
+    const bus = this.positionBus(position, at, buffer.duration + .11, true);
+    source.buffer = buffer;
+    source.connect(fader).connect(bus);
+    this.trackVoice(source, [fader]);
+    source.start(at);
   }
 
   tone(at, start, end, duration, strength, bus, type = 'sine', attack = 0.008) {
@@ -367,7 +441,11 @@ export class HorrorAudio {
     }
   }
 
-  positionBus(position, at, length = 2.1) {
+  distanceCutoff(distance) {
+    return clamp(10500 - distance * 525, 850, 10500);
+  }
+
+  positionBus(position, at, length = 2.1, follow = false) {
     if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) return this.worldBus;
     const context = this.context;
     const channel = this.spatial(position);
@@ -375,15 +453,18 @@ export class HorrorAudio {
     const pan = context.createStereoPanner();
     const gain = context.createGain();
     filter.type = 'lowpass';
-    filter.frequency.value = clamp(10500 - channel.distance * 525, 850, 10500);
+    filter.frequency.value = this.distanceCutoff(channel.distance);
     pan.pan.value = channel.pan;
     gain.gain.value = channel.amplitude;
     gain.connect(filter).connect(pan).connect(this.worldBus);
+    const emitter = follow ? { position, gain, filter, pan, floor: this.level } : null;
+    if (emitter) this.vocalEmitters.add(emitter);
     // A silent source fires onended on the audio clock even in suspended tabs.
     const cleanup = context.createConstantSource();
     cleanup.offset.value = 0;
     cleanup.connect(gain);
     cleanup.onended = () => {
+      if (emitter) this.vocalEmitters.delete(emitter);
       cleanup.disconnect();
       gain.disconnect();
       filter.disconnect();
@@ -405,9 +486,19 @@ export class HorrorAudio {
     const context = this.context;
     if (!context || this.paused) return;
     const at = context.currentTime + 0.006;
-    const cooldown = name === 'step' ? 0.105 : 0.065;
+    const cooldown = CUE_COOLDOWN[name] ?? .065;
     if (at - (this.lastCues.get(name) ?? -Infinity) < cooldown) return;
     this.lastCues.set(name, at);
+    if (name === 'howl' || name === 'snarl') {
+      this.creatureCue(name, at, position);
+      return;
+    }
+    if (name === 'warning') {
+      this.creatureCue('scream', at, position);
+      this.nextSnarl = Math.max(this.nextSnarl, at + 1.8);
+      this.duck(at, 0.33, 1.18);
+      return;
+    }
     const local = ['step', 'jump', 'land', 'death', 'revive', 'blocked', 'shift', 'hit', 'ending'].includes(name);
     let bus = local ? this.closeBus : this.worldBus;
     if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) {
@@ -447,12 +538,6 @@ export class HorrorAudio {
         [0, 3, 7].forEach((note, i) => this.bell(at + i * 0.09, freq(57 + note), 0.052, bus, 1.25));
         noise(0, 0.24, 0.082, 2750, 0.85, 0.03);
         break;
-      case 'warning':
-        tone(0, 330, 231, 0.52, 0.105, 'triangle', 0.13);
-        tone(0.11, 336, 227, 0.49, 0.047, 'sine', 0.15);
-        noise(0.06, 0.52, 0.18, 1280, 2.1, 0.21, 480);
-        this.duck(at, 0.58, 0.67);
-        break;
       case 'hit':
         tone(0, 105, 36, 0.32, 0.185);
         noise(0.014, 0.32, 0.27, 2800, 0.68, 0.004, 590);
@@ -460,6 +545,7 @@ export class HorrorAudio {
         this.duck(at, 0.57, 0.55);
         break;
       case 'death':
+        if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) this.creatureCue('grab', at, position);
         tone(0, 76, 22, 1.25, 0.23);
         tone(0.047, 142, 42, 0.76, 0.063, 'sawtooth', 0.021);
         noise(0.015, 1.28, 0.31, 740, 1.2, 0.105, 100);

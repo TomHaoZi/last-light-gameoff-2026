@@ -32,3 +32,5 @@
 The 3D renderer now generates surface maps, light probes, city shapes, props and signs in code. Surface weathering follows world coordinates across tile boundaries. The high graphics preset renders depth-aware shafts and contact shading. The controls guide names X as the phase key and explains the first bridge. The phase button, drag-to-look and arrow keys work in a browser embed without pointer lock.
 
 Desktop play captures the mouse inside the Start or Resume click. Relative mouse motion turns the camera, and Escape or loss of game focus pauses the shift. An embed that blocks capture still accepts free mouse motion inside the game canvas. Touch keeps drag-to-look.
+
+Each 3D creature has one closed, connected skinned body surface. The procedural head joins the neck below the jaw, and a facial morph deforms the lips and skin together. Dried marks, seams and folds are generated on the surface. The capture camera frames the actual creature as it lunges. Vocal calls are generated from resonant vocal contours and positioned in the room. A phase or room change fades interrupted calls.

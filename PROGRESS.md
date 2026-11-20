@@ -51,3 +51,9 @@ Added weathered physical materials, procedural reflections, light shafts, new cl
 Desktop mouse look is the default when entering or resuming the shift. Moving the mouse turns the view without holding a button. Escape releases the cursor and pauses. The menu, HUD and settings explain the desktop binding, while touch still has its own controls. All 63 existing automated tests and the syntax check passed.
 
 Chrome verified that moving the mouse with no buttons pressed turns the camera, Escape pauses and releases capture, and Resume captures again. An isolated sandbox that blocks pointer lock still accepted free mouse movement and X. The packaged Classic link now points to its explicit index page for itch.io hosting.
+
+## 3D edition · 3.0.0-rc.4
+
+Rebuilt the three creature bodies as continuous skinned meshes. Added integrated sculpted facial features, a jaw morph, worn workwear and localized dried blood. New code-generated voices cover distant howls, alert screams, near snarls and capture screeches, with spatial attenuation, room reflections and interruption on phase change.
+
+A normal-input Chrome session crossed both opening phase routes, triggered the first creature capture and returned to the saved lamp with full integrity. The 64-test suite passes. Creature renders were checked at each graphics tier. Offline stereo checks cover direction, peak headroom and phase transitions. Subjective headphone listening remains open.

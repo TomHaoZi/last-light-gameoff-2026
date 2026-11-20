@@ -22,7 +22,8 @@ test('three room transitions, threats and overlapping effects produce bounded st
   sound.initialize(context);
   const cues = new Map([
     [2, 'step'], [6, 'interact'], [11, 'pickup'], [22, 'door'], [35, 'shift'],
-    [42, 'warning'], [45, 'blocked'], [49, 'jump'], [52, 'land'], [59, 'hit'],
+    [42, 'warning'], [43, 'howl'], [45, 'blocked'], [49, 'jump'], [52, 'land'], [59, 'hit'],
+    [63, 'snarl'],
     [66, 'death'], [79, 'revive'], [89, 'ending'],
   ]);
 
@@ -35,6 +36,8 @@ test('three room transitions, threats and overlapping effects produce bounded st
     const cue = cues.get(frame);
     if (cue === 'step') sound.cue(cue, { surface: 'metal' });
     else if (cue === 'door' || cue === 'warning') sound.cue(cue, { x: 4, z: -1 });
+    else if (cue === 'howl') sound.cue(cue, { x: 12, z: 2 });
+    else if (cue === 'snarl' || cue === 'death') sound.cue(cue, { x: -.44, z: -.43 });
     else if (cue) sound.cue(cue);
   }
 
@@ -59,4 +62,57 @@ test('three room transitions, threats and overlapping effects produce bounded st
   }
   assert.ok(peak > 0.05 && peak < 0.98, `Unexpected stereo peak ${peak}`);
   assert.ok(stereoDifference / left.length > 0.003, 'Positional mix rendered effectively mono');
+});
+
+test('a live howl follows the listener and stays silent after the ghost changes phase', async () => {
+  const rate = 24_000;
+  const context = new OfflineAudioContext(2, 3 * rate, rate);
+  const audio = new HorrorAudio();
+  audio.initialize(context);
+  audio.roomBus.gain.value = 0;
+  audio.scoreBus.gain.value = 0;
+  // Room reflections can ring out after the dry positional emitter stops.
+  audio.wet.disconnect();
+
+  const ghost = { x: 11, z: 0, key: 'ghost-0', active: true };
+  const transitions = [
+    [0.16, () => {
+      audio.update({ ghosts: [ghost] });
+      audio.cue('howl', ghost);
+    }],
+    [0.41, () => {
+      audio.cue('howl', ghost);
+      assert.equal(audio.vocalEmitters.size, 1, 'a second call inside cooldown spawned another howl');
+    }],
+    [1.18, () => audio.update({ yaw: Math.PI, ghosts: [ghost] })],
+    [1.83, () => {
+      ghost.active = false;
+      audio.update({ yaw: Math.PI, ghosts: [ghost] });
+    }],
+    [2.08, () => {
+      ghost.active = true;
+      audio.update({ yaw: Math.PI, ghosts: [ghost] });
+    }],
+  ];
+
+  const updates = transitions.map(([time, apply]) => context.suspend(time).then(() => {
+    apply();
+    return context.resume();
+  }));
+  const rendered = await context.startRendering();
+  await Promise.all(updates);
+
+  function energy(channel, start, end) {
+    const samples = rendered.getChannelData(channel);
+    const first = Math.round(start * rate);
+    const last = Math.round(end * rate);
+    let total = 0;
+    for (let i = first; i < last; i++) total += samples[i] ** 2;
+    return total / (last - first);
+  }
+  assert.ok(energy(1, .66, .95) > .00005, 'distant vocal is inaudible');
+  assert.ok(energy(1, .66, .95) > 3 * energy(0, .66, .95), 'source did not start to the right');
+  assert.ok(energy(0, 1.39, 1.66) > 3 * energy(1, 1.39, 1.66), 'source did not move left on listener rotation');
+  assert.ok(energy(0, 1.98, 2.07) < energy(0, 1.39, 1.66) / 250, 'inactive ghost continues calling');
+  assert.ok(energy(0, 2.23, 2.40) < energy(0, 1.39, 1.66) / 250, 'an interrupted call resumed after a second shift');
 });

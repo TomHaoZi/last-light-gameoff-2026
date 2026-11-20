@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { applyWorldWeather, createSurfaceSet } from './surfaces.js';
 import { decorateModels } from './models.js';
 import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
+import { createCreature, updateCreature } from './creature.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -76,42 +77,6 @@ function spriteText(text, ink = '#fff4d4', caption = '') {
       ctx.fillText(caption, 19, 99, 460);
     }
   });
-}
-
-function coatGeometry() {
-  const levels = [
-    [.07, .22], [.24, .26], [.49, .28], [.72, .32],
-    [1.00, .31], [1.24, .37], [1.38, .30], [1.50, .17]
-  ];
-  const sides = 30;
-  const points = [];
-  const uv = [];
-  const indices = [];
-  for (let row = 0; row < levels.length; row++) {
-    const [height, radius] = levels[row];
-    for (let column = 0; column <= sides; column++) {
-      const theta = column / sides * Math.PI * 2;
-      const fold = (.024 * Math.sin(theta * 7 + row * .36) + .014 * Math.cos(theta * 11 - row * .83))
-        * Math.max(.4, 1 - height * .36);
-      const hem = row < 2 ? .076 * Math.sin(theta * 5) + .062 * Math.sin(theta * 7 + .32) : 0;
-      points.push(
-        Math.cos(theta) * (radius + fold) + .018 * Math.sin(row * 2),
-        height + hem,
-        Math.sin(theta) * (radius * .70 + fold)
-      );
-      uv.push(column / sides, row / (levels.length - 1));
-      if (row === levels.length - 1 || column === sides) continue;
-      const a = row * (sides + 1) + column;
-      const b = a + sides + 1;
-      indices.push(a, b, b + 1, a, b + 1, a + 1);
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
 }
 
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
@@ -392,13 +357,14 @@ export class Visual {
     this.postScene.add(new THREE.Mesh(unitPlane, this.grade));
     this.postCamera = new THREE.Camera();
     this.glow = glowTexture();
-    this.attack = this.makeAttack();
     this.stage = null;
     this.view = new THREE.Vector3();
+    this.captureTarget = new THREE.Vector3();
     this.last = null;
     this.velocity = 0;
     this.walk = 0;
     this.nightBlend = 0;
+    this.creatureExposure = 1;
     this.size = [0, 0, 0];
   }
 
@@ -422,6 +388,7 @@ export class Visual {
     this.velocity = 0;
     this.walk = 0;
     this.nightBlend = 0;
+    this.creatureExposure = 1;
     this.shadowTime = -1;
     this.ghosts = new Map();
     this.fogWarm = new THREE.Color(this.palette.daySky);
@@ -449,6 +416,16 @@ export class Visual {
     if (this.theme === 2) this.makeSkyline();
     Object.values(this.batches).forEach(batch => batch.build());
     this.makeParticles();
+    // Sculpt both phases at chapter entry so Shift never has to build a mesh.
+    decoded.ghosts.forEach((tile, index) => this.addCreature(tile.col + '/' + tile.row, index));
+  }
+
+  addCreature(key, index) {
+    const actor = createCreature(index, this.theme);
+    actor.group.visible = false;
+    this.stage.add(actor.group);
+    this.ghosts.set(key, actor);
+    return actor;
   }
 
   clearStage() {
@@ -456,6 +433,7 @@ export class Visual {
     const materials = new Set();
     this.stage.traverse(object => {
       if (object.isInstancedMesh) object.dispose();
+      if (object.isSkinnedMesh) object.skeleton.dispose();
       if (object.geometry && ![unitBox, unitCylinder, unitSphere, unitPlane].includes(object.geometry)) {
         transientGeometries.add(object.geometry);
       }
@@ -1012,138 +990,46 @@ export class Visual {
     this.stage.add(this.particles);
   }
 
-  makeGhost() {
-    const g = new THREE.Group();
-    const cloak = new THREE.MeshStandardMaterial({
-      color: '#21262a', roughness: .93, side: THREE.DoubleSide,
-      emissive: '#192c2d', emissiveIntensity: .35,
-      transparent: true, opacity: .9, depthWrite: false
-    });
-    const skin = standard('#75847d', { roughness: .83, emissive: '#304848', emissiveIntensity: .23 });
-    const bone = standard('#899189', { roughness: .87, emissive: '#192a28', emissiveIntensity: .11 });
-    const socket = standard('#202725', { roughness: .94 });
-    const eyesMaterial = new THREE.MeshBasicMaterial({ color: '#a2c8c0', toneMapped: false });
-    mesh(g, coatGeometry(), cloak, [0, .075, 0], [1, 1, 1]);
-    mesh(g, unitSphere, cloak, [0, 1.51, -.035], [.385, .40, .36]);
-    mesh(g, unitSphere, skin, [0, 1.63, .057], [.263, .36, .247]);
-    mesh(g, unitSphere, bone, [0, 1.528, .118], [.152, .192, .111]);
-    mesh(g, unitSphere, bone, [0, 1.606, .178], [.039, .099, .063]);
-    const eyes = [-1, 1].map(side => {
-      const brow = mesh(g, unitSphere, bone, [side * .063, 1.704, .158], [.104, .034, .042]);
-      brow.rotation.z = side * .19;
-      const cheek = mesh(g, unitSphere, skin, [side * .081, 1.591, .153], [.083, .068, .065]);
-      cheek.rotation.z = side * -.36;
-      const hole = mesh(g, unitSphere, socket, [side * .057, 1.662, .168], [.071, .056, .039]);
-      hole.rotation.z = side * -.14;
-      return mesh(g, unitSphere, eyesMaterial, [side * .057, 1.662, .188], [.021, .0125, .009]);
-    });
-    mesh(g, unitSphere, socket, [0, 1.53, .168], [.089, .038, .022]);
-    const arms = [-1, 1].map(side => {
-      const arm = new THREE.Group();
-      arm.position.set(side * .27, 1.38, 0);
-      arm.rotation.z = side * .25;
-      g.add(arm);
-      mesh(arm, unitSphere, cloak, [0, -.22, 0], [.18, .54, .196]);
-      mesh(arm, unitSphere, cloak, [side * .025, -.465, .06], [.141, .31, .147]);
-      mesh(arm, unitSphere, skin, [side * .025, -.614, .101], [.092, .122, .061]);
-      for (let i = 0; i < 4; i++) {
-        const finger = mesh(arm, unitSphere, skin, [(i - 1.5) * .023 + side * .026, -.712, .105],
-          [.021, .092 + (i % 2) * .024, .026]);
-        finger.rotation.z = (i - 1.5) * .15;
-      }
-      return arm;
-    });
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: this.glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#bdf4f1', opacity: .2
-    }));
-    halo.position.set(0, 1.63, -.07);
-    halo.scale.set(1.2, 1.55, 1);
-    g.add(halo);
-    this.stage.add(g);
-    return { g, cloak, eyes, eyesMaterial, arms, halo };
-  }
-
-  makeAttack() {
-    const group = new THREE.Group();
-    this.camera.add(group);
-    group.visible = false;
-    const sleeve = new THREE.MeshBasicMaterial({ color: '#233137' });
-    const skin = new THREE.MeshBasicMaterial({ color: '#526d6d' });
-    const nails = new THREE.MeshBasicMaterial({ color: '#a2aba1' });
-    const pad = new THREE.MeshBasicMaterial({ color: '#3d5354' });
-    const hands = [-1, 1].map(side => {
-      const hand = new THREE.Group();
-      hand.rotation.y = side * .26;
-      group.add(hand);
-      const forearm = mesh(hand, unitSphere, sleeve, [side * .059, -.17, .055], [.133, .46, .113]);
-      forearm.rotation.z = side * .27;
-      mesh(hand, unitSphere, skin, [0, .047, -.025], [.113, .16, .065]);
-      mesh(hand, unitSphere, pad, [0, .074, .001], [.096, .113, .040]);
-      const fingers = [];
-      for (let i = 0; i < 4; i++) {
-        const finger = new THREE.Group();
-        finger.position.set((i - 1.5) * .032, .115, -.022);
-        finger.rotation.z = (i - 1.5) * side * -.13;
-        hand.add(finger);
-        const length = [.076, .097, .103, .081][i];
-        mesh(finger, unitSphere, skin, [0, length * .50, 0], [.021, length * 1.25, .027]);
-        mesh(finger, unitSphere, pad, [0, length * .53, .004], [.022, .025, .027]);
-        const tip = mesh(finger, unitSphere, nails, [0, length * 1.04, -.014], [.014, .030, .015]);
-        tip.rotation.x = -.41;
-        fingers.push(finger);
-      }
-      const thumb = mesh(hand, unitSphere, skin, [-side * .068, .045, -.02], [.043, .105, .042]);
-      thumb.rotation.z = side * -.45;
-      return { hand, side, fingers };
-    });
-    group.traverse(object => {
-      object.castShadow = false;
-      object.receiveShadow = false;
-    });
-    return { group, hands };
-  }
-
-  updateAttack(state, lifeTime, reduced) {
-    const { group, hands } = this.attack;
-    group.visible = state.life === 'dying' && state.deathCause === 'ghost';
-    if (!group.visible) return;
-    const grab = THREE.MathUtils.smoothstep(lifeTime, .02, .25);
-    const clutch = THREE.MathUtils.smoothstep(lifeTime, .19, .42);
-    const drop = THREE.MathUtils.smoothstep(lifeTime, .65, 1.06);
-    for (const { hand, side, fingers } of hands) {
-      hand.position.set(side * (.55 - grab * .36 + drop * .23), -.39 + grab * .34 - drop * .22, -.50 - grab * .16);
-      hand.rotation.z = side * (.62 + grab * .39 + drop * .29);
-      hand.rotation.x = -.2 + clutch * .43 + (reduced ? 0 : Math.sin(lifeTime * 18) * .04);
-      for (const [i, finger] of fingers.entries()) finger.rotation.x = -.19 + clutch * (.96 - i * .09);
-    }
-  }
-
-  updateGhosts(state) {
+  updateGhosts(state, dt, reduced) {
     const seen = new Set();
+    let faceExposure = 1;
     for (const [index, ghost] of (state.ghosts || []).entries()) {
       const key = ghost.key ?? ghost.id ?? index;
       seen.add(key);
+      const visible = ghost.active !== false && (ghost.phase !== 'night' || state.night) &&
+        (ghost.phase !== 'day' || !state.night);
       let actor = this.ghosts.get(key);
-      if (!actor) {
-        actor = this.makeGhost();
-        this.ghosts.set(key, actor);
+      if (!visible) {
+        if (actor) actor.group.visible = false;
+        continue;
       }
-      const visible = ghost.active !== false && (ghost.phase !== 'night' || state.night) && (ghost.phase !== 'day' || !state.night);
-      actor.g.visible = visible;
-      if (!visible) continue;
-      const time = state.time || 0;
+      const toward = Math.atan2(state.x - ghost.x, state.z - ghost.z);
+      if (!actor) actor = this.addCreature(key, index);
+      const wasVisible = actor.group.visible;
+      actor.group.visible = true;
       const threat = typeof ghost.alert === 'number' ? ghost.alert : Number(Boolean(ghost.chase || ghost.state === 'chase'));
-      actor.g.position.set(ghost.x, Math.sin(time * 3.6 + index) * .044 + (ghost.y || 0), ghost.z);
-      actor.g.rotation.y = Math.atan2(state.x - ghost.x, state.z - ghost.z);
-      actor.cloak.opacity = .93 + Math.sin(time * 4 + index * 7) * .042;
-      actor.eyesMaterial.color.set(threat > .4 ? '#f3c2a2' : '#a2c8c0');
-      actor.halo.material.opacity = .14 + threat * .12;
-      for (let i = 0; i < 2; i++) {
-        actor.arms[i].rotation.x = -.15 - threat * .74 + Math.sin(time * 4 + i * 2) * .11;
-        actor.arms[i].rotation.z = (i === 0 ? 1 : -1) * (.15 + threat * .06);
-      }
+      const distance = Math.hypot(state.x - ghost.x, state.z - ghost.z);
+      const relativeBearing = -toward - (state.yaw || 0);
+      const inView = THREE.MathUtils.smoothstep(Math.cos(relativeBearing), .70, .93);
+      const proximity = 1 - THREE.MathUtils.smoothstep(distance, .96, 3.22);
+      faceExposure = Math.min(faceExposure, 1 - .79 * proximity * inView);
+      const attacking = state.life === 'dying' && state.deathCause === 'ghost' && ghost === state.pursuer;
+      const attack = attacking ? THREE.MathUtils.smoothstep(state.lifeTimer, 0, .18) *
+        (1 - .44 * THREE.MathUtils.smoothstep(state.lifeTimer, .47, .93)) : 0;
+      const dx = ghost.x - actor.group.position.x;
+      const dz = ghost.z - actor.group.position.z;
+      const travel = Math.hypot(dx, dz);
+      const moving = wasVisible && actor.placed && travel > .002;
+      const bearing = moving && threat < .33 && !attack ? Math.atan2(dx, dz) : toward;
+      const turn = bearing - actor.group.rotation.y;
+      actor.group.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) *
+        (wasVisible ? Math.min(1, dt * (attack ? 17 : 8)) : 1);
+      actor.group.position.set(ghost.x, ghost.y || 0, ghost.z);
+      actor.placed = true;
+      updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced, moving, dt, travel });
     }
-    for (const [key, actor] of this.ghosts) if (!seen.has(key)) actor.g.visible = false;
+    for (const [key, actor] of this.ghosts) if (!seen.has(key)) actor.group.visible = false;
+    return faceExposure;
   }
 
   resize(quality = 'high') {
@@ -1164,7 +1050,7 @@ export class Visual {
     this.grade.uniforms.texel.value.set(1 / rw, 1 / rh);
   }
 
-  updateLights(state, time, night) {
+  updateLights(state, time, night, exposure) {
     const roof = this.theme === 2;
     this.fill.color.set('#dce3ed').lerp(COLD, night * .8);
     this.fill.intensity = roof ? 1.50 - night * .39 : .94 - night * .22;
@@ -1175,9 +1061,9 @@ export class Visual {
     this.lamp.position.copy(this.camera.position);
     this.lamp.position.y -= .11;
     this.lamp.target.position.copy(this.camera.position).addScaledVector(this.view, 18);
-    this.lamp.intensity = (roof ? 5.8 : 14.8) + night * 15 + Math.sin(time * 18) * .15 * night;
+    this.lamp.intensity = ((roof ? 5.8 : 14.8) + night * 15 + Math.sin(time * 18) * .15 * night) * exposure;
     this.eyeFill.position.copy(this.camera.position);
-    this.eyeFill.intensity = .55 + night * .66;
+    this.eyeFill.intensity = (.55 + night * .66) * exposure;
     const near = this.ambience
       .map(source => ({ source, distance: (source.x - state.x) ** 2 + (source.z - state.z) ** 2 }))
       .filter(entry => entry.distance < 20 ** 2)
@@ -1246,11 +1132,38 @@ export class Visual {
     this.walk += this.velocity * dt * 2.8;
     const bob = reduced ? 0 : Math.sin(this.walk) * this.velocity * .011;
     const lean = reduced ? 0 : Math.cos(this.walk * .52) * this.velocity * .003;
-    const collapse = dying ? Math.min(1, Math.abs(lifeTime) * 1.25 + .14) :
-      revival ? .57 * (1 - THREE.MathUtils.smoothstep(lifeTime, .08, .63)) : 0;
+    const caught = dying && state.deathCause === 'ghost';
+    const collapse = caught ? THREE.MathUtils.smoothstep(lifeTime, .38, 1.07) :
+      dying ? Math.min(1, Math.abs(lifeTime) * 1.25 + .14) :
+        revival ? .57 * (1 - THREE.MathUtils.smoothstep(lifeTime, .08, .63)) : 0;
     this.camera.position.set(state.x, (state.y || 0) + EYE + bob - collapse * 1.19, state.z);
-    const yaw = state.yaw || 0;
-    const pitch = (state.pitch || 0) - (reduced ? 0 : collapse * .17);
+    let yaw = state.yaw || 0;
+    let pitch = (state.pitch || 0) - (reduced ? 0 : collapse * .17);
+    const faceExposure = this.updateGhosts(state, dt, reduced);
+    if (caught && state.pursuer && !reduced) {
+      const actor = this.ghosts.get(state.pursuer.key ?? state.pursuer.id);
+      const target = this.captureTarget.set(state.pursuer.x, 1.76, state.pursuer.z);
+      if (actor?.head) {
+        actor.head.getWorldPosition(target);
+        target.y += .158;
+      }
+      const hold = THREE.MathUtils.smoothstep(lifeTime, .015, .165) *
+        (1 - THREE.MathUtils.smoothstep(lifeTime, .57, .99));
+      const approach = Math.atan2(target.x - state.x, -(target.z - state.z));
+      const recoil = .41 * hold;
+      const x = state.x - Math.sin(approach) * recoil;
+      const z = state.z + Math.cos(approach) * recoil;
+      if (this.decoded.at(x, z)?.kind !== '#') {
+        this.camera.position.x = x;
+        this.camera.position.z = z;
+      }
+      const dx = target.x - this.camera.position.x;
+      const dz = target.z - this.camera.position.z;
+      const facing = Math.atan2(dx, -dz) - yaw;
+      yaw += Math.atan2(Math.sin(facing), Math.cos(facing)) * hold;
+      const headPitch = Math.atan2(target.y - this.camera.position.y, Math.max(.25, Math.hypot(dx, dz)));
+      pitch = THREE.MathUtils.lerp(pitch, headPitch, hold);
+    }
     this.view.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     this.camera.lookAt(delta.copy(this.camera.position).add(this.view));
     this.camera.rotateZ(lean + (reduced ? 0 : collapse * .31));
@@ -1259,9 +1172,10 @@ export class Visual {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fov, Math.min(1, dt * 9));
       this.camera.updateProjectionMatrix();
     }
-    this.updateLights(state, time, night);
-    this.updateGhosts(state);
-    this.updateAttack(state, lifeTime, reduced);
+    // Prevent the flashlight from flattening a face at arm’s length.
+    this.creatureExposure = THREE.MathUtils.lerp(this.creatureExposure, faceExposure, Math.min(1, dt * 13));
+    const exposure = caught ? 1 - .94 * THREE.MathUtils.smoothstep(lifeTime, .015, .19) : this.creatureExposure;
+    this.updateLights(state, time, night, exposure);
     const door = Math.min(1, Math.max(0, state.door || 0));
     const slide = door * door * (3 - 2 * door);
     this.door.position.y = slide * 2.28;
