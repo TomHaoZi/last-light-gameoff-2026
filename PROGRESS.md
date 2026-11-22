@@ -1,5 +1,13 @@
 # Progress · 2.0.0-rc.1
 
+## Advanced routes · 3.0.0-rc.12
+
+- Both fresh 2D Chrome journeys cleared all 18 work areas and persisted their respective endings. The complete route deliberately missed the first phase catch in every section, recovered, then completed 131 ordered jumps and 77 airborne phase switches. The normal route used the existing section controller without mandatory advanced routes. Neither journey lost a life.
+- The fire corridor was replayed from the earlier failed save. The player climbed all eight steps of the added recovery stair and completed the fire controls before continuing to Gary's office.
+- The extracted 3D release reached both endings in separate fresh Chrome runs with all three floors cleared and zero deaths. Separate real-input shortcut runs landed 3, 3 and 4 jumps, accepted seven airborne switches and revived at the nearby lamp after an intentional fall on every floor.
+- The 1440p High archive walk trials measured a 16.7–33.3 ms frame interval on the first night switch. Those cold tests cover the archive walk and first switch under the tested host load.
+- All 90 unit and integration cases passed. [Section-by-section browser receipt](docs/route-playtest-rc12.json).
+
 ## Dual-edition visual refresh · 3.0.0-rc.11
 
 - Added pixel-crafted room dressings and day/night backdrops across all 18 sections, revised the janitor and ghosts, and redrew door and phase effects. Seventy-two paired Chrome fixture cases cover the 18 sections in each phase. Inactive platforms remain pixel-invisible during the transition.

@@ -1,7 +1,7 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.11
+## 2D and 3D browser release · 3.0.0-rc.12
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -21,6 +21,22 @@ python3 scripts/package-3d.py
 - The visual update adds floor-specific fittings, practical fixtures and signs, a refined phase effect, and individual face, workwear and movement details for each 3D pursuer.
 - Hold the directional pad with one finger and drag the scene with another to move and look around together. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
 - The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows the original 2D edition.
+
+### Advanced maintenance routes
+
+- **2D** has an upper route in each of the 18 sections. Hold Space, switch with **X** while airborne, and land before launching again. The upper route rejoins the room beyond the first gap and has an emergency lamp. You can also reach every work station from the lower walkways.
+- **3D** has a sprint-jump shortcut on each floor. Save at the lamp beside the entrance, hold **Shift** to sprint, jump with **Space**, and press **X** before landing on the next pad. On the roof, turn between jumps. The standard corridors still lead to the lift.
+
+The Chrome runners exercise the real game with keyboard input. The 2D relay run deliberately misses the first catch in each section, retries, verifies the lamp save, and then clears the section. The 3D shortcut runner checks every jump and lamp revival. Its journey mode starts a fresh game and follows the standard corridors.
+
+[Read the browser receipt for all 21 sections and floors.](docs/route-playtest-rc12.json)
+
+```sh
+EVIDENCE_DIR=/tmp/last-light-2d-relays CHECK_RELAYS=1 CHECK_RELAY_RECOVERY=1 ENDING=complete npm run test:playthrough
+EVIDENCE_DIR=/tmp/last-light-2d-normal npm run test:playthrough
+node scripts/browser-3d-shortcuts.mjs
+JOURNEY=complete node scripts/browser-3d-shortcuts.mjs
+```
 
 ## Expanded 2D edition
 

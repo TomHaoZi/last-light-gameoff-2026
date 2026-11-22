@@ -1,7 +1,6 @@
 // Shared scale and real player physics for both archived local baseline and new
 // sectors. This is component reachability, not enemy-aware whole-game proof.
 import {createPlayer,stepPlayer} from '../dist/core.js';
-import {level as baselineLevel} from '../docs/evidence/baseline/core-baseline.mjs';
 import {buildSector} from '../dist/world.js';
 import {CollisionIndex} from '../dist/spatial.js';
 import {canShift} from '../dist/phase.js';
@@ -54,6 +53,7 @@ export function measureSpace(platforms,reachable,walls=[]){
  return {walkablePixels,equivalent480pxRuns:walkablePixels/480,occupiedScreens:[...tiles].filter(([,n])=>n>=240).map(([id])=>id),screenRule:'480×270 grid; at least 240px reachable non-overlapping standing-centre intervals per cell; phase union, no moving-platform sweep counted'};
 }
 export async function audit(){
+ const {level:baselineLevel}=await import('../docs/evidence/baseline/core-baseline.mjs');
  const sources={};for(const file of ['dist/core.js','dist/world.js','dist/chapters.js','docs/evidence/baseline/core-baseline.mjs'])sources[file]=createHash('sha256').update(await readFile(file)).digest('hex');
  const report={kind:'component reachability and conservative standing-space metric; not full-game acceptance',sources,chapters:[]};
  for(let chapter=0;chapter<3;chapter++){

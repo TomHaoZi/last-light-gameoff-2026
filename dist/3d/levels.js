@@ -4,12 +4,29 @@ const DAY = "day";
 const NIGHT = "night";
 const floorKinds = new Set(".dnSELABC12GHJ~!P");
 
+// Each shortcut crosses existing work areas. Coordinates name real pads; a
+// single empty cell between them leaves a gap that a running jump can span.
+const shortcuts = [
+  {
+    title: ["Return duct shortcut", "回流管道捷径"],
+    pads: [[7, 16], [9, 16, NIGHT], [11, 16, DAY], [13, 16]],
+  },
+  {
+    title: ["File wing shortcut", "档案侧翼捷径"],
+    pads: [[12, 15], [14, 15, DAY], [16, 15, NIGHT], [18, 15]],
+  },
+  {
+    title: ["Water tower transfer", "水塔检修捷径"],
+    pads: [[15, 16], [17, 16, NIGHT], [17, 14, DAY], [19, 14, NIGHT], [19, 12]],
+  },
+];
+
 /**
  * Authoring coordinates describe complete rooms and corridors, inclusive of
  * both endpoints. Indoor plans get an exterior wall course. The rooftop uses
  * open space around isolated slabs so a missing bridge opens into an abyss.
  */
-function plan(width, depth, rooms, markers, enclosed = true) {
+function plan(width, depth, rooms, markers, { enclosed = true, shortcut } = {}) {
   const grid = Array.from({ length: depth }, () => Array(width).fill(" "));
   for (const [left, top, right, bottom, kind = "."] of rooms) {
     for (let row = top; row <= bottom; row++) {
@@ -22,6 +39,25 @@ function plan(width, depth, rooms, markers, enclosed = true) {
     }
     grid[row][col] = kind;
   }
+  const gaps = new Set();
+  const pads = shortcut?.pads ?? [];
+  for (const [index, [col, row, phase]] of pads.entries()) {
+    if (index > 0) {
+      const [fromCol, fromRow] = pads[index - 1];
+      const distance = Math.abs(fromCol - col) + Math.abs(fromRow - row);
+      const gapCol = (fromCol + col) / 2;
+      const gapRow = (fromRow + row) / 2;
+      if (distance !== 2 || grid[gapRow]?.[gapCol] !== " ") {
+        throw new Error(`Shortcut leg needs one empty cell before ${col},${row}`);
+      }
+      gaps.add(gapCol + "/" + gapRow);
+    }
+    const expected = phase ? " " : ".";
+    if (grid[row]?.[col] !== expected) {
+      throw new Error(`Shortcut pad ${col},${row} needs ${phase ? "empty space" : "neutral floor"}`);
+    }
+    if (phase) grid[row][col] = phase === DAY ? "d" : "n";
+  }
   if (enclosed) {
     const shell = grid.map(row => [...row]);
     for (let row = 0; row < depth; row++) {
@@ -29,7 +65,8 @@ function plan(width, depth, rooms, markers, enclosed = true) {
         if (!floorKinds.has(grid[row][col])) continue;
         for (let dz = -1; dz <= 1; dz++) {
           for (let dx = -1; dx <= 1; dx++) {
-            if (grid[row + dz]?.[col + dx] === " ") shell[row + dz][col + dx] = "#";
+            const x = col + dx, z = row + dz;
+            if (grid[z]?.[x] === " " && !gaps.has(x + "/" + z)) shell[z][x] = "#";
           }
         }
       }
@@ -56,11 +93,11 @@ const boiler = plan(26, 19, [
   [13, 14, 20, 16],   // Optional duty-board annex
   [2, 4, 4, 5],
 ], [
-  ["S", 5, 16], ["L", 5, 15], ["L", 6, 9], ["L", 15, 10],
+  ["S", 5, 16], ["L", 5, 15], ["L", 6, 9], ["L", 15, 10], ["L", 7, 15],
   ["A", 3, 8], ["1", 3, 4], ["B", 19, 10], ["2", 19, 15],
   ["C", 18, 1], ["E", 21, 1], ["G", 15, 7], ["H", 19, 6],
   ["~", 8, 7], ["~", 12, 8], ["!", 21, 8],
-]);
+], { shortcut: shortcuts[0] });
 
 const office = plan(25, 18, [
   [8, 13, 12, 16],    // Foyer
@@ -68,6 +105,7 @@ const office = plan(25, 18, [
   [7, 1, 14, 3],      // Public records
   [10, 4, 11, 5, "d"],
   [16, 6, 22, 12],    // Gary's wing
+  [18, 13, 18, 15],   // Return landing for the file wing shortcut
   [14, 8, 15, 9, "n"],
   [18, 8, 18, 10, "#"],
   [17, 1, 22, 3],     // Upper lift lobby
@@ -78,11 +116,11 @@ const office = plan(25, 18, [
   [2, 9, 3, 9, "#"],
   [1, 2, 3, 4],       // Dead-end oral-history alcove
 ], [
-  ["S", 10, 15], ["L", 10, 13], ["L", 12, 10], ["L", 20, 6],
+  ["S", 10, 15], ["L", 10, 13], ["L", 12, 10], ["L", 20, 6], ["L", 12, 14],
   ["A", 11, 2], ["1", 8, 2], ["B", 20, 8], ["2", 21, 7],
   ["C", 2, 7], ["E", 21, 2], ["G", 13, 2], ["H", 17, 9],
   ["J", 3, 12], ["!", 4, 6], ["~", 4, 10],
-]);
+], { shortcut: shortcuts[1] });
 
 const roof = plan(27, 19, [
   [8, 14, 15, 17],    // Lift landing
@@ -102,11 +140,11 @@ const roof = plan(27, 19, [
   [21, 1, 25, 1],
   [21, 2, 22, 2],
 ], [
-  ["S", 11, 16], ["L", 11, 15], ["L", 10, 10], ["L", 14, 3],
+  ["S", 11, 16], ["L", 11, 15], ["L", 10, 10], ["L", 14, 3], ["L", 15, 15],
   ["A", 13, 8], ["1", 3, 10], ["B", 3, 7], ["2", 9, 2],
   ["C", 23, 7], ["P", 12, 2], ["E", 15, 2], ["G", 5, 5], ["H", 14, 6],
   ["J", 24, 11], ["!", 20, 7], ["~", 22, 6], ["!", 21, 1],
-], false);
+], { enclosed: false, shortcut: shortcuts[2] });
 
 export const LEVELS = [
   {
@@ -118,6 +156,7 @@ export const LEVELS = [
     objective: "Release pressure, open the cooling line, and inspect the fire interlock.",
     objectiveZh: "释放压力、打开冷却管线，检查消防联锁。",
     rows: boiler,
+    shortcut: shortcuts[0],
     spawnYaw: 0,
     requiredPhase: { A: DAY },
     messages: {
@@ -139,6 +178,7 @@ export const LEVELS = [
     objective: "Recover the public register, correct Gary’s record, and leave his lunch.",
     objectiveZh: "取回公开名单、补正 Gary 的记录，把饭盒留给他。",
     rows: office,
+    shortcut: shortcuts[1],
     spawnYaw: 0,
     requiredPhase: { B: NIGHT },
     messages: {
@@ -160,6 +200,7 @@ export const LEVELS = [
     objective: "Water the rooftop beds and leave a light for the last person.",
     objectiveZh: "给屋顶的三处花床浇水，为最后一个人留灯。",
     rows: roof,
+    shortcut: shortcuts[2],
     spawnYaw: 0,
     requiredPhase: { C: DAY },
     messages: {
@@ -233,9 +274,13 @@ export function decodeLevel(spec) {
   }
   if (!spawn || !exit) throw new Error(`Level ${spec.id} requires a spawn and an exit`);
   const get = (col, row) => cells[row]?.[col] ?? null;
+  const shortcut = spec.shortcut && {
+    title: spec.shortcut.title,
+    pads: spec.shortcut.pads.map(([col, row]) => get(col, row)),
+  };
   return {
     width, depth, worldWidth: width * TILE, worldDepth: depth * TILE, tiles, walls, floors,
-    spawn, exit, power, lamps, stations, clues, ghosts, hazards, get,
+    spawn, exit, power, lamps, stations, clues, ghosts, hazards, shortcut, get,
     at: (x, z) => get(Math.floor(x / TILE), Math.floor(z / TILE)),
   };
 }

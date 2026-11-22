@@ -45,6 +45,22 @@ export class Art{
  platform(p){const {x,y,w,phase,surface}=p,xx=x-this.cam;const isActive=phaseActive(p,this.gameplayNight);if(xx>500||xx+w< -20||!isActive||y<(this.viewTop??-1e6)-25||y>(this.viewBottom??1e6))return;const r=phase==='night'?RAMPS.blue:phase==='day'?RAMPS.gold:RAMPS.iron;
    if(phase){this.glow(xx+w/2,y+3,w*.65,13,phase==='night'?'#78a9c4':'#e8bd72',.08);this.box(xx,y,w,7,r);for(let k=0;k<w-6;k+=12){this.rect(xx+3+k,y+3,6,2,r[2]);this.rect(xx+3+k,y,3,1,r[0]);}}
    else{this.box(xx,y,w,18,surface==='carpet'?RAMPS.teal:RAMPS.iron);this.rect(xx+1,y+3,w-2,4,blend('#798b77','#4c685e',this.n));for(let k=0;k<w;k+=24){const variant=Math.floor((x+k)/24)%3;this.line(xx+k+3,y+2,variant===0?14:variant===1?8:18,'#b4b79a');this.rect(xx+k+19,y+8,3,3,RAMPS.iron[3]);this.rect(xx+k+19,y+8,2,1,RAMPS.rust[0]);this.rect(xx+k+20,y+11,2,4,RAMPS.rust[2]);if(surface==='grate'){for(let j=0;j<3;j++)this.rect(xx+k+3+j*5,y+7,2,7,RAMPS.iron[3]);}else if(variant===1){this.rect(xx+k+5,y+12,9,2,RAMPS.iron[3]);this.rect(xx+k+8,y+10,6,3,RAMPS.iron[3]);}}}}
+ servicePlaque(x,y,width,title,controls){
+   x-=this.cam;
+   if(x+width<0||x>480||y+25<this.viewTop||y>this.viewBottom)return;
+   this.box(x,y,width,controls?25:14,RAMPS.iron);
+   this.rect(x+2,y+2,width-5,controls?20:9,'#233a3a');
+   this.line(x+4,y+3,width-9,'#869c87');
+   this.label(title,x+5,y+11,'#edd4a1',6);
+   if(controls)this.label(controls,x+5,y+20,'#b3c8bd',6);
+ }
+ serviceRoute(s){
+   const route=s.sectorData.relay;
+   if(!route)return;
+   const takeoff=route.steps[0],landing=route.steps.at(-1),zh=s.lang==='zh';
+   this.servicePlaque(takeoff.x-28,takeoff.y-58,76,zh?'↑ 检修捷径':'↑ UPPER ROUTE',zh?'空格跳  X 切换':'SPACE / X');
+   this.servicePlaque(landing.x+51,landing.y-54,43,zh?'捷径灯':'RELAY');
+ }
  item(item,index){if(item.got||item.present===false||item.y<(this.viewTop??-1e6)-30||item.y>(this.viewBottom??1e6))return;const x=item.x-this.cam,y=item.y+Math.sin(this.t*2+index)*2;this.glow(x,y,15,15,'#f3c982',.16);if(item.kind==='valve'){this.valve(x,y,6);}else if(item.kind==='lunch'){this.box(x-6,y-4,13,10,RAMPS.gold);this.box(x-2,y-7,5,3,RAMPS.iron);this.rect(x-5,y-1,11,2,RAMPS.rust[2]);}else if(item.kind==='water'){this.box(x-5,y-4,10,10,RAMPS.blue);this.rect(x+5,y-4,6,2,RAMPS.blue[0]);this.rect(x+9,y-6,3,3,RAMPS.blue[1]);this.rect(x-2,y-7,5,2,RAMPS.blue[0]);}else{this.box(x-5,y-6,10,13,RAMPS.cloth);this.line(x-3,y-2,6,RAMPS.cloth[2]);this.line(x-3,y+1,5,RAMPS.cloth[2]);}
    this.rect(x-1,y-14,2,2,RAMPS.gold[0]);this.label(''+(index+1),x-1,y-18,'#e5d6a4',5);
  }
@@ -153,6 +169,7 @@ export class Art{
  render(s,dt){this.t=s.time;this.n=s.phaseMix;this.gameplayNight=s.night;this.cam=Math.floor(s.camera);this.viewTop=s.cameraY||0;this.viewBottom=this.viewTop+280;const c=this.c;c.imageSmoothingEnabled=false;if(s.expanded)sceneryBackdrop(this,s);else this.wall(s.floor,this.cam);
    c.save();c.beginPath();c.rect(0,0,480,246);c.clip();c.translate(0,-Math.floor(s.cameraY||0));
    if(s.expanded)sectorDecor(this,s);else this.officeMezzanine(s);
+   if(s.expanded)this.serviceRoute(s);
    for(const p of s.platforms)this.platform(p);
    for(const w of s.walls||[])if(phaseActive(w,s.night))this.box(w.x-this.cam,w.y,w.w,w.h,RAMPS.iron);
    for(const lamp of s.checkpoints||[]){const x=lamp.x-this.cam;if(x<-30||x>510||lamp.y<this.viewTop-50||lamp.y>this.viewBottom)continue;this.pipe(x+4,lamp.y-8,5,36,true);this.box(x-4,lamp.y-15,18,11,RAMPS.iron);this.rect(x,lamp.y-12,10,5,'#ffe1a0');this.glow(x+5,lamp.y+5,42,53,'#efc879',lamp.id===s.checkpointId?.2:.09);this.label('SAFE',x-3,lamp.y-20,'#dac997',5);}

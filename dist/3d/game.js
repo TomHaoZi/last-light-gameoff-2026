@@ -27,6 +27,8 @@ const strings = {
     drag: 'Drag the scene', onScreen: 'On-screen buttons', tapDayNight: 'Day / Night button', space: 'Space',
     firstSteps: 'Save at the emergency lamp. Switch to night for the first bridge.',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
+    shortcutKeys: 'Hold Shift, jump with Space, switch midair with X.',
+    shortcutTouch: 'Hold Sprint, tap Jump, then tap Day / Night in the air.',
     legend: 'WASD Move · Mouse Look · E Interact', capturedLegend: 'WASD Move · Mouse Look · E Interact · Esc Pause and release mouse',
     capture: 'Capture mouse', captureFailed: 'Move the mouse within the scene to look around. Click the scene to retry capture.',
     controls: 'X switches between day and night. WASD moves. Move the mouse to look around. The game captures it when you start or resume. Esc pauses and releases the mouse. Space jumps, E interacts, Shift sprints, C walks quietly, J opens the journal and M mutes. On touch screens, drag the scene and use the on-screen buttons.',
@@ -55,6 +57,8 @@ const strings = {
     drag: '拖动画面', onScreen: '屏幕按钮', tapDayNight: '「昼夜」按钮', space: '空格',
     firstSteps: '在应急灯处存档。切到黑夜，就能看见第一座桥。',
     lampSteps: '切到黑夜，让前方的桥出现。',
+    shortcutKeys: '按住 Shift 冲刺，用空格跳跃，在空中按 X 切换。',
+    shortcutTouch: '按住「冲刺」，点「跳跃」，再在半空点「昼夜」。',
     legend: 'WASD 移动 · 鼠标转视角 · E 互动', capturedLegend: 'WASD 移动 · 鼠标转视角 · E 互动 · Esc 暂停并释放鼠标',
     capture: '捕获鼠标', captureFailed: '在画面内移动鼠标来转动视角。点击画面可重试捕获。',
     controls: 'X 切换白天和黑夜，WASD 移动。移动鼠标即可转动视角。进入或继续值班时自动捕获鼠标，按 Esc 暂停并释放。空格跳跃，E 互动，Shift 冲刺，C 轻声走，J 打开日志，M 静音。触屏可拖动画面并使用屏幕按钮。',
@@ -225,7 +229,12 @@ function updateHUD() {
   }
   const target = state.mode === 'playing' ? state.getInteraction() : null;
   const names = { station: 'work', clue: 'clue', lamp: 'lampAction', door: 'lift', power: 'powerAction' };
-  const prompt = target ? (coarsePointer.matches ? '' : '[E] ') + t()[names[target.type]] : '';
+  const shortcut = state.map.shortcut;
+  const atShortcut = state.mode === 'playing' && state.life === 'alive' && shortcut &&
+    state.map.at(state.x, state.z) === shortcut.pads[0];
+  const prompt = target ? (coarsePointer.matches ? '' : '[E] ') + t()[names[target.type]] :
+    atShortcut ? shortcut.title[Number(lang === 'zh')] + ' · ' +
+      t()[coarsePointer.matches ? 'shortcutTouch' : 'shortcutKeys'] : '';
   if ($('interaction').textContent !== prompt) screenText('interaction', prompt);
   $('interaction').hidden = !prompt;
   $('death').hidden = state.life === 'alive' || state.mode !== 'playing';

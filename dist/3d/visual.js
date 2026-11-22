@@ -464,6 +464,7 @@ export class Visual {
 
     for (const wall of decoded.walls) this.makeWall(wall);
     for (const floor of decoded.floors) this.makeFloor(floor);
+    if (decoded.shortcut) this.markShortcut(decoded.shortcut.pads);
     this.makePropClusters();
     this.makeArrival();
     decorateModels(this);
@@ -731,6 +732,25 @@ export class Visual {
       (col === 9 && row === 10 || col === 21 && row === 9);
     if (kind === 'S' || kind === 'E' || (kind === '.' && (col + row * 3) % 12 === 0) || archiveCorner) {
       this.fixture(x, this.theme === 2 ? 2.74 : 2.98, z, kind === 'E' ? 'safe' : 'general');
+    }
+  }
+
+  markShortcut(pads) {
+    const m = this.materials;
+    for (let i = 0; i < pads.length - 1; i++) {
+      const here = pads[i], next = pads[i + 1];
+      const dx = Math.sign(next.col - here.col), dz = Math.sign(next.row - here.row);
+      const direction = Math.atan2(dx, dz);
+      const batch = this.batches[here.phase ?? 'neutral'];
+      const ink = here.phase ? m[here.phase + 'Line'] : m.lamp;
+      // Only the physical pad owns its arrow. A hidden pad cannot mark the void.
+      batch.box(ink, here.x + dx * .52, .014, here.z + dz * .52, .063, .017, .45, direction);
+      for (const side of [-1, 1]) {
+        batch.box(ink, here.x + dx * .70 + dz * side * .138, .014,
+          here.z + dz * .70 - dx * side * .138, .063, .017, .38, direction - side * .74);
+        batch.box(m.brass, here.x + dx * 1.07 + dz * side * .77, .026,
+          here.z + dz * 1.07 - dx * side * .77, .17, .026, .052, direction);
+      }
     }
   }
 

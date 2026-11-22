@@ -73,3 +73,38 @@ test('expanded artwork is identical when inactive platforms are deleted',()=>{
   const s=new Simulation();s.loadSector(f,k);s.night=night;s.phaseMix=.37;s.camera=480;s.cameraY=540;art.render(s,0);const full=canvas.toBuffer('image/png');s.platforms=s.platforms.filter(p=>p.phase==null||p.phase===(night?'night':'day'));art.render(s,0);assert.deepEqual(canvas.toBuffer('image/png'),full,`${f}/${k}/${night}`);
  }
 });
+
+test('relay entrances and checkpoints are neutral, and inactive relay plates leave no trace', () => {
+ const canvas = createCanvas(480, 270);
+ const art = new Art(canvas);
+ for (const [floor, chapter] of CHAPTERS.entries()) {
+  for (const [sector, section] of chapter.entries()) {
+   const world = buildSector(floor, sector);
+   const { steps, checkpoint } = world.relay;
+   const phases = steps.filter(plate => plate.phase).map(plate => plate.phase);
+   assert.ok(phases.length >= 3, section.id);
+   assert.ok(phases.every((phase, i) => i === 0 || phase !== phases[i - 1]), section.id);
+   assert.equal(steps[0].phase, null, section.id);
+   const landing = steps.at(-1);
+   assert.equal(landing.phase, null, section.id);
+   assert.ok(checkpoint.x >= landing.x && checkpoint.x + 14 <= landing.x + landing.w, section.id);
+   assert.equal(checkpoint.y + 28, landing.y, section.id);
+
+   for (const night of [false, true]) {
+    const state = new Simulation();
+    state.loadSector(floor, sector);
+    state.night = night;
+    state.phaseMix = .45;
+    state.shiftFx = .12;
+    state.camera = 60;
+    state.cameraY = 0;
+    art.render(state, 0);
+    const reference = canvas.toBuffer('image/png');
+    const inactive = new Set(steps.filter(plate => plate.phase && plate.phase !== (night ? 'night' : 'day')).map(plate => plate.id));
+    state.platforms = state.platforms.filter(plate => !inactive.has(plate.id));
+    art.render(state, 0);
+    assert.deepEqual(canvas.toBuffer('image/png'), reference, section.id);
+   }
+  }
+ }
+});

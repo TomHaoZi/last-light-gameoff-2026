@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process';import {basename} from 'node:path';impo
 const source=process.env.SOURCE_REPORT||'docs/evidence/expanded/complete-18/attempt.json',prior=JSON.parse(await readFile(source,'utf8'));
 if(!prior.passed||prior.continuation||!prior.complete)throw Error('Requires a successful fresh complete-ending report');
 const profile=`/tmp/last-light-revisit-${process.pid}`;await cp(prior.profile,profile,{recursive:true,filter:path=>!['SingletonLock','SingletonSocket','SingletonCookie','DevToolsActivePort'].includes(basename(path))});
-const out=process.env.EVIDENCE_DIR||'docs/evidence/expanded/revisit';await mkdir(out,{recursive:true});const port=8793,debug=9233,delay=ms=>new Promise(r=>setTimeout(r,ms));
+const out=process.env.EVIDENCE_DIR||'docs/evidence/expanded/revisit';await mkdir(out,{recursive:true});const port=Number(process.env.PORT||prior.port||8793),debug=Number(process.env.DEBUG_PORT||9233),delay=ms=>new Promise(r=>setTimeout(r,ms));
 const server=spawn('python3',['-m','http.server',String(port),'-d','dist'],{stdio:'ignore'}),browser=spawn(process.env.CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu',`--remote-debugging-port=${debug}`,`--user-data-dir=${profile}`,'--window-size=1280,1100',`http://127.0.0.1:${port}`],{stdio:'ignore'});
 let ws,n=0,error;const wait=new Map(),log=[],errors=[];
 const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++n,timer=setTimeout(()=>reject(Error(`timeout ${method}`)),7000);wait.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method,params}));});

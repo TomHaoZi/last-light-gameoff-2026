@@ -1,0 +1,1174 @@
+{
+  "build": "3.0.0-rc.12",
+  "archiveSha256": "a499a5c7b217cd90816551aade7bcbbc902ddf4869cab1ba81c243dce59f8943",
+  "method": "Trusted keyboard and mouse input in Chrome. Read-only game snapshots and persisted saves verify the outcomes. Isolated 3D shortcut fixtures preselect only the chapter; full journeys start fresh.",
+  "2d": {
+    "relayJourney": {
+      "ending": "complete",
+      "deaths": 0,
+      "saved": true
+    },
+    "regularJourney": {
+      "ending": "normal",
+      "deaths": 0,
+      "saved": true
+    },
+    "sections": [
+      {
+        "section": "0/duty-room",
+        "relayJumps": 6,
+        "airborneSwitches": 3,
+        "orderedLandings": [
+          "0/duty-room/relay-0",
+          "0/duty-room/relay-1",
+          "0/duty-room/relay-2",
+          "0/duty-room/relay-3",
+          "0/duty-room/relay-4",
+          "0/duty-room/relay-5"
+        ],
+        "recoveredTo": "0/duty-room/0-0-floor",
+        "savedAt": "0/duty-room/relay-lamp",
+        "advancedExit": "0/loading",
+        "regularExit": "0/loading"
+      },
+      {
+        "section": "0/loading",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "0/loading/relay-0",
+          "0/loading/relay-1",
+          "0/loading/relay-2",
+          "0/loading/relay-3",
+          "0/loading/relay-4",
+          "0/loading/relay-5",
+          "0/loading/relay-6"
+        ],
+        "recoveredTo": "0/loading/0-0-west",
+        "savedAt": "0/loading/relay-lamp",
+        "advancedExit": "0/steam-hall",
+        "regularExit": "0/steam-hall"
+      },
+      {
+        "section": "0/steam-hall",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "0/steam-hall/relay-0",
+          "0/steam-hall/relay-1",
+          "0/steam-hall/relay-2",
+          "0/steam-hall/relay-3",
+          "0/steam-hall/relay-4",
+          "0/steam-hall/relay-5",
+          "0/steam-hall/relay-6"
+        ],
+        "recoveredTo": "0/steam-hall/0-0-west",
+        "savedAt": "0/steam-hall/relay-lamp",
+        "advancedExit": "0/cooling-shaft",
+        "regularExit": "0/cooling-shaft"
+      },
+      {
+        "section": "0/cooling-shaft",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "0/cooling-shaft/relay-0",
+          "0/cooling-shaft/relay-1",
+          "0/cooling-shaft/relay-2",
+          "0/cooling-shaft/relay-3",
+          "0/cooling-shaft/relay-4",
+          "0/cooling-shaft/relay-5",
+          "0/cooling-shaft/relay-6"
+        ],
+        "recoveredTo": "0/cooling-shaft/0-0-stool",
+        "savedAt": "0/cooling-shaft/relay-lamp",
+        "advancedExit": "0/return-bridge",
+        "regularExit": "0/return-bridge"
+      },
+      {
+        "section": "0/return-bridge",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "0/return-bridge/relay-0",
+          "0/return-bridge/relay-1",
+          "0/return-bridge/relay-2",
+          "0/return-bridge/relay-3",
+          "0/return-bridge/relay-4",
+          "0/return-bridge/relay-5",
+          "0/return-bridge/relay-6"
+        ],
+        "recoveredTo": "0/return-bridge/0-0-west",
+        "savedAt": "0/return-bridge/relay-lamp",
+        "advancedExit": "0/valve-hall",
+        "regularExit": "0/valve-hall"
+      },
+      {
+        "section": "0/valve-hall",
+        "relayJumps": 8,
+        "airborneSwitches": 5,
+        "orderedLandings": [
+          "0/valve-hall/relay-0",
+          "0/valve-hall/relay-1",
+          "0/valve-hall/relay-2",
+          "0/valve-hall/relay-3",
+          "0/valve-hall/relay-4",
+          "0/valve-hall/relay-5",
+          "0/valve-hall/relay-6",
+          "0/valve-hall/relay-7"
+        ],
+        "recoveredTo": "0/valve-hall/0-0-west",
+        "savedAt": "0/valve-hall/relay-lamp",
+        "advancedExit": "1/lift-lobby",
+        "regularExit": "1/lift-lobby"
+      },
+      {
+        "section": "1/lift-lobby",
+        "relayJumps": 6,
+        "airborneSwitches": 3,
+        "orderedLandings": [
+          "1/lift-lobby/relay-0",
+          "1/lift-lobby/relay-1",
+          "1/lift-lobby/relay-2",
+          "1/lift-lobby/relay-3",
+          "1/lift-lobby/relay-4",
+          "1/lift-lobby/relay-5"
+        ],
+        "recoveredTo": "1/lift-lobby/0-0-floor",
+        "savedAt": "1/lift-lobby/relay-lamp",
+        "advancedExit": "1/work-maze",
+        "regularExit": "1/work-maze"
+      },
+      {
+        "section": "1/work-maze",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "1/work-maze/relay-0",
+          "1/work-maze/relay-1",
+          "1/work-maze/relay-2",
+          "1/work-maze/relay-3",
+          "1/work-maze/relay-4",
+          "1/work-maze/relay-5",
+          "1/work-maze/relay-6"
+        ],
+        "recoveredTo": "1/work-maze/0-0-west",
+        "savedAt": "1/work-maze/relay-lamp",
+        "advancedExit": "1/archive",
+        "regularExit": "1/archive"
+      },
+      {
+        "section": "1/archive",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "1/archive/relay-0",
+          "1/archive/relay-1",
+          "1/archive/relay-2",
+          "1/archive/relay-3",
+          "1/archive/relay-4",
+          "1/archive/relay-5",
+          "1/archive/relay-6"
+        ],
+        "recoveredTo": "1/archive/0-0-stool",
+        "savedAt": "1/archive/relay-lamp",
+        "advancedExit": "1/pantry",
+        "regularExit": "1/pantry"
+      },
+      {
+        "section": "1/pantry",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "1/pantry/relay-0",
+          "1/pantry/relay-1",
+          "1/pantry/relay-2",
+          "1/pantry/relay-3",
+          "1/pantry/relay-4",
+          "1/pantry/relay-5",
+          "1/pantry/relay-6"
+        ],
+        "recoveredTo": "1/pantry/0-0-west",
+        "savedAt": "1/pantry/relay-lamp",
+        "advancedExit": "1/fire-corridor",
+        "regularExit": "1/fire-corridor"
+      },
+      {
+        "section": "1/fire-corridor",
+        "relayJumps": 8,
+        "airborneSwitches": 5,
+        "orderedLandings": [
+          "1/fire-corridor/relay-0",
+          "1/fire-corridor/relay-1",
+          "1/fire-corridor/relay-2",
+          "1/fire-corridor/relay-3",
+          "1/fire-corridor/relay-4",
+          "1/fire-corridor/relay-5",
+          "1/fire-corridor/relay-6",
+          "1/fire-corridor/relay-7"
+        ],
+        "recoveredTo": "1/fire-corridor/0-0-west",
+        "savedAt": "1/fire-corridor/relay-lamp",
+        "advancedExit": "1/gary-office",
+        "regularExit": "1/gary-office"
+      },
+      {
+        "section": "1/gary-office",
+        "relayJumps": 8,
+        "airborneSwitches": 5,
+        "orderedLandings": [
+          "1/gary-office/relay-0",
+          "1/gary-office/relay-1",
+          "1/gary-office/relay-2",
+          "1/gary-office/relay-3",
+          "1/gary-office/relay-4",
+          "1/gary-office/relay-5",
+          "1/gary-office/relay-6",
+          "1/gary-office/relay-7"
+        ],
+        "recoveredTo": "1/gary-office/0-0-stool",
+        "savedAt": "1/gary-office/relay-lamp",
+        "advancedExit": "2/machine-room",
+        "regularExit": "2/machine-room"
+      },
+      {
+        "section": "2/machine-room",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "2/machine-room/relay-0",
+          "2/machine-room/relay-1",
+          "2/machine-room/relay-2",
+          "2/machine-room/relay-3",
+          "2/machine-room/relay-4",
+          "2/machine-room/relay-5",
+          "2/machine-room/relay-6"
+        ],
+        "recoveredTo": "2/machine-room/0-0-floor",
+        "savedAt": "2/machine-room/relay-lamp",
+        "advancedExit": "2/water-tower",
+        "regularExit": "2/water-tower"
+      },
+      {
+        "section": "2/water-tower",
+        "relayJumps": 8,
+        "airborneSwitches": 5,
+        "orderedLandings": [
+          "2/water-tower/relay-0",
+          "2/water-tower/relay-1",
+          "2/water-tower/relay-2",
+          "2/water-tower/relay-3",
+          "2/water-tower/relay-4",
+          "2/water-tower/relay-5",
+          "2/water-tower/relay-6",
+          "2/water-tower/relay-7"
+        ],
+        "recoveredTo": "2/water-tower/0-0-stool",
+        "savedAt": "2/water-tower/relay-lamp",
+        "advancedExit": "2/greenhouse",
+        "regularExit": "2/greenhouse"
+      },
+      {
+        "section": "2/greenhouse",
+        "relayJumps": 7,
+        "airborneSwitches": 4,
+        "orderedLandings": [
+          "2/greenhouse/relay-0",
+          "2/greenhouse/relay-1",
+          "2/greenhouse/relay-2",
+          "2/greenhouse/relay-3",
+          "2/greenhouse/relay-4",
+          "2/greenhouse/relay-5",
+          "2/greenhouse/relay-6"
+        ],
+        "recoveredTo": "2/greenhouse/0-0-west",
+        "savedAt": "2/greenhouse/relay-lamp",
+        "advancedExit": "2/exterior",
+        "regularExit": "2/exterior"
+      },
+      {
+        "section": "2/exterior",
+        "relayJumps": 8,
+        "airborneSwitches": 5,
+        "orderedLandings": [
+          "2/exterior/relay-0",
+          "2/exterior/relay-1",
+          "2/exterior/relay-2",
+          "2/exterior/relay-3",
+          "2/exterior/relay-4",
+          "2/exterior/relay-5",
+          "2/exterior/relay-6",
+          "2/exterior/relay-7"
+        ],
+        "recoveredTo": "2/exterior/0-0-west",
+        "savedAt": "2/exterior/relay-lamp",
+        "advancedExit": "2/antenna",
+        "regularExit": "2/antenna"
+      },
+      {
+        "section": "2/antenna",
+        "relayJumps": 8,
+        "airborneSwitches": 5,
+        "orderedLandings": [
+          "2/antenna/relay-0",
+          "2/antenna/relay-1",
+          "2/antenna/relay-2",
+          "2/antenna/relay-3",
+          "2/antenna/relay-4",
+          "2/antenna/relay-5",
+          "2/antenna/relay-6",
+          "2/antenna/relay-7"
+        ],
+        "recoveredTo": "2/antenna/0-0-west",
+        "savedAt": "2/antenna/relay-lamp",
+        "advancedExit": "2/beacon",
+        "regularExit": "2/beacon"
+      },
+      {
+        "section": "2/beacon",
+        "relayJumps": 8,
+        "airborneSwitches": 5,
+        "orderedLandings": [
+          "2/beacon/relay-0",
+          "2/beacon/relay-1",
+          "2/beacon/relay-2",
+          "2/beacon/relay-3",
+          "2/beacon/relay-4",
+          "2/beacon/relay-5",
+          "2/beacon/relay-6",
+          "2/beacon/relay-7"
+        ],
+        "recoveredTo": "2/beacon/0-0-stool",
+        "savedAt": "2/beacon/relay-lamp",
+        "advancedExit": "ending:complete",
+        "regularExit": "ending:normal"
+      }
+    ],
+    "fireCorridorRecovery": {
+      "startedFrom": "1/fire-corridor/lamp-5",
+      "stairs": [
+        "1/fire-corridor/stair-2-4-0",
+        "1/fire-corridor/stair-2-4-1",
+        "1/fire-corridor/stair-2-4-2",
+        "1/fire-corridor/stair-2-4-3",
+        "1/fire-corridor/stair-2-4-4",
+        "1/fire-corridor/stair-2-4-5",
+        "1/fire-corridor/stair-2-4-6",
+        "1/fire-corridor/stair-2-4-7"
+      ],
+      "exit": "1/gary-office",
+      "deaths": 0
+    }
+  },
+  "3d": {
+    "journeys": [
+      {
+        "ending": "complete",
+        "deaths": 0,
+        "records": [
+          "0/1",
+          "0/2",
+          "1/1",
+          "1/2",
+          "2/1",
+          "2/2"
+        ],
+        "chapters": [
+          {
+            "chapter": 0,
+            "phaseChanges": [
+              {
+                "x": 13.2,
+                "z": 39.6,
+                "phase": "night"
+              },
+              {
+                "x": 13.2,
+                "z": 25.222499999999265,
+                "phase": "day"
+              },
+              {
+                "x": 46.74750000000155,
+                "z": 37.14458333333321,
+                "phase": "night"
+              }
+            ],
+            "interactions": [
+              {
+                "marker": "A",
+                "x": 8.466666666666708,
+                "z": 20.42999999999902,
+                "work": [
+                  "A"
+                ],
+                "records": []
+              },
+              {
+                "marker": "1",
+                "x": 8.466666666666708,
+                "z": 10.844999999998839,
+                "work": [
+                  "A"
+                ],
+                "records": [
+                  "0/1"
+                ]
+              },
+              {
+                "marker": "B",
+                "x": 46.74750000000155,
+                "z": 25.13374999999926,
+                "work": [
+                  "A",
+                  "B"
+                ],
+                "records": [
+                  "0/1"
+                ]
+              },
+              {
+                "marker": "2",
+                "x": 46.74750000000155,
+                "z": 37.14458333333321,
+                "work": [
+                  "A",
+                  "B"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2"
+                ]
+              },
+              {
+                "marker": "C",
+                "x": 44.38083333333476,
+                "z": 3.656249999998897,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2"
+                ]
+              },
+              {
+                "marker": "E",
+                "x": 51.5400000000018,
+                "z": 3.656249999998897,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2"
+                ]
+              }
+            ],
+            "durationMs": 47374
+          },
+          {
+            "chapter": 1,
+            "phaseChanges": [
+              {
+                "x": 27.566666666666787,
+                "z": 5.959999999998999,
+                "phase": "night"
+              },
+              {
+                "x": 25.14083333333333,
+                "z": 8.385833333332311,
+                "phase": "day"
+              },
+              {
+                "x": 25.14083333333333,
+                "z": 15.604166666665638,
+                "phase": "night"
+              },
+              {
+                "x": 39.57750000000086,
+                "z": 20.33749999999919,
+                "phase": "day"
+              },
+              {
+                "x": 49.16250000000135,
+                "z": 20.33749999999919,
+                "phase": "night"
+              },
+              {
+                "x": 49.16250000000135,
+                "z": 18.02999999999907,
+                "phase": "day"
+              }
+            ],
+            "interactions": [
+              {
+                "marker": "A",
+                "x": 27.566666666666787,
+                "z": 5.959999999998999,
+                "work": [
+                  "A"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2"
+                ]
+              },
+              {
+                "marker": "1",
+                "x": 20.466666666666423,
+                "z": 5.959999999998999,
+                "work": [
+                  "A"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1"
+                ]
+              },
+              {
+                "marker": "C",
+                "x": 5.911666666666285,
+                "z": 17.9708333333324,
+                "work": [
+                  "A",
+                  "C"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1"
+                ]
+              },
+              {
+                "marker": "B",
+                "x": 49.16250000000135,
+                "z": 20.33749999999919,
+                "work": [
+                  "A",
+                  "C",
+                  "B"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1"
+                ]
+              },
+              {
+                "marker": "2",
+                "x": 51.58833333333481,
+                "z": 18.02999999999907,
+                "work": [
+                  "A",
+                  "C",
+                  "B"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2"
+                ]
+              },
+              {
+                "marker": "E",
+                "x": 51.58833333333481,
+                "z": 6.019166666665722,
+                "work": [
+                  "A",
+                  "C",
+                  "B"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2"
+                ]
+              }
+            ],
+            "durationMs": 43918
+          },
+          {
+            "chapter": 2,
+            "phaseChanges": [
+              {
+                "x": 27.599999999999998,
+                "z": 39.6,
+                "phase": "night"
+              },
+              {
+                "x": 29.966666666666786,
+                "z": 25.222499999999265,
+                "phase": "day"
+              },
+              {
+                "x": 13.23666666666632,
+                "z": 20.41583333333248,
+                "phase": "night"
+              },
+              {
+                "x": 13.177499999999654,
+                "z": 20.41583333333248,
+                "phase": "day"
+              },
+              {
+                "x": 37.140000000000505,
+                "z": 20.41583333333248,
+                "phase": "night"
+              },
+              {
+                "x": 46.798333333334504,
+                "z": 18.04916666666569,
+                "phase": "day"
+              },
+              {
+                "x": 29.682499999999912,
+                "z": 25.16583333333235,
+                "phase": "night"
+              },
+              {
+                "x": 29.97833333333326,
+                "z": 6.001666666665697,
+                "phase": "day"
+              }
+            ],
+            "interactions": [
+              {
+                "marker": "A",
+                "x": 32.33333333333357,
+                "z": 20.41583333333248,
+                "work": [
+                  "A"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2"
+                ]
+              },
+              {
+                "marker": "B",
+                "x": 8.444166666666362,
+                "z": 18.04916666666569,
+                "work": [
+                  "A",
+                  "B"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2"
+                ]
+              },
+              {
+                "marker": "1",
+                "x": 8.444166666666362,
+                "z": 25.149166666666055,
+                "work": [
+                  "A",
+                  "B"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2",
+                  "2/1"
+                ]
+              },
+              {
+                "marker": "C",
+                "x": 56.383333333334996,
+                "z": 18.04916666666569,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2",
+                  "2/1"
+                ]
+              },
+              {
+                "marker": "P",
+                "x": 29.97833333333326,
+                "z": 6.001666666665697,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2",
+                  "2/1"
+                ]
+              },
+              {
+                "marker": "2",
+                "x": 22.819166666666227,
+                "z": 6.001666666665697,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2",
+                  "2/1",
+                  "2/2"
+                ]
+              },
+              {
+                "marker": "E",
+                "x": 37.137500000000294,
+                "z": 6.001666666665697,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": [
+                  "0/1",
+                  "0/2",
+                  "1/1",
+                  "1/2",
+                  "2/1",
+                  "2/2"
+                ]
+              }
+            ],
+            "durationMs": 46766
+          }
+        ],
+        "recoveries": [],
+        "saved": true
+      },
+      {
+        "ending": "normal",
+        "deaths": 0,
+        "records": [],
+        "chapters": [
+          {
+            "chapter": 0,
+            "phaseChanges": [
+              {
+                "x": 13.2,
+                "z": 39.6,
+                "phase": "night"
+              },
+              {
+                "x": 13.2,
+                "z": 25.163333333332595,
+                "phase": "day"
+              },
+              {
+                "x": 46.74750000000155,
+                "z": 37.14458333333321,
+                "phase": "night"
+              }
+            ],
+            "interactions": [
+              {
+                "marker": "A",
+                "x": 8.466666666666708,
+                "z": 20.42999999999902,
+                "work": [
+                  "A"
+                ],
+                "records": []
+              },
+              {
+                "marker": "B",
+                "x": 46.74750000000155,
+                "z": 25.13374999999926,
+                "work": [
+                  "A",
+                  "B"
+                ],
+                "records": []
+              },
+              {
+                "marker": "C",
+                "x": 44.38083333333476,
+                "z": 3.656249999998897,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": []
+              },
+              {
+                "marker": "E",
+                "x": 51.5400000000018,
+                "z": 3.656249999998897,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": []
+              }
+            ],
+            "durationMs": 47344
+          },
+          {
+            "chapter": 1,
+            "phaseChanges": [
+              {
+                "x": 27.566666666666787,
+                "z": 6.019166666665665,
+                "phase": "night"
+              },
+              {
+                "x": 25.14083333333333,
+                "z": 8.385833333332311,
+                "phase": "day"
+              },
+              {
+                "x": 25.14083333333333,
+                "z": 15.705833333332304,
+                "phase": "night"
+              },
+              {
+                "x": 39.57750000000086,
+                "z": 20.379999999999193,
+                "phase": "day"
+              },
+              {
+                "x": 49.16250000000135,
+                "z": 20.379999999999193,
+                "phase": "night"
+              },
+              {
+                "x": 49.16250000000135,
+                "z": 18.013333333332405,
+                "phase": "day"
+              }
+            ],
+            "interactions": [
+              {
+                "marker": "A",
+                "x": 27.566666666666787,
+                "z": 6.019166666665665,
+                "work": [
+                  "A"
+                ],
+                "records": []
+              },
+              {
+                "marker": "C",
+                "x": 6.029999999999617,
+                "z": 17.954166666665735,
+                "work": [
+                  "A",
+                  "C"
+                ],
+                "records": []
+              },
+              {
+                "marker": "B",
+                "x": 49.16250000000135,
+                "z": 20.379999999999193,
+                "work": [
+                  "A",
+                  "C",
+                  "B"
+                ],
+                "records": []
+              },
+              {
+                "marker": "E",
+                "x": 51.58833333333481,
+                "z": 6.061666666665722,
+                "work": [
+                  "A",
+                  "C",
+                  "B"
+                ],
+                "records": []
+              }
+            ],
+            "durationMs": 43636
+          },
+          {
+            "chapter": 2,
+            "phaseChanges": [
+              {
+                "x": 27.599999999999998,
+                "z": 39.6,
+                "phase": "night"
+              },
+              {
+                "x": 29.966666666666786,
+                "z": 25.222499999999265,
+                "phase": "day"
+              },
+              {
+                "x": 13.23666666666632,
+                "z": 20.41583333333248,
+                "phase": "night"
+              },
+              {
+                "x": 13.177499999999654,
+                "z": 20.41583333333248,
+                "phase": "day"
+              },
+              {
+                "x": 37.140000000000505,
+                "z": 20.41583333333248,
+                "phase": "night"
+              },
+              {
+                "x": 46.798333333334504,
+                "z": 18.04916666666569,
+                "phase": "day"
+              },
+              {
+                "x": 30.03749999999993,
+                "z": 25.16583333333235,
+                "phase": "night"
+              },
+              {
+                "x": 30.03749999999993,
+                "z": 5.994166666665675,
+                "phase": "day"
+              }
+            ],
+            "interactions": [
+              {
+                "marker": "A",
+                "x": 32.33333333333357,
+                "z": 20.41583333333248,
+                "work": [
+                  "A"
+                ],
+                "records": []
+              },
+              {
+                "marker": "B",
+                "x": 8.444166666666362,
+                "z": 18.04916666666569,
+                "work": [
+                  "A",
+                  "B"
+                ],
+                "records": []
+              },
+              {
+                "marker": "C",
+                "x": 56.383333333334996,
+                "z": 18.04916666666569,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": []
+              },
+              {
+                "marker": "P",
+                "x": 30.03749999999993,
+                "z": 5.994166666665675,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": []
+              },
+              {
+                "marker": "E",
+                "x": 37.137500000000294,
+                "z": 5.994166666665675,
+                "work": [
+                  "A",
+                  "B",
+                  "C"
+                ],
+                "records": []
+              }
+            ],
+            "durationMs": 46582
+          }
+        ],
+        "recoveries": [],
+        "saved": true
+      }
+    ],
+    "shortcuts": [
+      {
+        "chapter": "boiler",
+        "jumpCount": 3,
+        "checkpoint": "7/15",
+        "plannedFallRecovered": true,
+        "replay": [
+          {
+            "from": [
+              7,
+              16
+            ],
+            "to": [
+              9,
+              16
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": 0.47249999999999975,
+            "phase": "night"
+          },
+          {
+            "from": [
+              9,
+              16
+            ],
+            "to": [
+              11,
+              16
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": 0.5337499999999997,
+            "phase": "day"
+          },
+          {
+            "from": [
+              11,
+              16
+            ],
+            "to": [
+              13,
+              16
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": null,
+            "phase": "day"
+          }
+        ]
+      },
+      {
+        "chapter": "office",
+        "jumpCount": 3,
+        "checkpoint": "12/14",
+        "plannedFallRecovered": true,
+        "replay": [
+          {
+            "from": [
+              12,
+              15
+            ],
+            "to": [
+              14,
+              15
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": 0.5337499999999997,
+            "phase": "day"
+          },
+          {
+            "from": [
+              14,
+              15
+            ],
+            "to": [
+              16,
+              15
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": 0.7962499999999995,
+            "phase": "night"
+          },
+          {
+            "from": [
+              16,
+              15
+            ],
+            "to": [
+              18,
+              15
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": null,
+            "phase": "night"
+          }
+        ]
+      },
+      {
+        "chapter": "roof",
+        "jumpCount": 4,
+        "checkpoint": "15/15",
+        "plannedFallRecovered": true,
+        "replay": [
+          {
+            "from": [
+              15,
+              16
+            ],
+            "to": [
+              17,
+              16
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": 0.5337499999999997,
+            "phase": "night"
+          },
+          {
+            "from": [
+              17,
+              16
+            ],
+            "to": [
+              17,
+              14
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": 0.5337499999999997,
+            "phase": "day"
+          },
+          {
+            "from": [
+              17,
+              14
+            ],
+            "to": [
+              19,
+              14
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": 0.5337499999999997,
+            "phase": "night"
+          },
+          {
+            "from": [
+              19,
+              14
+            ],
+            "to": [
+              19,
+              12
+            ],
+            "launchHeight": 0.2587499999999999,
+            "switchHeight": null,
+            "phase": "night"
+          }
+        ]
+      }
+    ]
+  }
+}

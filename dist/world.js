@@ -1,11 +1,15 @@
-import {CHAPTERS,SECTOR_WIDTH,SECTOR_HEIGHT,tilePosition} from './chapters.js';
+import {CHAPTERS,SERVICE_ROUTES,SECTOR_WIDTH,SECTOR_HEIGHT,tilePosition} from './chapters.js';
 import {unlockDoor} from './doors.js';
 export const WORLD_REVISION=2;
 const EVIDENCE_IDS=[['fire-order','gary-lamp'],['public-list','handover'],['evacuation','emergency-circuit']];
 export function buildSector(chapter,sector,mechanisms=[]){
  const spec=CHAPTERS[chapter][sector],prefix=`${chapter}/${spec.id}`,done=mechanisms.includes(prefix);
  const platforms=[],walls=[],hazards=[],checkpoints=[],props=[],doors=[],ghosts=[];
- const add=(id,x,y,w,phase=null,extra={})=>platforms.push({id:`${prefix}/${id}`,x,y,w,phase,surface:chapter===1?'carpet':'grate',...extra});
+ const add=(id,x,y,w,phase=null,extra={})=>{
+  const platform={id:`${prefix}/${id}`,x,y,w,phase,surface:chapter===1?'carpet':'grate',...extra};
+  platforms.push(platform);
+  return platform;
+ };
  for(let row=0;row<6;row++)for(let col=0;col<4;col++){
   const {x,y}=tilePosition(col,row),kind=spec.plan[row][col],id=`${col}-${row}`;
   props.push({id,kind,x:x+210,y:y-85,chapter,tone:spec.tone});
@@ -36,6 +40,17 @@ export function buildSector(chapter,sector,mechanisms=[]){
  }
  // Always keep the arrival lamp first, independent of decorative room layout.
  const first={id:`${prefix}/arrival`,x:55,y:200,sector};checkpoints.unshift(first);
+ const [firstPhase,...plates]=SERVICE_ROUTES[chapter][sector];
+ const phases=firstPhase==='night'?['night','day']:['day','night'];
+ const steps=[add('relay-0',44,193,35)];
+ for(const [index,[x,y,w]] of plates.entries())steps.push(add(`relay-${index+1}`,x,y,w,phases[index%2]));
+ const lastPlate=steps.at(-1),deckX=lastPlate.x+lastPlate.w+15,deckY=Math.min(108,lastPlate.y+15);
+ steps.push(add(`relay-${steps.length}`,deckX,deckY,443-deckX));
+ const landing=add(`relay-${steps.length}`,507,deckY+12,94);
+ steps.push(landing);
+ const checkpoint={id:`${prefix}/relay-lamp`,x:537,y:landing.y-28,sector};
+ checkpoints.push(checkpoint);
+ const relay={steps,checkpoint};
  const work=tilePosition(...spec.work),station={id:prefix,x:work.x+88,y:work.y-14,scene:spec.scene,kind:spec.mechanic,done};
  const returnLift={id:`${prefix}/return-lift`,x:220,y:1438,w:92,phase:null,surface:'grate',motion:{y:110,speed:.4,offset:0},powered:true};
  if(done){platforms.push(returnLift);add('permanent-return',678,1038,84);}
@@ -45,7 +60,7 @@ export function buildSector(chapter,sector,mechanisms=[]){
  if(sector>0){const a=tilePosition((sector+1)%4,2);ghosts.push({id:`${prefix}/patrol`,x:a.x+392,y:a.y-33,range:16,phase:'night',kind:'wanderer',spawnCondition:'always',moveSpeed:18});}
  if(sector>1){const a=tilePosition(sector%4,4);ghosts.push({id:`${prefix}/observer`,x:a.x+392,y:a.y-33,range:16,phase:chapter===1?null:'night',kind:chapter===0?'listener':'watcher',spawnCondition:'always',moveSpeed:18,chaseRange:120,alertDelay:.9});}
  const evidence=[];if(sector===2||sector===4){const p=tilePosition(sector===2?1:2,3);evidence.push({id:EVIDENCE_IDS[chapter][sector===2?0:1],x:p.x+65,y:p.y-14});}
- return {revision:WORLD_REVISION,id:prefix,spec,sector,width:SECTOR_WIDTH,height:SECTOR_HEIGHT,platforms,walls,hazards,checkpoints,props,doors,ghosts,station,evidence,entry:{x:55,y:200},exit:{x:1830,y:1550},done};
+ return {revision:WORLD_REVISION,id:prefix,spec,sector,width:SECTOR_WIDTH,height:SECTOR_HEIGHT,platforms,walls,hazards,checkpoints,props,doors,ghosts,station,evidence,relay,entry:{x:55,y:200},exit:{x:1830,y:1550},done};
 }
 // Discrete work changes collision, hazards and powered machinery together.
 export function applyWork(world){

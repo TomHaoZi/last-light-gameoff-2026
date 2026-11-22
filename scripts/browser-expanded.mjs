@@ -1,21 +1,41 @@
 // Expanded-world normal-input navigation. Browser mutations are ONLY mouse/key
 // input, navigation/reload and screenshots. Physics planning runs outside Chrome.
-import {spawn} from 'node:child_process';import {mkdir,readFile,writeFile,readdir} from 'node:fs/promises';import {createHash} from 'node:crypto';
+import {spawn} from 'node:child_process';import {mkdir,readFile,writeFile,readdir,access} from 'node:fs/promises';import {createHash} from 'node:crypto';
 import {buildSector} from '../dist/world.js';import {stepPlayer,updateMovingPlatforms} from '../dist/core.js';import {doorColliders} from '../dist/doors.js';import {CollisionIndex} from '../dist/spatial.js';
 import {createGhost,updateGhost} from '../dist/enemies.js';
+import {exploreGeometry} from './audit-space.mjs';
+import {ExpandedEvidence} from './expanded-evidence.mjs';
+import {playExpandedRelay} from './play-expanded-relay.mjs';
 const complete=process.env.ENDING==='complete',limit=Number(process.env.MAX_SECTORS||18),out=process.env.EVIDENCE_DIR||`docs/evidence/expanded/${complete?'complete':'normal'}-${limit}`;
-await mkdir(out,{recursive:true});const audit=JSON.parse(await readFile('docs/evidence/expanded/space-audit.json','utf8'));
+const checkRelays=process.env.CHECK_RELAYS==='1';
+const checkRecovery=process.env.CHECK_RELAY_RECOVERY==='1';
+if(!Number.isInteger(limit)||limit<1||limit>18)throw Error('MAX_SECTORS must be between 1 and 18');
+await mkdir(out,{recursive:true});
 const hashes={};for(const name of (await readdir('dist',{withFileTypes:true})).filter(entry=>entry.isFile()).map(entry=>entry.name))hashes[name]=createHash('sha256').update(await readFile(`dist/${name}`)).digest('hex');
+// Plan against the served build, not the old local audit. Prepare before Chrome
+// starts so planner CPU time never advances ghosts while input is suspended.
+const graphs=new Map(),expectedRooms=[];
+for(let index=0;index<(process.env.CHROME_PROFILE?18:limit);index++){
+ const floor=Math.floor(index/6),sector=index%6,world=buildSector(floor,sector);
+ expectedRooms.push(world.id);
+ const worked=buildSector(floor,sector,[world.id]);
+ const before=exploreGeometry(world.platforms,world.walls,world.width);
+ const after=exploreGeometry(worked.platforms.filter(platform=>!platform.motion),worked.walls,worked.width);
+ graphs.set(world.id,{...before,id:world.id,afterWork:after});
+}
 const port=Number(process.env.PORT||8793),debug=Number(process.env.DEBUG_PORT||9233),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const server=spawn('python3',['-m','http.server',String(port),'-d','dist'],{stdio:'ignore'});
 const profile=process.env.CHROME_PROFILE||`/tmp/last-light-expanded-${process.pid}`;
+const continuation=await access(profile).then(()=>true,error=>{if(error.code!=='ENOENT')throw error;return false;});
 const chrome=spawn(process.env.CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu','--autoplay-policy=no-user-gesture-required',`--remote-debugging-port=${debug}`,`--user-data-dir=${profile}`,'--window-size=1280,1100',`http://127.0.0.1:${port}`],{stdio:'ignore'});
-let ws,id=0,error,passed=false;const wait=new Map(),keys=new Set(),actions=[],log=[],errors=[],shots=new Set();
+let ws,id=0,error,passed=false;const wait=new Map(),keys=new Set(),actions=[],log=[],errors=[],shots=new Set(),routeEvidence=new ExpandedEvidence(),completedRelays=new Set();
 const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id,timer=setTimeout(()=>{wait.delete(n);reject(Error(`CDP timeout ${method}`));},7000);wait.set(n,{resolve,reject,timer});ws.send(JSON.stringify({id:n,method,params}));});
 const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
 const key=async(code,on)=>{if(keys.has(code)===on)return;if(on)keys.add(code);else keys.delete(code);actions.push({ms:Date.now(),code,on});await send('Input.dispatchKeyEvent',{type:on?'keyDown':'keyUp',code,key:code==='Space'?' ':code});};
 const tap=async code=>{await key(code,true);await sleep(13);await key(code,false);};
 const stop=async()=>{for(const k of [...keys])await key(k,false);};
+const snapshot=async()=>{const state=await evaluate('window.lastLight.snapshot()');routeEvidence.observe(state);return state;};
+const readSave=()=>evaluate("JSON.parse(localStorage.getItem('last-light-v3'))");
 const click=async(selector='#start')=>{const p=await evaluate(`(()=>{let e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'center'});let r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);await send('Input.dispatchMouseEvent',{type:'mousePressed',...p,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',...p,button:'left',clickCount:1});};
 const screenshot=async name=>{if(shots.has(name))return;shots.add(name);const s=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});await writeFile(`${out}/${name}.png`,Buffer.from(s.data,'base64'));};
 const adjacency=new WeakMap(),distanceCache=new WeakMap();
@@ -40,19 +60,35 @@ try{
  await send('Runtime.enable');await send('Page.enable');
  for(let n=0;n<40;n++){try{if((await fetch(`http://127.0.0.1:${port}/`)).ok)break;}catch{}await sleep(100);}
  await send('Page.navigate',{url:`http://127.0.0.1:${port}/`});await sleep(200);let ready=false;for(let n=0;n<90;n++){if(n===25||n===55){log.push({event:'startup-reload',retry:n});await send('Page.reload');await sleep(250);}ready=await evaluate("document.readyState==='complete'&&typeof window.lastLight?.snapshot==='function'&&!!document.getElementById('start')");if(ready)break;await sleep(100);}if(!ready){log.push({event:'startup-diagnostic',page:await evaluate("({url:location.href,ready:document.readyState,title:document.title,body:document.body?.textContent?.slice(0,180)})")});throw Error('Game module readiness timed out');}await click();await sleep(100);
- let room='',data,graph,action=null,lastDeath=0,lastScene='',lastAdvance=0,completed=0,lastProgress=Date.now(),lastSupport='',stuck=0,goalWatch=null,navigation=null;
+ let room='',data,graph,action=null,lastDeath=0,lastScene='',lastAdvance=0,lastProgress=Date.now(),lastSupport='',stuck=0,goalWatch=null,navigation=null;
  const deadline=Date.now()+Number(process.env.PLAYTEST_MS||900000);
  while(Date.now()<deadline){
-  const s=await evaluate('window.lastLight.snapshot()');
-  if(s.mode==='won'){log.push({event:'ending',snapshot:s});await screenshot('ending');if(complete&&s.ending!=='complete')throw Error('Full evidence run did not reach complete ending');passed=true;console.log(`${s.ending} ending reached`);break;}
+  const s=await snapshot();
+  if(s.mode==='won'){
+   log.push({event:'ending',snapshot:s});await screenshot('ending');
+   if(!continuation)routeEvidence.verifyEnding(s,complete?'complete':'normal',expectedRooms,checkRelays);
+   else if(complete&&s.ending!=='complete')throw Error('Full evidence run did not reach complete ending');
+   passed=true;console.log(`${s.ending} ending reached`);break;
+  }
+  if(limit<18&&routeEvidence.rooms.filter(item=>item.cleared).length>=limit){
+   passed=true;log.push({event:'bounded-section-goal',completed:limit,snapshot:s});break;
+  }
   if(s.mode==='between'){await stop();log.push({event:'chapter-complete',snapshot:s});await click();await sleep(300);room='';continue;}
   if(s.mode!=='playing')throw Error(`Unexpected mode ${s.mode}`);
   if(s.worldRevision!==2)throw Error('Expected expanded world, not retained-map save');
   const current=`${s.floor}/${s.sector}`;
-  if(current!==room){if(room){completed++;if(completed>=limit){passed=true;log.push({event:'bounded-section-goal',completed,snapshot:s});break;}}room=current;data=buildSector(s.floor,s.sector,s.mechanisms);graph=audit.chapters[s.floor].sectors[s.sector];action=null;lastSupport='';lastProgress=Date.now();console.log('Section',room,graph.id);log.push({event:'section',snapshot:s});}
+  if(current!==room){room=current;data=buildSector(s.floor,s.sector,s.mechanisms);graph=graphs.get(data.id);action=null;lastSupport='';lastProgress=Date.now();console.log('Section',room,graph.id);log.push({event:'section',snapshot:s});}
   if(s.deaths>lastDeath){lastDeath=s.deaths;log.push({event:'death',snapshot:s});console.log(`Death ${lastDeath}/3`,s.player.x,s.player.y);if(lastDeath>=3)throw Error('Stopped after three deaths');await stop();action=null;goalWatch=null;await sleep(1750);continue;}
   if(s.scene){await stop();action=null;const sceneKey=`${s.scene.id}/${s.scene.beat}`;if(sceneKey!==lastScene){lastScene=sceneKey;log.push({event:'scene',snapshot:s});await screenshot(`scene-${s.floor}-${s.sector}-${s.scene.id}-${s.scene.beat}`);}if(s.scene.time>1.1&&Date.now()-lastAdvance>500){await tap('KeyE');lastAdvance=Date.now();}lastProgress=Date.now();await sleep(60);continue;}
   if(!['alive','hurt'].includes(s.player.lifeState)){await stop();action=null;await sleep(30);lastProgress=Date.now();continue;}
+  if(checkRelays&&!completedRelays.has(data.id)){
+   if(!data.relay)throw Error(`Missing relay layout in ${data.id}`);
+   const result=await playExpandedRelay(data,{snapshot,key,tap,stop,sleep,readSave},checkRecovery);
+   routeEvidence.recordRelay(result);completedRelays.add(data.id);
+   await screenshot(`relay-${s.floor}-${s.sector}`);
+   console.log(`Passed relay ${data.id}: ${result.jumps.length} ordered landings, ${result.jumps.filter(jump=>jump.shiftedInAir).length} airborne shifts and persisted lamp`);
+   lastProgress=Date.now();continue;
+  }
   const p=s.player;if(p.supportId!==lastSupport){lastProgress=Date.now();lastSupport=p.supportId;stuck=0;}
   if(Date.now()-lastProgress>11000)throw Error(`No route progress for 11 seconds at ${room} / ${p.supportId}`);
   if(s.station.done&&!data.done){data=buildSector(s.floor,s.sector,s.mechanisms);graph={...graph,...graph.afterWork};}
@@ -112,5 +148,5 @@ try{
  }
  if(!passed)throw Error('Bounded timeout before requested ending/section goal');if(errors.length)throw Error('Runtime exceptions recorded');
 }catch(e){error=String(e);passed=false;console.error(error);if(ws?.readyState===1){try{log.push({event:'stopped',snapshot:await evaluate('window.lastLight.snapshot()')});await screenshot('stopped');}catch{}}}
-finally{if(ws?.readyState===1){try{const stored=await evaluate("JSON.parse(localStorage.getItem('last-light-v3'))");log.push({event:'stored-save-readback',data:stored});if(passed&&limit===18&&!stored?.finished){passed=false;error='Ending was not committed to localStorage';}await send('Browser.close');for(let n=0;n<100&&chrome.exitCode==null&&chrome.signalCode==null;n++)await sleep(100);log.push({event:'browser-exit',exitCode:chrome.exitCode,signal:chrome.signalCode});}catch(e){log.push({event:'browser-close',detail:String(e)});}}
- await writeFile(`${out}/attempt.json`,JSON.stringify({kind:limit<18?'bounded partial expanded-section keyboard test':'whole expanded-game keyboard test',limit,complete,profile,continuation:!!process.env.CHROME_PROFILE,passed,error,hashes,errors,log,actions},null,2));ws?.close();if(chrome.exitCode==null&&chrome.signalCode==null)chrome.kill();server.kill();if(!passed)process.exitCode=1;}
+finally{if(ws?.readyState===1){try{const stored=await readSave();log.push({event:'stored-save-readback',data:stored});if(passed&&limit===18&&(!stored?.finished||(!continuation&&!expectedRooms.every(id=>stored?.mechanisms.includes(id))))){passed=false;error='The completed route was not committed to localStorage';}await send('Browser.close');for(let n=0;n<100&&chrome.exitCode==null&&chrome.signalCode==null;n++)await sleep(100);log.push({event:'browser-exit',exitCode:chrome.exitCode,signal:chrome.signalCode});}catch(e){log.push({event:'browser-close',detail:String(e)});}}
+ await writeFile(`${out}/attempt.json`,JSON.stringify({kind:limit<18?'bounded partial expanded-section keyboard test':'whole expanded-game keyboard test',limit,complete,checkRelays,checkRecovery,profile,port,continuation,passed,error,hashes,errors,rooms:routeEvidence.rooms,log,actions},null,2));ws?.close();if(chrome.exitCode==null&&chrome.signalCode==null)chrome.kill();server.kill();if(!passed)process.exitCode=1;}

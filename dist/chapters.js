@@ -2,6 +2,35 @@
 // not six copies of the old corridor. Letters select traversable room structures;
 // links place stairwells, and work changes the section's actual route machinery.
 const section=(id,en,zh,plan,links,work,scene,mechanic,tone)=>({id,en,zh,plan:plan.split('/'),links,work,scene,mechanic,tone});
+
+// Authored upper service routes, in chapter order. Each plate is [left, top, width].
+// Each section starts above its arrival lamp and rejoins past the first room gap.
+// Early routes are steady climbs; later routes add drops, shorter catches and extra reversals.
+export const SERVICE_ROUTES = [
+ [
+  ['night', [98,158,46], [159,124,48], [223,93,48]],
+  ['night', [99,157,46], [161,122,45], [227,99,45], [286,72,47]],
+  ['day', [100,156,43], [158,123,46], [226,103,44], [288,77,45]],
+  ['night', [97,155,47], [162,120,44], [226,86,45], [285,111,44]],
+  ['day', [102,159,43], [164,126,45], [224,94,49], [290,111,42]],
+  ['night', [100,156,44], [163,122,44], [223,91,46], [285,109,46], [347,79,43]]
+ ],[
+  ['night', [96,159,50], [162,129,46], [225,98,46]],
+  ['day', [101,154,45], [162,119,46], [222,90,46], [284,105,44]],
+  ['night', [97,157,49], [158,123,44], [225,93,44], [284,68,46]],
+  ['night', [101,157,46], [161,125,46], [226,112,46], [284,81,46]],
+  ['day', [98,155,46], [161,120,44], [222,92,47], [285,108,44], [346,79,46]],
+  ['night', [101,159,46], [163,129,46], [222,105,45], [286,83,46], [345,100,44]]
+ ],[
+  ['night', [101,155,43], [164,121,45], [223,91,45], [285,110,47]],
+  ['day', [97,157,47], [160,122,47], [224,96,44], [287,112,45], [347,82,43]],
+  ['night', [98,159,49], [165,128,44], [228,105,45], [288,76,44]],
+  ['day', [102,155,44], [161,117,45], [226,84,44], [288,106,44], [347,76,44]],
+  ['night', [99,154,43], [161,119,43], [224,83,44], [285,107,44], [346,76,44]],
+  ['night', [101,154,42], [161,118,45], [225,86,43], [286,67,44], [346,94,45]]
+ ]
+];
+
 export const CHAPTERS=[
  [
   section('duty-room','Duty rooms','值班室','OBSR/SLBR/BSDL/RBSL/LSRB/BR SO'.replace(' ',''),[[0,0],[3,1],[1,2],[2,3],[0,4],[3,4]], [1,0], 'duty-signoff','power','amber'),
@@ -15,7 +44,8 @@ export const CHAPTERS=[
   section('work-maze','Work maze','工位迷宫','LBSR/RBSL/SLRB/BRLS/LRSB/SBLO',[[3,0],[1,1],[0,2],[2,3],[3,4],[1,4]], [2,3], 'public-list','doors','teal'),
   section('archive','Archive mezzanine','档案夹层','BLRS/SRBL/RLSB/LBSR/BRSL/LSRO',[[1,0],[3,1],[2,2],[0,3],[2,4],[0,1]], [2,4], 'record','archive','paper'),
   section('pantry','Pantry','茶水间','RSLB/LBRS/BRSL/SLRB/RBLS/LSBO',[[2,0],[0,1],[3,2],[1,3],[3,4],[0,4]], [1,2], 'phone','water','olive'),
-  section('fire-corridor','Fire corridor','消防回廊','SLBR/RBLS/LSRB/BRSL/SBLR/RLSO',[[0,0],[3,1],[1,2],[2,3],[0,4],[2,2]], [2,4], 'fire-door','doors','ember'),
+  // The second lower stairwell lets a missed handover jump return to the fire controls.
+  section('fire-corridor','Fire corridor','消防回廊','SLBR/RBLS/LSRB/BRSL/SBLR/RLSO',[[0,0],[3,1],[1,2],[2,3],[0,4],[2,2],[2,4]], [2,4], 'fire-door','doors','ember'),
   section('gary-office','Gary’s office','Gary 的办公室','BRSL/LSRB/RBLS/SLBR/LRSB/BLSO',[[3,0],[1,1],[2,2],[0,3],[1,4],[3,3]], [3,5], 'lunchbox','handover','warm')
  ],[
   section('machine-room','Roof machine room','屋顶机房','ORBS/SLBR/BRSL/LRSB/RSBL/BL SO'.replace(' ',''),[[1,0],[3,1],[0,2],[2,3],[3,4],[0,4]], [2,1], 'roof-power','power','slate'),
