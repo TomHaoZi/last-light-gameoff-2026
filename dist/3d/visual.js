@@ -187,6 +187,7 @@ varying vec3 direction;
 void main() {
   direction = position;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  gl_Position.z = gl_Position.w;
 }
 `;
 const SKY_FRAGMENT = `
@@ -256,25 +257,29 @@ uniform float nearPlane;
 uniform float farPlane;
 uniform float shafts;
 uniform float effects;
-uniform float time;
 uniform float night;
 uniform float shift;
 uniform float life;
+uniform float lifeJitter;
 uniform float danger;
 varying vec2 coords;
+// The same six directions as cos/sin(.37), stepping by 1.0472 radians.
+const vec2 contactDirections[6] = vec2[6](
+  vec2(.932327330, .361615449), vec2(.152993128, .988227248),
+  vec2(-.779334784, .626607776), vec2(-.932324767, -.361622065),
+  vec2(-.152986094, -.988228321), vec2(.779339433, -.626601934)
+);
 float eyeDepth(vec2 uv) {
   float d = texture2D(depthTex, uv).r;
   return nearPlane * farPlane / (farPlane - d * (farPlane - nearPlane));
 }
 float contact(vec2 uv, float depth) {
   vec2 radius = texel * clamp(45.0 / max(depth, 1.2), 2.5, 20.0);
-  float angle = .37;
   float result = 0.0;
   for (int i = 0; i < 6; i++) {
-    vec2 offset = vec2(cos(angle), sin(angle)) * radius;
+    vec2 offset = contactDirections[i] * radius;
     float delta = depth - eyeDepth(uv + offset);
     result += smoothstep(.04, .17, delta) * (1.0 - smoothstep(.38, .98, delta));
-    angle += 1.0472;
   }
   return result / 6.0;
 }
@@ -287,9 +292,11 @@ void main() {
   vec2 uv = coords;
   vec2 center = uv - .5;
   float range = length(center);
-  float ring = 1.0 - smoothstep(.008,.058,abs(range-(1.0-shift)*.80));
-  float ripple = shift * ring;
-  vec2 jitter = center * (.018 * life * sin(time*23.0) + .021 * ripple);
+  float ripple = 0.0;
+  if (shift > 0.0) {
+    ripple = shift * (1.0 - smoothstep(.008,.058,abs(range-(1.0-shift)*.80)));
+  }
+  vec2 jitter = center * (lifeJitter + .021 * ripple);
   vec2 sampleUv = uv + jitter;
   vec3 base = texture2D(frameTex, sampleUv).rgb;
   float spread = .006 * ripple + .0025 * life;
@@ -341,6 +348,7 @@ export class Visual {
     canvas.addEventListener('webglcontextrestored', () => {
       this.overlayFrame = null;
       this.shadowTime = -1;
+      this.phasePrograms = null;
     });
     this.renderer.setClearColor('#11181d');
     this.probes = new Map();
@@ -380,8 +388,8 @@ export class Visual {
         depthTex: { value: this.frameTarget.depthTexture }, shaftsTex: { value: this.atmosphere.target.texture },
         nearPlane: { value: this.camera.near }, farPlane: { value: this.camera.far },
         shafts: { value: 0 }, effects: { value: 1 },
-        time: { value: 0 }, night: { value: 0 }, shift: { value: 0 },
-        life: { value: 0 }, danger: { value: 0 }
+        night: { value: 0 }, shift: { value: 0 }, life: { value: 0 },
+        lifeJitter: { value: 0 }, danger: { value: 0 }
       },
       vertexShader: POST_VERTEX, fragmentShader: POST_FRAGMENT,
       depthTest: false, depthWrite: false
@@ -404,6 +412,7 @@ export class Visual {
     if (this.stage) this.clearStage();
     this.frameBudget.resetMeasurement();
     this.overlayFrame = null;
+    this.phasePrograms = null;
     this.decoded = decoded;
     this.theme = ['boiler', 'office', 'roof'].indexOf(level.theme || level.id);
     if (this.theme < 0) this.theme = /roof|garden|antenna/i.test(level.id) ? 2 : /office|archive/i.test(level.id) ? 1 : 0;
@@ -471,6 +480,42 @@ export class Visual {
     this.stage.add(actor.group);
     this.ghosts.set(key, actor);
     return actor;
+  }
+
+  preparePhasePrograms() {
+    if (this.phasePrograms || !this.desktopPointer.matches) return;
+    const { renderer, stage } = this;
+    if (!renderer.extensions.has('KHR_parallel_shader_compile')) return;
+    const idle = () => new Promise(resolve => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(resolve);
+      else setTimeout(resolve, 0);
+    });
+    const targets = [this.groups.night, this.groups.day, ...this.ghosts.values()];
+    const prepare = async () => {
+      for (const target of targets) {
+        const actor = target.group ? target : null;
+        const authored = actor && await preloadCreatureAsset();
+        await idle();
+        if (this.stage !== stage || this.phasePrograms !== task || renderer.getContext().isContextLost()) return;
+        if (this.renderQuality !== 'high') {
+          this.phasePrograms = null;
+          return;
+        }
+        if (actor && authored && !actor.group.userData.authoredCreature) updateCreature(actor, { time: 0 });
+        const previous = renderer.getRenderTarget();
+        let compile;
+        try {
+          // Match the scene pass format and light rig without drawing a hidden phase.
+          renderer.setRenderTarget(this.frameTarget);
+          compile = renderer.compileAsync(actor?.group ?? target, this.camera, this.scene);
+        } finally {
+          renderer.setRenderTarget(previous);
+        }
+        await compile;
+      }
+    };
+    const task = prepare().catch(() => {});
+    this.phasePrograms = task;
   }
 
   clearStage() {
@@ -959,7 +1004,9 @@ export class Visual {
     this.sky = mesh(this.stage, new THREE.SphereGeometry(126, 36, 19), skyMaterial, [0, 0, 0], [1, 1, 1]);
     this.sky.castShadow = false;
     this.sky.receiveShadow = false;
-    this.sky.renderOrder = -3;
+    // Run procedural sky shading only where opaque geometry left depth clear.
+    // Transparent surfaces still blend over the completed sky.
+    this.sky.renderOrder = 100;
     this.sky.frustumCulled = false;
     const b = this.batches.neutral;
     const m = this.materials;
@@ -1280,10 +1327,10 @@ export class Visual {
       this.shadowPosition.copy(this.camera.position);
     }
     const uniforms = this.grade.uniforms;
-    uniforms.time.value = time;
     uniforms.night.value = night;
     uniforms.shift.value = shift * (reduced ? .14 : 1);
     uniforms.life.value = (dying || revival ? .7 : 0) * (reduced ? .35 : 1);
+    uniforms.lifeJitter.value = .018 * uniforms.life.value * Math.sin(time * 23);
     uniforms.danger.value = dying ? 1 : hurt ? .6 : Math.max(0, 3 - (state.hp ?? 3)) * .19;
     if (quality === 'low') {
       this.renderer.setRenderTarget(null);
@@ -1293,8 +1340,9 @@ export class Visual {
     const cinematic = quality === 'high';
     this.renderer.setRenderTarget(this.frameTarget);
     this.renderer.render(this.scene, this.camera);
-    if (cinematic) {
-      const mist = this.atmosphere;
+    const mist = this.atmosphere;
+    const hasShafts = cinematic && mist.uniforms.bulbs.value.some(bulb => bulb.w !== 0);
+    if (hasShafts) {
       mist.uniforms.sceneDepth.value = this.frameTarget.depthTexture;
       mist.uniforms.inverseProjection.value.copy(this.camera.projectionMatrixInverse);
       mist.uniforms.cameraToWorld.value.copy(this.camera.matrixWorld);
@@ -1304,9 +1352,10 @@ export class Visual {
       this.renderer.render(mist.scene, mist.camera);
     }
     uniforms.effects.value = cinematic ? 1 : 0;
-    uniforms.shafts.value = cinematic ? 1 : 0;
+    uniforms.shafts.value = hasShafts ? 1 : 0;
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.postScene, this.postCamera);
+    if (cinematic) this.preparePhasePrograms();
   }
 
   updateProps(state, time) {

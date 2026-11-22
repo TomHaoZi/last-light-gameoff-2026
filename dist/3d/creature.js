@@ -13,6 +13,14 @@ const poseBounds = new Sphere(new Vector3(0, .92, 0), 1.55);
 let template = null;
 let loadPromise = null;
 
+class CreatureGroup extends Group {
+  updateMatrixWorld(force) {
+    // Three skips invisible creatures in both the scene and shadow passes.
+    // There is no need to visit their bones until they re-enter the phase.
+    if (this.visible) super.updateMatrixWorld(force);
+  }
+}
+
 export function preloadCreatureAsset() {
   if (!loadPromise) {
     loadPromise = new GLTFLoader().loadAsync(SOURCE).then(result => {
@@ -57,6 +65,7 @@ function authoredRig(theme, seed) {
   for (const object of unused) object.removeFromParent();
 
   const joints = new Map();
+  const skeletons = new Map();
   group.traverse(object => {
     if (object.isBone) joints.set(object.userData.name ?? object.name, object);
     // Stage disposal is per actor. Preserve decoded source textures for the
@@ -66,7 +75,15 @@ function authoredRig(theme, seed) {
     object.material = object.material.clone();
     object.castShadow = true;
     object.receiveShadow = true;
-    if (object.isSkinnedMesh) object.boundingSphere = poseBounds;
+    if (object.isSkinnedMesh) {
+      object.boundingSphere = poseBounds;
+      // SkeletonUtils clones each mesh's skeleton. Pieces of the same GLTF
+      // skin retain the same inverse-bind array and use the same actor joints.
+      const { boneInverses } = object.skeleton;
+      const sharedSkin = skeletons.get(boneInverses);
+      if (sharedSkin) object.skeleton = sharedSkin;
+      else skeletons.set(boneInverses, object.skeleton);
+    }
   });
 
   const body = {
@@ -87,6 +104,19 @@ function authoredRig(theme, seed) {
   };
   const head = joints.get('head');
   const jaw = joints.get('jaw');
+  const animated = new Set([body.hips, body.torso, body.neck, jaw]);
+  // The capture camera reads the head before the scene updates world matrices.
+  for (let ancestor = head; ancestor; ancestor = ancestor.parent) animated.add(ancestor);
+  for (const { shoulder, elbow, wrist, fingers } of body.arms) {
+    animated.add(shoulder).add(elbow).add(wrist);
+    for (const { bone } of fingers) animated.add(bone);
+  }
+  for (const { hip, knee, ankle } of body.legs) animated.add(hip).add(knee).add(ankle);
+  group.traverse(object => {
+    if (animated.has(object)) return;
+    object.updateMatrix();
+    object.matrixAutoUpdate = false;
+  });
   return {
     body, head, jaw, hipsBaseline: body.hips.position.y - .906,
     torsoBaseline: body.torso.position.z - .012
@@ -116,7 +146,7 @@ function releaseFallback(body) {
 
 export function createCreature(index = 0, theme = 0) {
   const seed = (index + 1) * 1.81 + theme * .49;
-  const group = new Group();
+  const group = new CreatureGroup();
   group.scale.set(1 + (index % 3 - 1) * .028, 1 + (index % 3 - 1) * .022, 1);
   const didLoad = Boolean(template);
   const actor = didLoad ? authoredRig(theme, seed) : fallbackRig(theme, seed);

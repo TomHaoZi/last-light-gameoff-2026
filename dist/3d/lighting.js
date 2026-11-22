@@ -71,8 +71,11 @@ const SHAFT_FRAGMENT = /* glsl */ `
       vec3 samplePoint = origin + direction * distanceAlongRay;
       float turbulence = .80 + .20 * sin(dot(samplePoint, vec3(1.3, .8, -1.1)) + time * .66);
       for (int source = 0; source < 3; source++) {
+        if (bulbs[source].w == 0.0) continue;
         vec3 delta = samplePoint - bulbs[source].xyz;
         float drop = -delta.y;
+        // Outside this interval the original smoothstep product is exactly zero.
+        if (drop <= -.08 || drop >= 3.4) continue;
         float down = smoothstep(-.08, .27, drop) * (1.0 - smoothstep(1.9, 3.4, drop));
         float width = .18 + max(drop, 0.0) * .52;
         float crossSection = dot(delta.xz, delta.xz) / (width * width);
