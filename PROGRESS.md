@@ -87,3 +87,15 @@ The 1440p High pipeline retains two-sample MSAA, scene resolution, shadows, fog,
 An alternating baseline/candidate/candidate/baseline run on Apple M4 Chrome held fixed 2560×1440 and 2× MSAA on all three floors, with adaptive resolution disabled. Both builds reached the test display's ~60 FPS. Mean GPU time across the two runs of each build dropped from 11.84 to 11.40 ms during phase transitions and from 12.04 to 10.74 ms during capture. Turn and chase averages were approximately unchanged. In the separate cold-office test, idle shader preparation shortened the first night transition's ~100 ms frame interval to ~83 ms. The cold-office hitch remains visible.
 
 Ten combined-build screenshots at 2560×1440 were either pixel-identical or differed at no more than 26 pixels, with a maximum difference of four RGB8 levels. Two packaged Chrome runs with ordinary inputs verified turning, switching, recorded dialogue, the checkpoint, capture and revival. Occasional frames above 25 ms appeared in normal-input timings, although the matched renderer runs stayed at about 16.7 ms. The 70-test suite and syntax checks passed.
+
+## 3D edition · 3.0.0-rc.9
+
+Profiling the Office's first night traced the stall to first-use shadow shader work and a synchronous upload of the 2048×2048 creature skin. The shader and strip uploads share one idle slot per frame. Prepared textures retain their original resolution, sampling and mip levels. The renderer reuses the authored vertex buffers between actors. Meshes still use separate materials and skeletons.
+
+Six alternating fresh-profile runs used the actual Chrome game and keyboard to leave the boiler floor and switch at the cold Office bridge. The render contract stayed at 2560×1440 High, 2× MSAA and full scale. First-switch frame interval fell from a median of 100.1 ms (worst 116.7) to 16.7 ms (worst 16.8). Median Office entry stayed at about 166.7 ms, and all six runs had zero pre-switch intervals over 33.4 ms after the entry frame.
+
+Three paired walk trials showed the same occasional roughly 50 ms frame when the camera first reveals new Office geometry. Both builds linked the same two programs at that spot. The first shift after walking or continuing from an Office lamp save stayed near 16.7 ms. Exact GPU readback matched all 67 mip levels of the six creature textures. The geometry check compared 210,708 sampled skinned vertex positions and verified that shared buffers did not change the poses. All 71 tests passed.
+
+Two additional bridge checks on the release source included periods of heavier background work. They measured first-shift intervals of 16.7 and 50.0 ms, versus 133.3 and 83.4 ms in the corresponding rc.8 checks. Entry intervals were 200.1 and 200.0 ms for the new build, versus 216.7 and 183.3 ms for rc.8.
+
+Five combined-build Office frames at 2560×1440, covering turning, the shift, night, pursuit and capture, matched rc.8 pixel for pixel.

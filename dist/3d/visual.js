@@ -5,7 +5,9 @@ import { mountEnvironment } from './environment-assets.js';
 import { FrameBudget } from './frame-budget.js';
 import { mountPhotoSurfaces } from './photo-surfaces.js';
 import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
-import { createCreature, preloadCreatureAsset, updateCreature } from './creature.js';
+import { createCreature, isSharedCreatureGeometry, preloadCreatureAsset, scheduleOfficeCreatureTextures, updateCreature } from './creature.js';
+import { makeOfficeProgramWarmup } from './office-phase-programs.js';
+import { waitForRenderIdle } from './render-idle.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -475,7 +477,7 @@ export class Visual {
   }
 
   addCreature(key, index) {
-    const actor = createCreature(index, this.theme);
+    const actor = createCreature(index, this.theme, this.renderer);
     actor.group.visible = false;
     this.stage.add(actor.group);
     this.ghosts.set(key, actor);
@@ -483,19 +485,26 @@ export class Visual {
   }
 
   preparePhasePrograms() {
-    if (this.phasePrograms || !this.desktopPointer.matches) return;
+    if (!this.desktopPointer.matches) return;
     const { renderer, stage } = this;
-    if (!renderer.extensions.has('KHR_parallel_shader_compile')) return;
-    const idle = () => new Promise(resolve => {
-      if (typeof requestIdleCallback === 'function') requestIdleCallback(resolve);
-      else setTimeout(resolve, 0);
-    });
-    const targets = [this.groups.night, this.groups.day, ...this.ghosts.values()];
+    const office = this.theme === 1;
+    if (this.theme <= 1 && !this.officeTextureWarmupScheduled) {
+      this.officeTextureWarmupScheduled = true;
+      scheduleOfficeCreatureTextures(renderer);
+    }
+    if (this.phasePrograms || !renderer.extensions.has('KHR_parallel_shader_compile')) return;
+    const actors = [...this.ghosts.values()];
+    const nightActors = office ? this.decoded.ghosts.filter(tile => tile.phase === 'night')
+      .map(tile => this.ghosts.get(tile.col + '/' + tile.row)).filter(Boolean) : [];
+    const targets = [...nightActors, this.groups.night, this.groups.day, ...actors.filter(actor => !nightActors.includes(actor))];
+    const isCurrent = () => this.stage === stage && this.phasePrograms === task &&
+      this.renderQuality === 'high' && !renderer.getContext().isContextLost();
+    const finishOfficeProgram = office ? makeOfficeProgramWarmup(renderer, stage, this.rig, this.lamp.shadow, isCurrent) : null;
     const prepare = async () => {
       for (const target of targets) {
         const actor = target.group ? target : null;
         const authored = actor && await preloadCreatureAsset();
-        await idle();
+        await waitForRenderIdle();
         if (this.stage !== stage || this.phasePrograms !== task || renderer.getContext().isContextLost()) return;
         if (this.renderQuality !== 'high') {
           this.phasePrograms = null;
@@ -512,6 +521,7 @@ export class Visual {
           renderer.setRenderTarget(previous);
         }
         await compile;
+        if (finishOfficeProgram && isCurrent()) await finishOfficeProgram(actor?.group ?? target);
       }
     };
     const task = prepare().catch(() => {});
@@ -525,7 +535,8 @@ export class Visual {
     this.stage.traverse(object => {
       if (object.isInstancedMesh) object.dispose();
       if (object.isSkinnedMesh) skeletons.add(object.skeleton);
-      if (object.geometry && ![unitBox, unitCylinder, unitSphere, unitPlane].includes(object.geometry)) {
+      if (object.geometry && !isSharedCreatureGeometry(object.geometry) &&
+        ![unitBox, unitCylinder, unitSphere, unitPlane].includes(object.geometry)) {
         transientGeometries.add(object.geometry);
       }
       if (Array.isArray(object.material)) object.material.forEach(material => materials.add(material));

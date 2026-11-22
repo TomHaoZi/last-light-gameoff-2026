@@ -8,12 +8,13 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.8"
+VERSION = "3.0.0-rc.9"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
     "simulation.js", "lighting.js", "models.js", "surfaces.js",
     "creature.js", "creature-body.js", "creature-head.js", "creature-voice.js",
+    "creature-textures.js", "render-idle.js", "office-phase-programs.js",
     "vendor/three.module.js", "vendor/three.core.js",
     "vendor/THREE-LICENSE.txt", "classic/index.html", "classic/style.css",
     "classic/game.js", "dialogue.js", "frame-budget.js", "photo-surfaces.js",

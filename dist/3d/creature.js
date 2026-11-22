@@ -3,6 +3,7 @@ import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 import { clone } from './vendor/utils/SkeletonUtils.js';
 import { makeCreatureBody, animateCreatureBody } from './creature-body.js';
 import { createSculptedHead, animateSculptedHead } from './creature-head.js';
+import { applyPreparedCreatureTextures, prepareOfficeTextures } from './creature-textures.js';
 
 const { smoothstep } = MathUtils;
 
@@ -10,8 +11,10 @@ const DEPARTMENTS = ['boiler', 'office', 'roof'];
 const SOURCE = new URL('./assets/creature/late-worker.glb', import.meta.url).href;
 // Bounds include the reach and capture poses as well as the resting model.
 const poseBounds = new Sphere(new Vector3(0, .92, 0), 1.55);
+const authoredGeometries = new WeakSet();
 let template = null;
 let loadPromise = null;
+const officeTextureRequests = new WeakSet();
 
 class CreatureGroup extends Group {
   updateMatrixWorld(force) {
@@ -25,6 +28,9 @@ export function preloadCreatureAsset() {
   if (!loadPromise) {
     loadPromise = new GLTFLoader().loadAsync(SOURCE).then(result => {
       template = result.scene;
+      template.traverse(object => {
+        if (object.isMesh) authoredGeometries.add(object.geometry);
+      });
       return true;
     }).catch(error => {
       console.warn('Could not load the imported creature mesh.', error);
@@ -32,6 +38,18 @@ export function preloadCreatureAsset() {
     });
   }
   return loadPromise;
+}
+
+export function isSharedCreatureGeometry(geometry) {
+  return authoredGeometries.has(geometry);
+}
+
+export function scheduleOfficeCreatureTextures(renderer) {
+  if (officeTextureRequests.has(renderer)) return;
+  officeTextureRequests.add(renderer);
+  void preloadCreatureAsset().then(ok => {
+    if (ok) prepareOfficeTextures(renderer, template);
+  });
 }
 
 function fingerJoints(joints, side) {
@@ -68,10 +86,9 @@ function authoredRig(theme, seed) {
   const skeletons = new Map();
   group.traverse(object => {
     if (object.isBone) joints.set(object.userData.name ?? object.name, object);
-    // Stage disposal is per actor. Preserve decoded source textures for the
-    // next floor, and give each live actor its own disposable GPU geometry.
     if (!object.isMesh) return;
-    object.geometry = object.geometry.clone();
+    // The GLB supplies immutable vertices. Each actor has its own pose and
+    // materials, while authored geometry stays reusable across chapters.
     object.material = object.material.clone();
     object.castShadow = true;
     object.receiveShadow = true;
@@ -144,7 +161,7 @@ function releaseFallback(body) {
   for (const item of materials) item.dispose();
 }
 
-export function createCreature(index = 0, theme = 0) {
+export function createCreature(index = 0, theme = 0, renderer = null) {
   const seed = (index + 1) * 1.81 + theme * .49;
   const group = new CreatureGroup();
   group.scale.set(1 + (index % 3 - 1) * .028, 1 + (index % 3 - 1) * .022, 1);
@@ -153,7 +170,7 @@ export function createCreature(index = 0, theme = 0) {
   group.add(actor.body.group);
   if (!didLoad) void preloadCreatureAsset();
   group.userData.authoredCreature = didLoad;
-  return { ...actor, group, seed, movementTime: 0, theme };
+  return { ...actor, group, seed, movementTime: 0, theme, renderer };
 }
 
 export function updateCreature(actor, { time, threat = 0, attack = 0, night = false,
@@ -164,6 +181,7 @@ export function updateCreature(actor, { time, threat = 0, attack = 0, night = fa
     actor.group.add(actor.body.group);
     actor.group.userData.authoredCreature = true;
   }
+  if (actor.group.userData.authoredCreature) applyPreparedCreatureTextures(actor);
   const urgency = smoothstep(threat, .26, .89);
   const reach = Math.max(attack, urgency * (1 - smoothstep(distance, .70, 3.85)));
   if (moving) actor.movementTime += Math.min(dt * 2.1, travel * .56);
