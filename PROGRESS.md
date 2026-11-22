@@ -57,3 +57,9 @@ Chrome verified that moving the mouse with no buttons pressed turns the camera, 
 Rebuilt the three creature bodies as continuous skinned meshes. Added integrated sculpted facial features, a jaw morph, worn workwear and localized dried blood. New code-generated voices cover distant howls, alert screams, near snarls and capture screeches, with spatial attenuation, room reflections and interruption on phase change.
 
 A normal-input Chrome session crossed both opening phase routes, triggered the first creature capture and returned to the saved lamp with full integrity. The 64-test suite passes. Creature renders were checked at each graphics tier. Offline stereo checks cover direction, peak headroom and phase transitions. Subjective headphone listening remains open.
+
+## 3D edition · 3.0.0-rc.5
+
+The three pursuers use imported, rigged human models with separate clothing and materials. Six props and four photographed surfaces add detail to the boiler room, office and roof. The mix adds 12 recorded spatial effects and four performed English lines with English and Chinese subtitles. The recordings, assets and licenses ship in the game package.
+
+Retested the three chapters, both phases and all three quality tiers in Chrome. A normal-input run switched phase, triggered the first recorded line, crossed the opening bridges, saved at a lamp, was captured and respawned with three integrity points. The 66 automated tests and the 2D evidence checks pass. The matched-camera Chrome benchmark on Apple M4 measured about 60 FPS for each chapter in both builds. High quality rendered at 2560×1440 in this build and 1920×1080 in rc.4. The new build drew 31–63% fewer triangles per frame in those scenes. Subjective headphone listening and performance on other physical devices remain open.

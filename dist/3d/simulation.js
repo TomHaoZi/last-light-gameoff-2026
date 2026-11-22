@@ -228,14 +228,14 @@ export class Simulation3D {
       this.completed.add(id);
       this.progress.work[this.levelIndex] = [...this.completed];
       this.emit('sound', { name: 'interact', position: tile });
-      this.emit('story', { pair: tile.messages ?? this.level.messages?.[id], id: 'workDone' });
+      this.emit('story', { pair: tile.messages ?? this.level.messages?.[id], id: 'workDone', station: id });
     } else if (type === 'clue') {
       const evidence = this.levelIndex + '/' + id;
       if (!this.progress.evidence.includes(evidence)) {
         this.progress.evidence.push(evidence);
         this.emit('sound', { name: 'pickup', position: tile });
       }
-      this.emit('story', { pair: tile.clue ?? this.level.clues?.[id], id: 'clueFound' });
+      this.emit('story', { pair: tile.clue ?? this.level.clues?.[id], id: 'clueFound', clue: id });
     } else if (type === 'lamp') {
       this.checkpoint = tile;
       this.hp = 3;

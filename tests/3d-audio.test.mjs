@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile, readdir } from 'node:fs/promises';
 import test from 'node:test';
 import { OfflineAudioContext } from 'node-web-audio-api';
 import { HorrorAudio } from '../dist/3d/audio.js';
@@ -69,7 +70,7 @@ test('a live howl follows the listener and stays silent after the ghost changes 
   const context = new OfflineAudioContext(2, 3 * rate, rate);
   const audio = new HorrorAudio();
   audio.initialize(context);
-  audio.roomBus.gain.value = 0;
+  audio.roomBus.disconnect();
   audio.scoreBus.gain.value = 0;
   // Room reflections can ring out after the dry positional emitter stops.
   audio.wet.disconnect();
@@ -115,4 +116,53 @@ test('a live howl follows the listener and stays silent after the ghost changes 
   assert.ok(energy(0, 1.39, 1.66) > 3 * energy(1, 1.39, 1.66), 'source did not move left on listener rotation');
   assert.ok(energy(0, 1.98, 2.07) < energy(0, 1.39, 1.66) / 250, 'inactive ghost continues calling');
   assert.ok(energy(0, 2.23, 2.40) < energy(0, 1.39, 1.66) / 250, 'an interrupted call resumed after a second shift');
+});
+
+test('packaged recordings decode and play in place of procedural effects on the game graph', async () => {
+  const rate = 32_000;
+  const context = new OfflineAudioContext(2, 10 * rate, rate);
+  const sound = new HorrorAudio();
+  sound.initialize(context);
+  const folder = new URL('../dist/3d/audio/', import.meta.url);
+  const clips = (await readdir(folder)).filter(name => name.endsWith('.m4a'));
+  assert.equal(clips.length, 12, 'recorded effect pack is incomplete');
+  for (const clip of clips) {
+    const bytes = await readFile(new URL(clip, folder));
+    const buffer = await context.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    assert.ok(buffer.duration > .7, clip);
+    sound.recordings.set(clip.replace('.m4a', ''), buffer);
+  }
+  ['room-boiler', 'room-office', 'room-roof'].forEach((file, level) => {
+    sound.attachRoomRecording(level, sound.recordings.get(file));
+    const source = sound.roomRecordings.get(level).source;
+    assert.ok(source.loop && source.loopEnd - source.loopStart > 12);
+  });
+
+  const ghost = { x: 10, z: -2, key: 'test', active: true, alert: 0 };
+  const scene = [
+    [.12, () => sound.cue('howl', ghost)],
+    [1.38, () => { ghost.x = 4; ghost.alert = .62; sound.cue('warning', ghost); }],
+    [2.05, () => sound.cue('step', { surface: 'grate' })],
+    [2.55, () => sound.cue('door', { x: 1, z: -3 })],
+    [3.11, () => sound.cue('snarl', ghost)],
+    [4.19, () => { ghost.x = -.5; sound.cue('death', ghost); }],
+    [5.77, () => sound.update({ level: 1 })],
+    [7.53, () => sound.update({ level: 2, night: true })],
+  ];
+  const updates = scene.map(([time, action], index) => context.suspend(time).then(() => {
+    if (index < 6) sound.update({ ghosts: [ghost], level: 0, night: true });
+    action();
+    return context.resume();
+  }));
+  const rendered = await context.startRendering();
+  await Promise.all(updates);
+  assert.equal(sound.vocalBuffers.size, 0, 'recorded monster cues fell through to synthesis');
+  let peak = 0;
+  for (let channel = 0; channel < 2; channel++) {
+    for (const sample of rendered.getChannelData(channel)) {
+      assert.ok(Number.isFinite(sample));
+      peak = Math.max(peak, Math.abs(sample));
+    }
+  }
+  assert.ok(peak > .12 && peak < .96, `recorded mix peak ${peak} is outside its usable range`);
 });

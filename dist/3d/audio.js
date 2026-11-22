@@ -2,13 +2,40 @@ import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
 
 const SILENCE = 0.0001;
 const MAX_VOICES = 70;
-const CUE_COOLDOWN = { step: .105, warning: 1.38, howl: 7.8, snarl: 2.65 };
+const CUE_COOLDOWN = { step: .105, warning: 1.38, howl: 7.8, snarl: 2.65, breath: 2.25 };
 const VOCAL_GAIN = {
   howl: .57,    // At range its reverb and shape carry before the peak level.
   scream: .69,  // The short alert must sit above the pursuit score.
   snarl: .49,   // Audible beside footsteps without constant high-energy spikes.
   grab: .85,    // The attack has a quick crest with headroom left for the impact.
 };
+const RECORDED_VOCALS = {
+  howl: { file: 'creature-howl', gain: .58 },
+  scream: { file: 'creature-alert', gain: .59 },
+  snarl: { file: 'creature-growl', gain: .61 },
+  grab: { file: 'creature-grab', gain: .78 },
+  breath: { file: 'creature-exhale', gain: .38 }
+};
+const RECORDED_STEPS = {
+  concrete: { file: 'step-stone', gain: .50 },
+  metal: { file: 'step-grate', gain: .50 },
+  grate: { file: 'step-grate', gain: .48 },
+  carpet: { file: 'step-carpet', gain: .36 }
+};
+const ROOM_RECORDINGS = [
+  { file: 'room-boiler', gain: .60, duration: 12.6 },
+  { file: 'room-office', gain: .45, duration: 13.1 },
+  { file: 'room-roof', gain: .63, duration: 15 }
+];
+const RECORDING_FILES = [
+  ...Object.values(RECORDED_VOCALS).map(clip => clip.file),
+  ...new Set(Object.values(RECORDED_STEPS).map(clip => clip.file)),
+  'door-steel', ...ROOM_RECORDINGS.map(room => room.file)
+];
+const STEP_CLIP = .45;
+const AAC_PRIMING = 2112 / 32_000;
+const recordingOffset = (buffer, duration) =>
+  buffer.duration - duration > .05 ? AAC_PRIMING : 0;
 const ROOMS = [
   { decay: 1.65, reflections: [0.023, 0.051, 0.11], rumble: 47, air: 610, room: 0.38 },
   { decay: 0.86, reflections: [0.016, 0.033, 0.074], rumble: 58, air: 400, room: 0.24 },
@@ -83,6 +110,10 @@ export class HorrorAudio {
     this.lastCues = new Map();
     this.vocalBuffers = new Map();
     this.vocalEmitters = new Set();
+    this.recordings = new Map();
+    this.roomRecordings = new Map();
+    this.recordingReady = null;
+    this.currentDialogue = null;
     this.random = rng(0xfad24);
     this.liveVoices = 0;
     this.scoreIndex = 0;
@@ -94,6 +125,7 @@ export class HorrorAudio {
       if (!AudioContext) return false;
       this.initialize(new AudioContext());
     }
+    this.loadRecordings();
     if (this.context.state === 'suspended') await this.context.resume();
     return true;
   }
@@ -119,7 +151,11 @@ export class HorrorAudio {
     this.closeBus = context.createGain();
     this.worldBus = context.createGain();
     this.scoreBus = context.createGain();
+    this.dialogueMusic = context.createGain();
     this.roomBus = context.createGain();
+    this.roomRecordingFilter = context.createBiquadFilter();
+    this.roomRecordingFilter.type = 'lowpass';
+    this.roomRecordingFilter.frequency.value = 6800;
     this.dayBus = context.createGain();
     this.nightBus = context.createGain();
     this.wet = context.createGain();
@@ -128,8 +164,9 @@ export class HorrorAudio {
     this.wet.gain.value = ROOMS[0].room;
     this.closeBus.connect(this.master);
     this.worldBus.connect(this.master);
-    this.scoreBus.connect(this.master);
+    this.scoreBus.connect(this.dialogueMusic).connect(this.master);
     this.roomBus.connect(this.master);
+    this.roomRecordingFilter.connect(this.master);
     this.dayBus.connect(this.scoreBus);
     this.nightBus.connect(this.scoreBus);
 
@@ -137,7 +174,7 @@ export class HorrorAudio {
     this.convolver.normalize = false;
     this.impulses = ROOMS.map((room, index) => roomImpulse(context, room, index));
     this.worldBus.connect(this.convolver);
-    this.scoreBus.connect(this.convolver);
+    this.dialogueMusic.connect(this.convolver);
     this.roomBus.connect(this.convolver);
     this.convolver.connect(this.wet).connect(this.master);
 
@@ -159,6 +196,85 @@ export class HorrorAudio {
     this.nextHowl = context.currentTime + 3.4;
     this.nextSnarl = context.currentTime + 1.0;
     this.syncMaster();
+  }
+
+  loadRecordings() {
+    if (!this.context || this.recordingReady) return this.recordingReady;
+    const context = this.context;
+    this.recordingReady = Promise.all(RECORDING_FILES.map(async file => {
+      try {
+        const response = await fetch(new URL('./audio/' + file + '.m4a', import.meta.url));
+        if (!response.ok) return;
+        const buffer = await context.decodeAudioData(await response.arrayBuffer());
+        this.recordings.set(file, buffer);
+        const room = ROOM_RECORDINGS.findIndex(recording => recording.file === file);
+        if (room >= 0) this.attachRoomRecording(room, buffer);
+      } catch {
+        // Each missing clip leaves its established procedural voice or foley available.
+      }
+    }));
+    return this.recordingReady;
+  }
+
+  attachRoomRecording(level, buffer) {
+    const context = this.context;
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = buffer;
+    source.loop = true;
+    const duration = ROOM_RECORDINGS[level].duration;
+    // Some decoders expose the asset encoder's priming frames.
+    source.loopStart = recordingOffset(buffer, duration);
+    source.loopEnd = Math.min(buffer.duration, source.loopStart + duration);
+    gain.gain.value = 0;
+    source.connect(gain).connect(this.roomRecordingFilter);
+    source.start(0, source.loopStart);
+    this.roomRecordings.set(level, { source, gain });
+    this.syncRoomRecordings(context.currentTime);
+  }
+
+  syncRoomRecordings(at) {
+    const hasRecording = this.roomRecordings.has(this.level);
+    ramp(this.roomBus.gain, at, hasRecording ? .47 : 1, .53);
+    for (const [level, recorder] of this.roomRecordings) {
+      ramp(recorder.gain.gain, at, level === this.level ? ROOM_RECORDINGS[level].gain : 0, .53);
+    }
+  }
+
+  playBuffer(buffer, at, bus, volume, speed = 1, offset = 0, length = buffer.duration - offset) {
+    if (this.liveVoices >= MAX_VOICES) return null;
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = speed;
+    gain.gain.value = volume;
+    source.connect(gain).connect(bus);
+    this.trackVoice(source, [gain]);
+    source.start(at, offset, length);
+    return source;
+  }
+
+  playRecording(file, at, bus, gain, speed, offset, length) {
+    const buffer = this.recordings.get(file);
+    if (!buffer) return null;
+    const delay = file.startsWith('step-') ? recordingOffset(buffer, 3 * STEP_CLIP) : 0;
+    return this.playBuffer(buffer, at, bus, gain, speed, (offset ?? 0) + delay, length);
+  }
+
+  playDialogue(buffer) {
+    if (!this.context || this.paused || this.muted || !buffer) return null;
+    const at = this.context.currentTime + .008;
+    const source = this.playBuffer(buffer, at, this.master, .90);
+    if (source) {
+      this.currentDialogue = source;
+      ramp(this.dialogueMusic.gain, at, .25, .12);
+      source.addEventListener('ended', () => {
+        if (this.currentDialogue !== source) return;
+        this.currentDialogue = null;
+        ramp(this.dialogueMusic.gain, this.context.currentTime, 1, .23);
+      }, { once: true });
+    }
+    return source;
   }
 
   texture(gain, filterType, frequency, q, amplitude, destination) {
@@ -223,6 +339,7 @@ export class HorrorAudio {
     ramp(this.engine.source.frequency, time, room.rumble, 0.34);
     ramp(this.engineMod.source.frequency, time, room.rumble + 0.25, 0.34);
     ramp(this.vent.filter.frequency, time, room.air, 0.26);
+    this.syncRoomRecordings(time);
   }
 
   spatial(position) {
@@ -257,6 +374,7 @@ export class HorrorAudio {
       ramp(this.engine.gain.gain, now, night ? 0.013 : 0.041, 0.18);
       ramp(this.engineMod.gain.gain, now, night ? 0.004 : 0.034, 0.18);
       ramp(this.nightSub.gain.gain, now, night ? 0.063 : 0, 0.18);
+      ramp(this.roomRecordingFilter.frequency, now, night ? 2800 : 6800, 0.18);
     }
     if (paused || now - this.lastFrame < 0.045) return;
     this.lastFrame = now;
@@ -288,7 +406,8 @@ export class HorrorAudio {
     this.ghosts.forEach((slot, index) => {
       const source = grabbed ? null : nearby[index];
       const proximity = source ? clamp((7.1 - source.distance) / 4.9, 0, 1) : 0;
-      ramp(slot.gate.gain, now, proximity * (source?.amplitude ?? 0) * .63, 0.11);
+      const airLevel = this.recordings.has('creature-exhale') ? .28 : .63;
+      ramp(slot.gate.gain, now, proximity * (source?.amplitude ?? 0) * airLevel, 0.11);
       if (proximity <= 0) return;
       const alert = clamp(finite(source.ghost.alert, this.tension), 0, 1);
       const rhythm = now * (2.05 + alert * 2.8) + index * 2.37 + .24 * Math.sin(now * 1.83);
@@ -320,7 +439,8 @@ export class HorrorAudio {
     if (grabbed || this.muted) return;
     const closest = nearby[0];
     if (now >= this.nextSnarl && closest && closest.distance < 6.0) {
-      this.cue('snarl', closest.ghost);
+      const breathe = this.recordings.has('creature-exhale') && this.random() < .51;
+      this.cue(breathe ? 'breath' : 'snarl', closest.ghost);
       this.nextSnarl = now + 2.9 + this.random() * 2.8;
     }
     if (now >= this.nextHowl && this.tension < .39) {
@@ -334,6 +454,16 @@ export class HorrorAudio {
 
   creatureCue(name, at, position) {
     if (this.muted || this.liveVoices >= MAX_VOICES) return;
+    const clip = RECORDED_VOCALS[name];
+    const recording = this.recordings.get(clip.file);
+    if (recording) {
+      const speed = .94 + this.random() * .12;
+      const bus = this.positionBus(position, at, recording.duration / speed + .12, true);
+      this.playBuffer(recording, at, bus, clip.gain, speed);
+      if (name === 'grab') this.playRecording('creature-exhale', at + .39, bus, .25, .86);
+      return;
+    }
+    if (name === 'breath') return;
     const variant = (this.level + Math.floor(this.random() * 3)) % 3;
     const key = name + '/' + variant;
     let buffer = this.vocalBuffers.get(key);
@@ -343,14 +473,8 @@ export class HorrorAudio {
       buffer.copyToChannel(samples, 0);
       this.vocalBuffers.set(key, buffer);
     }
-    const source = this.context.createBufferSource();
-    const fader = this.context.createGain();
-    fader.gain.value = VOCAL_GAIN[name];
     const bus = this.positionBus(position, at, buffer.duration + .11, true);
-    source.buffer = buffer;
-    source.connect(fader).connect(bus);
-    this.trackVoice(source, [fader]);
-    source.start(at);
+    this.playBuffer(buffer, at, bus, VOCAL_GAIN[name]);
   }
 
   tone(at, start, end, duration, strength, bus, type = 'sine', attack = 0.008) {
@@ -489,7 +613,7 @@ export class HorrorAudio {
     const cooldown = CUE_COOLDOWN[name] ?? .065;
     if (at - (this.lastCues.get(name) ?? -Infinity) < cooldown) return;
     this.lastCues.set(name, at);
-    if (name === 'howl' || name === 'snarl') {
+    if (name === 'howl' || name === 'snarl' || name === 'breath') {
       this.creatureCue(name, at, position);
       return;
     }
@@ -511,7 +635,14 @@ export class HorrorAudio {
 
     switch (name) {
       case 'step': {
-        const surface = SURFACES[position?.surface] ?? SURFACES.concrete;
+        const surfaceName = position?.surface ?? 'concrete';
+        const clip = RECORDED_STEPS[surfaceName] ?? RECORDED_STEPS.concrete;
+        if (this.recordings.has(clip.file)) {
+          const step = Math.floor(this.random() * 3);
+          const speed = .92 + this.random() * .18;
+          if (this.playRecording(clip.file, at, bus, clip.gain, speed, step * STEP_CLIP, STEP_CLIP)) break;
+        }
+        const surface = SURFACES[surfaceName] ?? SURFACES.concrete;
         const variation = 0.89 + this.random() * 0.22;
         tone(0, surface.tread * variation, 56, 0.095, 0.078, 'triangle');
         noise(0.017, 0.12, 0.085, surface.grit * variation, 0.9, 0.013, surface.grit * 0.67);
@@ -557,6 +688,11 @@ export class HorrorAudio {
         noise(0, 0.64, 0.102, 210, 0.7, 0.16, 1290);
         break;
       case 'door':
+        if (this.playRecording('door-steel', at, bus, .63, .97)) {
+          tone(.7, 88, 38, .32, .085);
+          this.duck(at, .64, .95);
+          break;
+        }
         tone(0, 99, 32, 0.39, 0.16);
         noise(0.035, 0.82, 0.20, 810, 0.9, 0.088, 320);
         tone(0.062, 72, 93, 0.72, 0.050, 'triangle', 0.09);
@@ -569,6 +705,7 @@ export class HorrorAudio {
         noise(0, 0.21, 0.088, 1320, 0.7, 0.017, 640);
         break;
       case 'land':
+        this.playRecording('step-stone', at, bus, .34, .82, STEP_CLIP, STEP_CLIP);
         tone(0, 99, 37, 0.22, 0.122);
         noise(0.008, 0.18, 0.154, 860, 0.72, 0.012, 430);
         break;

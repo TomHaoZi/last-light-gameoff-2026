@@ -64,8 +64,10 @@
         </button>
       </div>
       <div class="reticle" aria-hidden="true"></div>
+      <span class="fps-readout" id="fps-readout" aria-hidden="true" hidden></span>
       <p class="interaction" id="interaction" hidden></p>
       <p class="notice" id="notice" aria-live="polite" hidden></p>
+      <div class="dialogue" id="dialogue" aria-live="polite" hidden><strong></strong><span></span></div>
       <div class="bottom-bar">
         <div class="vitals">
           <div id="health-label" class="label">INTEGRITY</div>
@@ -88,6 +90,8 @@
       <div id="settings">
         <label><span id="volume-label">Master volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
         <label><span id="quality-label">Graphics</span><select id="quality"><option value="high">High</option><option value="medium">Balanced</option><option value="low">Performance</option></select></label>
+        <label class="checkbox"><input id="adaptive" type="checkbox" checked><span id="adaptive-label">Adaptive resolution</span></label>
+        <label class="checkbox"><input id="fps-visible" type="checkbox"><span id="fps-label">Show frame rate</span></label>
         <label class="checkbox"><input id="reduced" type="checkbox"><span id="reduced-label">Reduce visual effects</span></label>
         <p id="controls-copy"></p>
         <button id="restart" hidden>Restart 3D shift</button>

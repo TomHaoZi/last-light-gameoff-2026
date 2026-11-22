@@ -1,7 +1,7 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 3D edition · 3.0.0-rc.4
+## 3D edition · 3.0.0-rc.5
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -15,8 +15,8 @@ python3 scripts/package-3d.py
 ```
 
 - Press **X** or click the phase button to switch day and night. WASD moves, the mouse looks around, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. The first bridge exists at night. Starting or resuming captures the mouse. Esc pauses and releases it. On touch screens, drag the scene to look and tap the phase button to switch.
-- WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The rooms, props and animated ghosts are modeled in code. Runtime-generated color, normal, roughness and metalness maps produce different aged materials. The high preset adds depth-aware light shafts and contact shading. Balanced and Performance reduce rendering cost. Web Audio synthesizes the score, room reverb, positional threats and foley.
-- The boiler mechanic, records clerk and roof caretaker each use one continuous skinned body, a sculpted face with an animated jaw and procedural worn uniforms. Creature voices are synthesized and positioned in the room. A distant howl, an alert scream, a close snarl and a capture screech signal different moments.
+- WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The game combines procedural sets with imported props and photographic PBR materials. The high preset adds depth-aware light shafts and contact shading. Balanced and Performance reduce rendering cost. Web Audio synthesizes the score and mixes recorded dialogue, spatial effects and room tone. Adaptive resolution runs within the selected graphics preset. The settings menu can display measured frame rate.
+- The boiler mechanic, records clerk and roof caretaker use imported skinned models and photographic materials. Recorded monster effects are positioned in the room. Four recorded lines play in the stairwell, archive and evacuation intercom with English and Chinese subtitles. Importable models, surfaces and audio ship with the game. [Asset credits and licenses](dist/3d/assets/CREDITS.md).
 - The 3D edition uses a separate save. The expanded 2D edition remains available at the server root and from the 3D title screen. The existing trailer shows the 2D edition.
 
 ## Expanded 2D edition · 2.0.0-rc.1
@@ -97,4 +97,4 @@ The [jam entry](https://itch.io/jam/game-off-2026/rate/5327077) and the existing
 
 ## Credits and disclosure
 
-Created with AI assistance for code, procedural pixel art, synthesized music/SFX, writing and testing. No claim of hand-pixelled art, recorded voices, personal testimony or measured human impact. No external runtime artwork, fonts or audio samples. Fictional characters/events; no voice impersonation or synthetic narration. Original source/content use MIT; dependency licenses remain their owners’. Author / entrant: Tomhao10225101490.
+Created with AI assistance for code, procedural pixel art, synthesized music and sound effects, writing and testing. The 3D edition includes licensed artwork, recorded effects and performed English dialogue. The original 2D edition uses code-authored art and sound. Characters and events are fictional. Original source and content use MIT. Third-party assets and dependencies retain their licenses. Author and entrant: Tomhao10225101490.

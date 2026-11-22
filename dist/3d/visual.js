@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { applyWorldWeather, createSurfaceSet } from './surfaces.js';
 import { decorateModels } from './models.js';
+import { mountEnvironment } from './environment-assets.js';
+import { FrameBudget } from './frame-budget.js';
+import { mountPhotoSurfaces } from './photo-surfaces.js';
 import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
 import { createCreature, updateCreature } from './creature.js';
 
@@ -12,7 +15,8 @@ const ZERO = new THREE.Vector3();
 const FACES = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 const PHASE = { d: 'day', n: 'night' };
 const PROPS = new Set(['.', 'G', 'H', 'J']);
-const SIZE = { low: 0.8, medium: 1.2, high: 1.6 };
+const SIZE = { low: .80, medium: 1.2, high: 1.85 };
+const BATCH_SECTOR = TILE * 8;
 const WARM = new THREE.Color('#ffd8a5');
 const COLD = new THREE.Color('#9bcfea');
 const YELLOW = new THREE.Color('#ffb95a');
@@ -121,15 +125,26 @@ class Batch {
 
   build() {
     for (const { geometry, material, entries } of this.buckets.values()) {
-      const meshes = new THREE.InstancedMesh(geometry, material, entries.length);
-      for (let i = 0; i < entries.length; i++) {
-        meshes.setMatrixAt(i, entries[i].matrix);
-        if (entries[i].color) meshes.setColorAt(i, entries[i].color);
+      const sectors = new Map();
+      for (const entry of entries) {
+        const x = entry.matrix.elements[12];
+        const z = entry.matrix.elements[14];
+        const sector = entries.length < 48 ? '' :
+          Math.floor(x / BATCH_SECTOR) + '/' + Math.floor(z / BATCH_SECTOR);
+        if (!sectors.has(sector)) sectors.set(sector, []);
+        sectors.get(sector).push(entry);
       }
-      meshes.castShadow = !material.isMeshBasicMaterial;
-      meshes.receiveShadow = !material.isMeshBasicMaterial;
-      meshes.computeBoundingSphere();
-      this.group.add(meshes);
+      for (const instances of sectors.values()) {
+        const batch = new THREE.InstancedMesh(geometry, material, instances.length);
+        for (const [i, entry] of instances.entries()) {
+          batch.setMatrixAt(i, entry.matrix);
+          if (entry.color) batch.setColorAt(i, entry.color);
+        }
+        batch.castShadow = !material.isMeshBasicMaterial && material.userData.castShadow !== false;
+        batch.receiveShadow = !material.isMeshBasicMaterial;
+        batch.computeBoundingSphere();
+        this.group.add(batch);
+      }
     }
     this.buckets.clear();
   }
@@ -301,6 +316,7 @@ void main() {
 export class Visual {
   constructor(canvas) {
     this.canvas = canvas;
+    this.frameBudget = new FrameBudget();
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(66, 1, .045, 143);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -310,6 +326,7 @@ export class Visual {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.shadowTime = -1;
+    this.shadowPosition = new THREE.Vector3();
     this.renderer.setClearColor('#11181d');
     this.probes = new Map();
     this.atmosphere = makeAtmosphere();
@@ -381,6 +398,8 @@ export class Visual {
     this.scene.add(this.stage);
     this.objects = new Map();
     this.ambience = [];
+    this.nearestFixtures = [];
+    this.fixtureSearchTime = -Infinity;
     this.kinetics = [];
     this.safeLamps = [];
     this.localTextures = [];
@@ -396,6 +415,7 @@ export class Visual {
     this.scene.background = this.fogWarm.clone();
     this.scene.fog = new THREE.FogExp2(this.fogWarm, this.theme === 2 ? .019 : .058);
     this.materials = this.makeMaterials();
+    this.materials.floor.userData.castShadow = false;
     this.groups = { neutral: this.stage, day: new THREE.Group(), night: new THREE.Group() };
     this.stage.add(this.groups.day, this.groups.night);
     this.batches = {
@@ -416,6 +436,8 @@ export class Visual {
     if (this.theme === 2) this.makeSkyline();
     Object.values(this.batches).forEach(batch => batch.build());
     this.makeParticles();
+    this.environmentReady = mountEnvironment(this);
+    this.surfacesReady = mountPhotoSurfaces(this);
     // Sculpt both phases at chapter entry so Shift never has to build a mesh.
     decoded.ghosts.forEach((tile, index) => this.addCreature(tile.col + '/' + tile.row, index));
   }
@@ -431,9 +453,10 @@ export class Visual {
   clearStage() {
     const transientGeometries = new Set();
     const materials = new Set();
+    const skeletons = new Set();
     this.stage.traverse(object => {
       if (object.isInstancedMesh) object.dispose();
-      if (object.isSkinnedMesh) object.skeleton.dispose();
+      if (object.isSkinnedMesh) skeletons.add(object.skeleton);
       if (object.geometry && ![unitBox, unitCylinder, unitSphere, unitPlane].includes(object.geometry)) {
         transientGeometries.add(object.geometry);
       }
@@ -441,6 +464,7 @@ export class Visual {
       else if (object.material) materials.add(object.material);
     });
     for (const material of Object.values(this.materials)) materials.add(material);
+    for (const skeleton of skeletons) skeleton.dispose();
     for (const geo of transientGeometries) geo.dispose();
     for (const material of materials) material.dispose();
     for (const texture of this.localTextures) texture.dispose();
@@ -925,6 +949,7 @@ export class Visual {
     const distant = standard('#676a70', { roughness: 1, fog: false });
     const windows = new THREE.MeshBasicMaterial({ color: '#b3a076', fog: false });
     const street = new THREE.MeshBasicMaterial({ color: '#453738', fog: false });
+    for (const material of [city, concrete, glass, distant]) material.userData.castShadow = false;
     Object.assign(this.materials, { city, concrete, glass, distant, windows, street });
     b.box(street, mx, -22, mz, 216, .1, 216);
     for (let i = 0; i < 68; i++) {
@@ -1036,7 +1061,9 @@ export class Visual {
     const width = Math.max(1, this.canvas.clientWidth || this.canvas.width || 1280);
     const height = Math.max(1, this.canvas.clientHeight || this.canvas.height || 720);
     const rawRatio = globalThis.devicePixelRatio || 1;
-    const ratio = Math.min(rawRatio, SIZE[quality] || SIZE.high, 1920 / width, 1080 / height);
+    const high = quality === 'high';
+    const ratio = Math.min(rawRatio, SIZE[quality] || SIZE.high,
+      (high ? 2560 : 1920) / width, (high ? 1440 : 1080) / height) * this.frameBudget.scale;
     if (this.size[0] === width && this.size[1] === height && this.size[2] === ratio) return;
     this.size = [width, height, ratio];
     this.camera.aspect = width / height;
@@ -1064,10 +1091,14 @@ export class Visual {
     this.lamp.intensity = ((roof ? 5.8 : 14.8) + night * 15 + Math.sin(time * 18) * .15 * night) * exposure;
     this.eyeFill.position.copy(this.camera.position);
     this.eyeFill.intensity = (.55 + night * .66) * exposure;
-    const near = this.ambience
-      .map(source => ({ source, distance: (source.x - state.x) ** 2 + (source.z - state.z) ** 2 }))
-      .filter(entry => entry.distance < 20 ** 2)
-      .sort((a, b) => a.distance - b.distance);
+    if (time < this.fixtureSearchTime || time - this.fixtureSearchTime >= .12) {
+      this.fixtureSearchTime = time;
+      this.nearestFixtures = this.ambience
+        .map(source => ({ source, distance: (source.x - state.x) ** 2 + (source.z - state.z) ** 2 }))
+        .filter(entry => entry.distance < 20 ** 2)
+        .sort((a, b) => a.distance - b.distance).slice(0, this.nearLights.length);
+    }
+    const near = this.nearestFixtures;
     for (let i = 0; i < this.nearLights.length; i++) {
       const light = this.nearLights[i];
       const entry = near[i];
@@ -1106,7 +1137,7 @@ export class Visual {
     }
   }
 
-  render(state, dt) {
+  render(state, dt, elapsed = dt) {
     if (!this.stage) return;
     const quality = typeof state.quality === 'string' ? state.quality.toLowerCase() : 'high';
     const reduced = state.reducedMotion || state.reduceMotion || state.reducedEffects;
@@ -1124,6 +1155,7 @@ export class Visual {
     this.scene.background.copy(this.fogWarm).lerp(this.fogCold, night);
     this.scene.fog.color.copy(this.scene.background);
     this.scene.fog.density = (this.theme === 2 ? .019 : .037) + night * (this.theme === 2 ? .004 : .024);
+    if (state.mode === 'playing') this.frameBudget.observe(elapsed, state.autoResolution !== false);
     this.resize(quality);
 
     const distance = this.last ? Math.hypot(state.x - this.last.x, state.z - this.last.z) : 0;
@@ -1199,13 +1231,17 @@ export class Visual {
       this.lamp.castShadow = quality === 'high';
       this.shadowTime = -1;
     }
-    if (quality === 'high' && (time < this.shadowTime || time - this.shadowTime > .051 ||
-      this.shadowPhase !== state.night || this.shadowYaw !== yaw || this.shadowPitch !== pitch)) {
+    const shadowAge = time - this.shadowTime;
+    const lightMoved = this.camera.position.distanceToSquared(this.shadowPosition) > .008 ||
+      Math.abs(yaw - this.shadowYaw) > .023 || Math.abs(pitch - this.shadowPitch) > .023;
+    if (quality === 'high' && (shadowAge < 0 || this.shadowPhase !== state.night ||
+      (shadowAge >= .043 && lightMoved) || shadowAge >= .13)) {
       this.renderer.shadowMap.needsUpdate = true;
       this.shadowTime = time;
       this.shadowPhase = state.night;
       this.shadowYaw = yaw;
       this.shadowPitch = pitch;
+      this.shadowPosition.copy(this.camera.position);
     }
     const uniforms = this.grade.uniforms;
     uniforms.time.value = time;

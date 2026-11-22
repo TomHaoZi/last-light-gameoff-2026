@@ -1,5 +1,6 @@
 import { Visual } from './visual.js';
 import { HorrorAudio } from './audio.js';
+import { Dialogue } from './dialogue.js';
 import { Simulation3D, SAVE_KEY, STEP } from './simulation.js';
 
 const $ = id => document.getElementById(id);
@@ -29,7 +30,7 @@ const strings = {
     legend: 'WASD Move · Mouse Look · E Interact', capturedLegend: 'WASD Move · Mouse Look · E Interact · Esc Pause and release mouse',
     capture: 'Capture mouse', captureFailed: 'This browser blocked mouse capture. Move the mouse within the scene to look around.',
     controls: 'X switches between day and night. WASD moves. Move the mouse to look around. The game captures it when you start or resume. Esc pauses and releases the mouse. Space jumps, E interacts, Shift sprints, C walks quietly, J opens the journal and M mutes. On touch screens, drag the scene and use the on-screen buttons.',
-    volume: 'Master volume', quality: 'Graphics', high: 'High', medium: 'Balanced', low: 'Performance', reduced: 'Reduce visual effects',
+    volume: 'Master volume', quality: 'Graphics', high: 'High', medium: 'Balanced', low: 'Performance', adaptive: 'Adaptive resolution', fpsMonitor: 'Show frame rate', reduced: 'Reduce visual effects',
     restart: 'Restart 3D shift', restartConfirm: 'Confirm 3D restart', lift: 'Open exit', lampAction: 'Rest at emergency lamp', powerAction: 'Power the exit light', work: 'Operate station', clue: 'Read evidence',
     workDone: 'Handover logged.', clueFound: 'Evidence recorded.', lamp: 'Checkpoint saved. Integrity restored.',
     power: 'The emergency light will stay on when you leave.', locked: 'Finish the handover at all three stations first.',
@@ -57,7 +58,7 @@ const strings = {
     legend: 'WASD 移动 · 鼠标转视角 · E 互动', capturedLegend: 'WASD 移动 · 鼠标转视角 · E 互动 · Esc 暂停并释放鼠标',
     capture: '捕获鼠标', captureFailed: '浏览器未捕获鼠标。将鼠标移到画面内即可转动视角。',
     controls: 'X 切换白天和黑夜，WASD 移动。移动鼠标即可转动视角。进入或继续值班时自动捕获鼠标，按 Esc 暂停并释放。空格跳跃，E 互动，Shift 冲刺，C 轻声走，J 打开日志，M 静音。触屏可拖动画面并使用屏幕按钮。',
-    volume: '总音量', quality: '画质', high: '高', medium: '均衡', low: '性能', reduced: '减弱视觉特效', restart: '重开 3D 值班', restartConfirm: '确认重开 3D 版',
+    volume: '总音量', quality: '画质', high: '高', medium: '均衡', low: '性能', adaptive: '自适应分辨率', fpsMonitor: '显示帧率', reduced: '减弱视觉特效', restart: '重开 3D 值班', restartConfirm: '确认重开 3D 版',
     lift: '打开出口', lampAction: '在应急灯休息', powerAction: '给出口灯通电', work: '操作设备', clue: '查看线索', workDone: '交班已记录。', clueFound: '线索已记下。',
     lamp: '检查点已保存，生命恢复。', power: '你离开后，应急灯也会继续亮着。', locked: '先完成本区的三项交接工作。',
     needDay: '设备只在 17:59 运转，切到白天。', needNight: '这段记忆只在 18:00 出现，切到夜晚。',
@@ -79,8 +80,12 @@ let muted = prefs.muted === true;
 let volume = Number.isFinite(prefs.volume) ? Math.max(0, Math.min(1, prefs.volume)) : .8;
 const state = new Simulation3D({ progress: read(SAVE_KEY) });
 state.quality = ['high', 'medium', 'low'].includes(prefs.quality) ? prefs.quality : (coarsePointer.matches ? 'medium' : 'high');
+state.autoResolution = prefs.adaptive !== false;
+let showFps = prefs.showFps === true;
 state.reduceMotion = typeof prefs.reduced === 'boolean' ? prefs.reduced : matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sound = new HorrorAudio();
+const dialogue = new Dialogue(sound, $('dialogue'));
+dialogue.preload();
 const keys = new Set();
 let edges = {}, noticeUntil = 0, lastChapter = -1, lastFrame = 0, accumulator = 0;
 let previouslyLocked = false, freeMouse = null, dragging = null, previousHUD = '', visual = null, error = null;
@@ -89,7 +94,7 @@ const t = () => strings[lang];
 const screenText = (id, value) => { $(id).textContent = value; };
 
 function savePrefs() {
-  write(settingsKey, { lang, muted, volume, quality: state.quality, reduced: state.reduceMotion });
+  write(settingsKey, { lang, muted, volume, quality: state.quality, adaptive: state.autoResolution, showFps, reduced: state.reduceMotion });
 }
 
 function saveProgress() {
@@ -155,10 +160,11 @@ function updateScreen(force = false) {
 function labels() {
   const copy = t();
   document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+  dialogue.setLanguage(lang);
   [
     ['language', lang === 'en' ? '中文' : 'EN'], ['mute', muted ? copy.off : copy.on], ['pause', copy.pause],
     ['settings-button', copy.settings], ['classic-link', copy.archive], ['controls-copy', copy.controls],
-    ['volume-label', copy.volume], ['quality-label', copy.quality], ['reduced-label', copy.reduced],
+    ['volume-label', copy.volume], ['quality-label', copy.quality], ['adaptive-label', copy.adaptive], ['fps-label', copy.fpsMonitor], ['reduced-label', copy.reduced],
     ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
     ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse],
     ['guide-title', copy.controlsTitle], ['guide-phase', copy.phaseControl], ['primer-action', copy.phaseControl], ['guide-move', copy.move], ['guide-look', copy.look],
@@ -185,6 +191,7 @@ function labels() {
 
 function loadChapter() {
   if (lastChapter === state.levelIndex) return;
+  dialogue.stop();
   visual?.load(state.level, state.map);
   lastChapter = state.levelIndex;
   previousHUD = '';
@@ -225,16 +232,23 @@ function updateHUD() {
 
 function processEvents() {
   for (const event of state.drain()) {
-    if (event.type === 'sound') sound.cue(event.name, event.position);
+    if (event.type === 'sound') {
+      sound.cue(event.name, event.position);
+      if (event.name === 'shift' && !state.levelIndex && state.night) dialogue.play('lost');
+    }
     if (event.type === 'warning') { sound.cue('warning', event.ghost); notice(t().warning, 2.6); }
     if (event.type === 'notice') {
       const firstLamp = event.id === 'lamp' && state.levelIndex === 0 && state.completed.size === 0 && !state.night;
       notice(t()[event.id] + (firstLamp ? ' ' + t().lampSteps : ''), firstLamp ? 6 : 3);
     }
-    if (event.type === 'story') notice(event.pair?.[lang === 'zh' ? 1 : 0] ?? t()[event.id], 6);
+    if (event.type === 'story') {
+      notice(event.pair?.[lang === 'zh' ? 1 : 0] ?? t()[event.id], 6);
+      if (!state.levelIndex && event.station === 'C') dialogue.play('evacuate');
+      if (state.levelIndex === 1 && event.clue) dialogue.play(event.clue === '1' ? 'calling' : 'trapped');
+    }
     if (event.type === 'save') saveProgress();
     if (event.type === 'chapter') loadChapter();
-    if (event.type === 'death') clearInput();
+    if (event.type === 'death') { clearInput(); dialogue.stop(); }
   }
 }
 
@@ -280,6 +294,7 @@ function start() {
 function pause() {
   if (state.mode !== 'playing') return;
   state.mode = 'paused';
+  dialogue.stop();
   clearInput();
   saveProgress();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -345,6 +360,10 @@ $('volume').value = String(volume);
 $('volume').oninput = () => { volume = Number($('volume').value); sound.setVolume(volume); savePrefs(); };
 $('quality').value = state.quality;
 $('quality').onchange = () => { state.quality = $('quality').value; savePrefs(); };
+$('adaptive').checked = state.autoResolution;
+$('adaptive').onchange = () => { state.autoResolution = $('adaptive').checked; savePrefs(); };
+$('fps-visible').checked = showFps;
+$('fps-visible').onchange = () => { showFps = $('fps-visible').checked; savePrefs(); };
 $('reduced').checked = state.reduceMotion;
 $('reduced').onchange = () => { state.reduceMotion = $('reduced').checked; savePrefs(); };
 $('restart').onclick = () => { $('confirm-restart').hidden = false; $('confirm-restart').focus(); };
@@ -452,7 +471,8 @@ function keyboardInput() {
 }
 
 function frame(time) {
-  const dt = lastFrame ? Math.min(.067, (time - lastFrame) / 1000) : 0;
+  const elapsed = lastFrame ? (time - lastFrame) / 1000 : 0;
+  const dt = Math.min(.067, elapsed);
   lastFrame = time;
   if (state.mode === 'playing' && !error) {
     accumulator += dt;
@@ -467,7 +487,13 @@ function frame(time) {
   updateScreen();
   updateHUD();
   if (time >= noticeUntil) $('notice').hidden = true;
-  if (!error) visual?.render(state, dt);
+  if (!error) visual?.render(state, dt, elapsed);
+  const stats = visual?.frameBudget;
+  const fpsLabel = showFps && stats?.fps ? Math.round(stats.fps) + ' FPS' : '';
+  if ($('fps-readout').textContent !== fpsLabel) {
+    screenText('fps-readout', fpsLabel);
+    $('fps-readout').hidden = !fpsLabel;
+  }
   requestAnimationFrame(frame);
 }
 labels();
@@ -479,6 +505,8 @@ window.lastLight3D = Object.freeze({
     x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch,
     mouseLocked: document.pointerLockElement === canvas, hp: state.hp, deaths: state.progress.deaths,
     work: [...state.completed], evidence: [...state.progress.evidence], life: state.life,
+    dialogue: { id: dialogue.active?.id ?? null, playing: Boolean(dialogue.active?.source) },
+    fps: visual?.frameBudget.fps ?? null, resolutionScale: visual?.frameBudget.scale ?? 1,
     webgl: Boolean(visual && !error), ending: state.mode === 'won' ? state.ending : null
   })
 });
