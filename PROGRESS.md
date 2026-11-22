@@ -88,7 +88,9 @@ An alternating baseline/candidate/candidate/baseline run on Apple M4 Chrome held
 
 Ten combined-build screenshots at 2560×1440 were either pixel-identical or differed at no more than 26 pixels, with a maximum difference of four RGB8 levels. Two packaged Chrome runs with ordinary inputs verified turning, switching, recorded dialogue, the checkpoint, capture and revival. Occasional frames above 25 ms appeared in normal-input timings, although the matched renderer runs stayed at about 16.7 ms. The 70-test suite and syntax checks passed.
 
-## 3D edition · 3.0.0-rc.9
+## 3D edition · 3.0.0-rc.10
+
+The browser bundle launches a title menu with equally prominent actions for the expanded 2D edition and first-person 3D edition. The 2D title card links back to the shared menu. Each edition uses its existing save and language settings.
 
 Profiling the Office's first night traced the stall to first-use shadow shader work and a synchronous upload of the 2048×2048 creature skin. The shader and strip uploads share one idle slot per frame. Prepared textures retain their original resolution, sampling and mip levels. The renderer reuses the authored vertex buffers between actors. Meshes still use separate materials and skeletons.
 

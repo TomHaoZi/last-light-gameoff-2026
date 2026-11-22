@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.9"
+VERSION = "3.0.0-rc.10"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
@@ -64,6 +64,12 @@ def collect_runtime():
     if entry.count(b'href="../"') != 2:
         raise ValueError("Expected the menu and noscript links to the classic edition")
     files["index.html"] = entry.replace(b'href="../"', b'href="./classic/index.html"')
+    classic_entry = files["classic/index.html"]
+    if classic_entry.count(b'href="./3d/" id="play-3d"') != 1:
+        raise ValueError("Expected the classic edition link to the 3D menu")
+    files["classic/index.html"] = classic_entry.replace(
+        b'href="./3d/" id="play-3d"', b'href="../index.html" id="play-3d"'
+    )
     files["LICENSE"] = (ROOT / "LICENSE").read_bytes()
     files["BUILD.json"] = (json.dumps({
         "edition": "LAST LIGHT 3D",

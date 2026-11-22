@@ -17,10 +17,10 @@ const strings = {
   en: {
     intro: 'At 17:59, Gary went back for the people still inside. The register says he was gone. You’re here to close the building. The building has other plans.',
     handover: '17:59 / THE FINAL HANDOVER', title: 'LAST LIGHT', subtitle: 'ONE MORE SHIFT',
-    start: 'Enter the building', resumeSave: 'Continue the shift', settings: 'Settings', on: 'Sound on', off: 'Sound off',
+    start: 'Play 3D', resumeSave: 'Continue 3D', play2D: 'Play 2D', settings: 'Settings', on: 'Sound on', off: 'Sound off',
     pause: 'Pause', paused: 'Take a breath.', pausedStory: 'When you’re ready, go back in. Your work is recorded at the last lamp.',
     resume: 'Resume shift', before: 'DAY · BEFORE THE FIRE', after: 'NIGHT · AFTER THE FIRE',
-    chapter: 'CHAPTER', hp: 'INTEGRITY', journal: 'Journal', archive: 'Original 2D edition',
+    chapter: 'CHAPTER', hp: 'INTEGRITY', journal: 'Journal',
     tip: 'Headphones recommended · Flashing lights and horror themes',
     controlsTitle: 'Controls', phaseControl: 'Switch day / night', toDay: 'Switch to day', toNight: 'Switch to night',
     move: 'Move', look: 'Look around', use: 'Interact', jump: 'Jump', mouse: 'Move the mouse',
@@ -46,9 +46,9 @@ const strings = {
   zh: {
     intro: '17:59，Gary 折返回去救还留在楼里的人。登记簿却说他已经走了。你回来做最后一次交接。大楼似乎还不想让你走。',
     handover: '17:59 / 最后一次交班', title: '最后一盏灯', subtitle: '再值一班',
-    start: '进入大楼', resumeSave: '继续上次交班', settings: '设置', on: '声音开', off: '声音关',
+    start: '玩 3D 版', resumeSave: '继续 3D 版', play2D: '玩 2D 版', settings: '设置', on: '声音开', off: '声音关',
     pause: '暂停', paused: '喘口气。', pausedStory: '准备好再回去。已经完成的工作会保存在最近的应急灯。',
-    resume: '继续值班', before: '白天 · 火灾之前', after: '黑夜 · 火灾之后', chapter: '章节', hp: '生命', journal: '日志', archive: '原始 2D 版',
+    resume: '继续值班', before: '白天 · 火灾之前', after: '黑夜 · 火灾之后', chapter: '章节', hp: '生命', journal: '日志',
     tip: '推荐戴耳机 · 含闪光与恐怖元素',
     controlsTitle: '操作指南', phaseControl: '切换白天 / 黑夜', toDay: '切到白天', toNight: '切到黑夜',
     move: '移动', look: '转动视角', use: '互动', jump: '跳跃', mouse: '直接移动鼠标',
@@ -165,7 +165,7 @@ function labels() {
   dialogue.setLanguage(lang);
   [
     ['language', lang === 'en' ? '中文' : 'EN'], ['mute', muted ? copy.off : copy.on], ['pause', copy.pause],
-    ['settings-button', copy.settings], ['classic-link', copy.archive], ['controls-copy', copy.controls],
+    ['settings-button', copy.settings], ['classic-link', copy.play2D], ['controls-copy', copy.controls],
     ['volume-label', copy.volume], ['mouse-sensitivity-label', copy.mouseSensitivity], ['quality-label', copy.quality], ['adaptive-label', copy.adaptive], ['fps-label', copy.fpsMonitor], ['reduced-label', copy.reduced],
     ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
     ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse],

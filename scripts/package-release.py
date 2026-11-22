@@ -6,11 +6,16 @@ subprocess.run(['node','scripts/verify-evidence.mjs'],cwd=ROOT,check=True)
 version=json.loads((ROOT/'package.json').read_text())['version']
 folder=ROOT/'releases';folder.mkdir(exist_ok=True)
 runtime=sorted(p for p in (ROOT/'dist').iterdir() if p.is_file())
-hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in runtime}
+def standalone_runtime(name, data):
+ if name == 'index.html':
+  return data.replace(b'href="./3d/" id="play-3d"', b'href="https://tomhao.itch.io/last-light" id="play-3d"')
+ return data
+runtime_files={p.name:standalone_runtime(p.name,p.read_bytes()) for p in runtime}
+hashes={name:hashlib.sha256(data).hexdigest() for name,data in runtime_files.items()}
 metadata={'version':version,'acceptance':'RELEASE CANDIDATE / FUNCTIONAL GATES VERIFIED; SUBJECTIVE AUDIO AND PHYSICAL DEVICE REVIEW PENDING','published':False,'runtimeSha256':hashes}
 html=folder/f'last-light-{version}-html5.zip';source=folder/f'last-light-{version}-source.zip'
 with zipfile.ZipFile(html,'w',zipfile.ZIP_DEFLATED) as z:
- for p in runtime:z.write(p,p.name)
+ for name,data in runtime_files.items():z.writestr(name,data)
  z.write(ROOT/'LICENSE','LICENSE');z.writestr('BUILD.json',json.dumps(metadata,indent=2)+'\n')
 with zipfile.ZipFile(source,'w',zipfile.ZIP_DEFLATED) as z:
  for name in ['README.md','LICENSE','AGENTS.md','PROGRESS.md','DECISIONS.md','package.json','package-lock.json','index.html','.gitignore']:
@@ -24,7 +29,7 @@ with zipfile.ZipFile(source,'w',zipfile.ZIP_DEFLATED) as z:
 with zipfile.ZipFile(html) as h,zipfile.ZipFile(source) as s:
  assert 'index.html' in h.namelist()
  assert b'url=dist/' not in h.read('index.html')
- for name in hashes:assert h.read(name)==s.read('dist/'+name),name
+ for name in hashes:assert h.read(name)==standalone_runtime(name,s.read('dist/'+name)),name
 manifest={**metadata,'packages':{p.name:{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size} for p in [html,source]}}
 (folder/f'SHA256-{version}.json').write_text(json.dumps(manifest,indent=2)+'\n')
 (folder/'SHA256.json').write_text(json.dumps(manifest,indent=2)+'\n')
