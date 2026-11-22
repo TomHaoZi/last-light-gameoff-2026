@@ -166,3 +166,42 @@ test('packaged recordings decode and play in place of procedural effects on the 
   }
   assert.ok(peak > .12 && peak < .96, `recorded mix peak ${peak} is outside its usable range`);
 });
+
+test('room audio ducks under speech and recovers when the line is interrupted', async () => {
+  const rate = 24_000;
+  const context = new OfflineAudioContext(2, 2 * rate, rate);
+  const sound = new HorrorAudio();
+  sound.initialize(context);
+  sound.roomBus.disconnect();
+  sound.wet.disconnect();
+  const drone = context.createBuffer(2, rate, rate);
+  for (let channel = 0; channel < 2; channel++) {
+    const samples = drone.getChannelData(channel);
+    for (let i = 0; i < samples.length; i++) {
+      samples[i] = .09 * Math.sin(i * 2 * Math.PI * 260 / rate);
+    }
+  }
+  sound.attachRoomRecording(0, drone);
+  const line = context.createBuffer(1, rate, rate);
+  let source;
+  const updates = [
+    [.62, () => { source = sound.playDialogue(line); assert.ok(source); }],
+    [1.15, () => sound.stopDialogue(source)],
+  ].map(([at, action]) => context.suspend(at).then(() => {
+    action();
+    return context.resume();
+  }));
+  const rendered = await context.startRendering();
+  await Promise.all(updates);
+  const samples = rendered.getChannelData(0);
+  const rms = (start, end) => {
+    const section = samples.subarray(Math.round(start * rate), Math.round(end * rate));
+    return Math.sqrt(section.reduce((sum, sample) => sum + sample ** 2, 0) / section.length);
+  };
+  const before = rms(.55, .60);
+  const during = rms(.78, 1.10);
+  const after = rms(1.60, 1.90);
+  assert.ok(before > .02, 'the recorded room should be audible');
+  assert.ok(during < before * .5, 'room bed still masks the dialogue');
+  assert.ok(after > before * .9, 'room bed remained ducked after interruption');
+});

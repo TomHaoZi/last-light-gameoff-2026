@@ -295,8 +295,10 @@ void main() {
     base.r = texture2D(frameTex,sampleUv+center*spread).r;
     base.b = texture2D(frameTex,sampleUv-center*spread).b;
   }
-  float depth = eyeDepth(sampleUv);
-  if (effects > .5 && depth < 21.0) base *= 1.0 - contact(sampleUv, depth) * .36;
+  if (effects > .5) {
+    float depth = eyeDepth(sampleUv);
+    if (depth < 21.0) base *= 1.0 - contact(sampleUv, depth) * .36;
+  }
   vec2 offset = texel * 5.0;
   vec3 glow = glowSample(sampleUv+offset) + glowSample(sampleUv-offset)
     + glowSample(sampleUv+vec2(-offset.x,offset.y)) + glowSample(sampleUv+vec2(offset.x,-offset.y));
@@ -387,6 +389,7 @@ export class Visual {
 
   load(level, decoded) {
     if (this.stage) this.clearStage();
+    this.frameBudget.resetMeasurement();
     this.decoded = decoded;
     this.theme = ['boiler', 'office', 'roof'].indexOf(level.theme || level.id);
     if (this.theme < 0) this.theme = /roof|garden|antenna/i.test(level.id) ? 2 : /office|archive/i.test(level.id) ? 1 : 0;
@@ -1229,6 +1232,7 @@ export class Visual {
       this.renderQuality = quality;
       this.renderer.shadowMap.enabled = quality === 'high';
       this.lamp.castShadow = quality === 'high';
+      this.frameTarget.resolveDepthBuffer = quality === 'high';
       this.shadowTime = -1;
     }
     const shadowAge = time - this.shadowTime;

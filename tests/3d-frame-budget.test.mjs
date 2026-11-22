@@ -23,3 +23,18 @@ test('adaptive rendering steps down under sustained load and recovers with hyste
   budget.observe(1 / 60, false);
   assert.equal(budget.scale, 1);
 });
+
+test('only consecutive slow windows downscale, including severe foreground jank', () => {
+  const budget = new FrameBudget();
+  measure(budget, 30, 1);
+  assert.equal(budget.scale, 1);
+  measure(budget, 60, 1);
+  measure(budget, 30, 1);
+  assert.equal(budget.scale, 1);
+  measure(budget, 4, 1);
+  assert.equal(budget.fps, 4);
+  assert.equal(budget.scale, .89);
+  budget.resetMeasurement();
+  measure(budget, 30, 1);
+  assert.equal(budget.scale, .89);
+});

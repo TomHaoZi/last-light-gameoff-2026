@@ -3,20 +3,26 @@
 export class FrameBudget {
   constructor() {
     this.scale = 1;
+    this.resetMeasurement();
+  }
+
+  resetMeasurement() {
     this.fps = null;
     this.seconds = 0;
     this.frames = 0;
     this.stableWindows = 0;
+    this.wasSlow = false;
   }
 
   observe(seconds, adapt) {
     if (!adapt) {
       this.scale = 1;
       this.stableWindows = 0;
+      this.wasSlow = false;
     }
-    if (seconds <= 0 || seconds > .22) {
-      this.seconds = 0;
-      this.frames = 0;
+    if (seconds <= 0) return;
+    if (seconds > 1.25) {
+      this.resetMeasurement();
       return;
     }
     this.seconds += seconds;
@@ -28,10 +34,12 @@ export class FrameBudget {
     this.seconds = 0;
     if (!adapt) return;
 
-    if (this.fps < 51) {
-      this.scale = Math.max(.64, Math.round(this.scale * .89 * 100) / 100);
-      this.stableWindows = 0;
-    } else if (this.fps >= 57.7) {
+    // Shader compilation and texture upload may cost an isolated window.
+    // Lower resolution only once the slowdown continues into the next one.
+    const slow = this.fps < 51;
+    if (slow && this.wasSlow) this.scale = Math.max(.64, Math.round(this.scale * .89 * 100) / 100);
+    this.wasSlow = slow;
+    if (this.fps >= 57.7) {
       if (++this.stableWindows >= 3) {
         this.scale = Math.min(1, Math.round((this.scale + .07) * 100) / 100);
         this.stableWindows = 0;

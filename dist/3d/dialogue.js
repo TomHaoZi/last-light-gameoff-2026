@@ -28,6 +28,7 @@ export class Dialogue {
     this.speaker = caption.querySelector('strong');
     this.words = caption.querySelector('span');
     this.language = 0;
+    this.paused = false;
     this.heard = new Set();
     this.queue = [];
     this.files = new Map();
@@ -60,7 +61,7 @@ export class Dialogue {
   }
 
   async next() {
-    if (this.active || !this.queue.length) return;
+    if (this.paused || this.active || !this.queue.length) return;
     this.preload();
     const id = this.queue.shift();
     const line = LINES[id];
@@ -80,26 +81,52 @@ export class Dialogue {
     }
     if (this.active !== entry) return;
     entry.source = buffer ? this.sound.playDialogue(buffer) : null;
+    entry.source?.addEventListener('ended', () => {
+      if (this.active !== entry) return;
+      entry.source = null;
+      this.heard.add(id);
+    }, { once: true });
     entry.shown = true;
-    this.heard.add(id);
     this.show(line);
     const visibleFor = Math.max(2.15, (buffer?.duration ?? line.seconds) + .45);
     entry.timer = setTimeout(() => {
       if (this.active !== entry) return;
+      this.heard.add(id);
       this.active = null;
       this.caption.hidden = true;
       void this.next();
     }, visibleFor * 1000);
   }
 
-  stop() {
+  pause() {
+    this.paused = true;
+    const id = this.active?.id;
+    if (id && !this.heard.has(id)) this.queue.unshift(id);
+    this.clearActive();
+  }
+
+  resume() {
+    this.paused = false;
+    void this.next();
+  }
+
+  clearActive() {
     const entry = this.active;
     this.active = null;
-    this.queue.length = 0;
     if (entry) {
       clearTimeout(entry.timer);
-      entry.source?.stop();
+      if (entry.source) this.sound.stopDialogue(entry.source);
     }
     this.caption.hidden = true;
+  }
+
+  stop() {
+    this.queue.length = 0;
+    this.clearActive();
+  }
+
+  reset() {
+    this.stop();
+    this.heard.clear();
   }
 }

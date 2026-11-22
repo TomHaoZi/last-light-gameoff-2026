@@ -25,7 +25,7 @@ const strings = {
     controlsTitle: 'Controls', phaseControl: 'Switch day / night', toDay: 'Switch to day', toNight: 'Switch to night',
     move: 'Move', look: 'Look around', use: 'Interact', jump: 'Jump', mouse: 'Move the mouse',
     drag: 'Drag the scene', onScreen: 'On-screen buttons', tapDayNight: 'Day / Night button', space: 'Space',
-    firstSteps: 'Use the emergency lamp ahead to save your progress. Then switch to night to reveal the first bridge.',
+    firstSteps: 'Save at the emergency lamp. Switch to night for the first bridge.',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
     legend: 'WASD Move · Mouse Look · E Interact', capturedLegend: 'WASD Move · Mouse Look · E Interact · Esc Pause and release mouse',
     capture: 'Capture mouse', captureFailed: 'This browser blocked mouse capture. Move the mouse within the scene to look around.',
@@ -53,7 +53,7 @@ const strings = {
     controlsTitle: '操作指南', phaseControl: '切换白天 / 黑夜', toDay: '切到白天', toNight: '切到黑夜',
     move: '移动', look: '转动视角', use: '互动', jump: '跳跃', mouse: '直接移动鼠标',
     drag: '拖动画面', onScreen: '屏幕按钮', tapDayNight: '「昼夜」按钮', space: '空格',
-    firstSteps: '走到前方的应急灯旁互动，保存进度。切到黑夜后，前方会出现第一座桥。',
+    firstSteps: '在应急灯处存档。切到黑夜，就能看见第一座桥。',
     lampSteps: '切到黑夜，让前方的桥出现。',
     legend: 'WASD 移动 · 鼠标转视角 · E 互动', capturedLegend: 'WASD 移动 · 鼠标转视角 · E 互动 · Esc 暂停并释放鼠标',
     capture: '捕获鼠标', captureFailed: '浏览器未捕获鼠标。将鼠标移到画面内即可转动视角。',
@@ -87,6 +87,7 @@ const sound = new HorrorAudio();
 const dialogue = new Dialogue(sound, $('dialogue'));
 dialogue.preload();
 const keys = new Set();
+const touchKeys = new Map();
 let edges = {}, noticeUntil = 0, lastChapter = -1, lastFrame = 0, accumulator = 0;
 let previouslyLocked = false, freeMouse = null, dragging = null, previousHUD = '', visual = null, error = null;
 let overlayMode = '';
@@ -206,7 +207,8 @@ function updateHUD() {
     const { level, levelIndex, completed, map, night, hp } = state;
     screenText('floor-label', copy.chapter + ' ' + (levelIndex + 1) + ' / ' + state.levels.length);
     screenText('room-title', lang === 'zh' ? level.zh : level.title);
-    screenText('objective', completed.size + ' / ' + map.stations.length + ' ' + copy.workCount + ' · ' + (lang === 'zh' ? level.objectiveZh : level.objective));
+    screenText('station-progress', completed.size + ' / ' + map.stations.length + ' ' + copy.workCount);
+    screenText('objective', ' · ' + (lang === 'zh' ? level.objectiveZh : level.objective));
     screenText('phase-time', night ? '18:00' : '17:59');
     screenText('phase-label', night ? copy.after : copy.before);
     screenText('phase-action', night ? copy.toDay : copy.toNight);
@@ -254,6 +256,8 @@ function processEvents() {
 
 function clearInput() {
   keys.clear();
+  for (const { button } of touchKeys.values()) button.removeAttribute('data-held');
+  touchKeys.clear();
   edges = {};
   dragging = null;
   freeMouse = null;
@@ -289,12 +293,14 @@ function start() {
   focusScene();
   requestMouseLook();
   sound.start().catch(e => console.warn('Audio unavailable.', e));
+  sound.update(soundState());
+  dialogue.resume();
 }
 
 function pause() {
   if (state.mode !== 'playing') return;
   state.mode = 'paused';
-  dialogue.stop();
+  dialogue.pause();
   clearInput();
   saveProgress();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -371,6 +377,7 @@ $('confirm-restart').onclick = () => {
   const previous = read(SAVE_KEY);
   if (previous && !write(SAVE_KEY + '-backup', previous)) return;
   state.reset();
+  dialogue.reset();
   lastChapter = -1;
   loadChapter();
   $('panel').close();
@@ -397,13 +404,13 @@ canvas.addEventListener('pointerleave', () => { freeMouse = null; });
 
 const actions = { Space: 'jump', KeyX: 'shift', KeyE: 'interact' };
 const playKeys = new Set(['KeyW','KeyA','KeyS','KeyD','KeyC','ShiftLeft','ShiftRight','Space','KeyX','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+function held(code) { return keys.has(code) || touchKeys.has(code); }
 function down(code, repeat = false) {
+  if (!repeat && !held(code) && actions[code]) edges[actions[code]] = true;
   keys.add(code);
-  if (!repeat && actions[code]) edges[actions[code]] = true;
 }
-function up(code) {
-  keys.delete(code);
-  if (code === 'Space') edges.release = true;
+function releaseJump(code) {
+  if (code === 'Space' && !held(code)) edges.release = true;
 }
 window.addEventListener('keydown', event => {
   if ($('panel').open || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || event.target.closest?.('input,select')) return;
@@ -416,22 +423,36 @@ window.addEventListener('keydown', event => {
   event.preventDefault();
   down(code, repeat);
 });
-window.addEventListener('keyup', event => up(event.code));
+window.addEventListener('keyup', event => {
+  if (keys.delete(event.code)) releaseJump(event.code);
+});
 window.addEventListener('blur', transitionToMenuWhenUnfocused);
 document.addEventListener('visibilitychange', () => { if (document.hidden) transitionToMenuWhenUnfocused(); });
 
 for (const button of document.querySelectorAll('[data-touch]')) {
   const code = button.dataset.touch;
   button.addEventListener('pointerdown', event => {
+    if (state.mode !== 'playing' || state.life !== 'alive' || event.button !== 0) return;
     event.preventDefault();
     button.setPointerCapture(event.pointerId);
-    down(code);
+    if (!held(code) && actions[code]) edges[actions[code]] = true;
+    if (!touchKeys.has(code)) touchKeys.set(code, { button, pointers: new Set() });
+    touchKeys.get(code).pointers.add(event.pointerId);
+    button.setAttribute('data-held', '');
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-    button.addEventListener(type, () => up(code));
+    button.addEventListener(type, event => {
+      const control = touchKeys.get(code);
+      if (!control?.pointers.delete(event.pointerId) || control.pointers.size) return;
+      touchKeys.delete(code);
+      button.removeAttribute('data-held');
+      releaseJump(code);
+    });
   }
   button.addEventListener('click', event => {
-    if (event.detail === 0 && actions[code]) edges[actions[code]] = true;
+    if (state.mode === 'playing' && state.life === 'alive' && event.detail === 0 && actions[code]) {
+      edges[actions[code]] = true;
+    }
   });
 }
 canvas.addEventListener('pointerdown', event => {
@@ -462,9 +483,9 @@ function keyboardInput() {
   state.look((Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'))) * STEP * 1.92,
     (Number(keys.has('ArrowUp')) - Number(keys.has('ArrowDown'))) * STEP * 1.2);
   const input = {
-    forward: Number(keys.has('KeyW')) - Number(keys.has('KeyS')),
-    side: Number(keys.has('KeyD')) - Number(keys.has('KeyA')),
-    sprint: keys.has('ShiftLeft') || keys.has('ShiftRight'), quiet: keys.has('KeyC'), ...edges
+    forward: Number(held('KeyW')) - Number(held('KeyS')),
+    side: Number(held('KeyD')) - Number(held('KeyA')),
+    sprint: held('ShiftLeft') || held('ShiftRight'), quiet: held('KeyC'), ...edges
   };
   edges = {};
   return input;

@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.5"
+VERSION = "3.0.0-rc.6"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",

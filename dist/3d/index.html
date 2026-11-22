@@ -55,31 +55,37 @@
         <div class="status-card">
           <p class="label" id="floor-label"></p>
           <p class="room-title" id="room-title"></p>
-          <p class="objective" id="objective"></p>
+          <p class="objective"><span id="station-progress"></span><span id="objective"></span></p>
         </div>
-        <button class="phase-badge" id="phase-badge" aria-keyshortcuts="X">
-          <span id="phase-time">17:59</span>
-          <span id="phase-label">DAY · BEFORE THE FIRE</span>
-          <span class="phase-action"><kbd>X</kbd><span id="phase-action">Switch to night</span></span>
-        </button>
+        <div class="phase-status">
+          <button class="phase-badge" id="phase-badge" aria-keyshortcuts="X">
+            <span id="phase-time">17:59</span>
+            <span id="phase-label">DAY · BEFORE THE FIRE</span>
+            <span class="phase-action"><kbd>X</kbd><span id="phase-action">Switch to night</span></span>
+          </button>
+          <span class="fps-readout" id="fps-readout" aria-hidden="true" hidden></span>
+        </div>
       </div>
       <div class="reticle" aria-hidden="true"></div>
-      <span class="fps-readout" id="fps-readout" aria-hidden="true" hidden></span>
-      <p class="interaction" id="interaction" hidden></p>
-      <p class="notice" id="notice" aria-live="polite" hidden></p>
-      <div class="dialogue" id="dialogue" aria-live="polite" hidden><strong></strong><span></span></div>
-      <div class="bottom-bar">
-        <div class="vitals">
-          <div id="health-label" class="label">INTEGRITY</div>
-          <div class="hp" id="health" aria-label="3 HP"><i></i><i></i><i></i></div>
-          <div class="stamina" role="meter" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="stamina-meter"><div id="stamina"></div></div>
+      <div class="hud-bottom">
+        <p class="interaction" id="interaction" hidden></p>
+        <div class="feedback">
+          <div class="dialogue" id="dialogue" aria-live="polite" hidden><strong></strong><span></span></div>
+          <p class="notice" id="notice" aria-live="polite" hidden></p>
         </div>
-        <p class="key-legend" id="key-legend">WASD Move · Mouse Look · E Interact</p>
-        <button id="journal" title="Journal (J)">Journal <kbd>J</kbd></button>
-      </div>
-      <div class="touch" aria-label="Touch controls">
-        <div class="pad"><button data-touch="KeyW" aria-label="Forward">↑</button><button data-touch="KeyA" aria-label="Left">←</button><button data-touch="KeyS" aria-label="Back">↓</button><button data-touch="KeyD" aria-label="Right">→</button></div>
-        <div class="touch-actions"><button data-touch="ShiftLeft" id="touch-sprint">Sprint</button><button data-touch="KeyC" id="touch-quiet">Quiet</button><button data-touch="Space" id="touch-jump">Jump</button><button data-touch="KeyE" id="touch-use">Use</button><button data-touch="KeyX" id="touch-shift">Day / Night</button></div>
+        <div class="touch" aria-label="Touch controls">
+          <div class="pad"><button data-touch="KeyW" aria-label="Forward">↑</button><button data-touch="KeyA" aria-label="Left">←</button><button data-touch="KeyS" aria-label="Back">↓</button><button data-touch="KeyD" aria-label="Right">→</button></div>
+          <div class="touch-actions"><button data-touch="ShiftLeft" id="touch-sprint">Sprint</button><button data-touch="KeyC" id="touch-quiet">Quiet</button><button data-touch="Space" id="touch-jump">Jump</button><button data-touch="KeyE" id="touch-use">Use</button><button data-touch="KeyX" id="touch-shift">Day / Night</button></div>
+        </div>
+        <div class="bottom-bar">
+          <div class="vitals">
+            <div id="health-label" class="label">INTEGRITY</div>
+            <div class="hp" id="health" aria-label="3 HP"><i></i><i></i><i></i></div>
+            <div class="stamina" role="meter" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="stamina-meter"><div id="stamina"></div></div>
+          </div>
+          <p class="key-legend" id="key-legend">WASD Move · Mouse Look · E Interact</p>
+          <button id="journal" title="Journal (J)">Journal <kbd>J</kbd></button>
+        </div>
       </div>
     </section>
 

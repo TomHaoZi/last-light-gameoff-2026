@@ -2,6 +2,10 @@ import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
 
 const SILENCE = 0.0001;
 const MAX_VOICES = 70;
+const DIALOGUE_DUCK = [
+  { bus: 'dialogueMusic', gain: .34, attack: .08, release: .23 },
+  { bus: 'dialogueRoom', gain: .40, attack: .055, release: .28 }
+];
 const CUE_COOLDOWN = { step: .105, warning: 1.38, howl: 7.8, snarl: 2.65, breath: 2.25 };
 const VOCAL_GAIN = {
   howl: .57,    // At range its reverb and shape carry before the peak level.
@@ -141,17 +145,20 @@ export class HorrorAudio {
     compressor.attack.value = 0.005;
     compressor.release.value = 0.2;
     const limiter = context.createDynamicsCompressor();
-    limiter.threshold.value = -3.5;
+    limiter.threshold.value = -5;
     limiter.knee.value = 0;
     limiter.ratio.value = 20;
     limiter.attack.value = 0.001;
     limiter.release.value = 0.09;
-    this.master.connect(compressor).connect(limiter).connect(context.destination);
+    const output = context.createGain();
+    output.gain.value = .80; // Preserve peak headroom after the limiter's makeup gain.
+    this.master.connect(compressor).connect(limiter).connect(output).connect(context.destination);
 
     this.closeBus = context.createGain();
     this.worldBus = context.createGain();
     this.scoreBus = context.createGain();
     this.dialogueMusic = context.createGain();
+    this.dialogueRoom = context.createGain();
     this.roomBus = context.createGain();
     this.roomRecordingFilter = context.createBiquadFilter();
     this.roomRecordingFilter.type = 'lowpass';
@@ -165,8 +172,8 @@ export class HorrorAudio {
     this.closeBus.connect(this.master);
     this.worldBus.connect(this.master);
     this.scoreBus.connect(this.dialogueMusic).connect(this.master);
-    this.roomBus.connect(this.master);
-    this.roomRecordingFilter.connect(this.master);
+    this.roomBus.connect(this.dialogueRoom).connect(this.master);
+    this.roomRecordingFilter.connect(this.dialogueRoom);
     this.dayBus.connect(this.scoreBus);
     this.nightBus.connect(this.scoreBus);
 
@@ -175,7 +182,7 @@ export class HorrorAudio {
     this.impulses = ROOMS.map((room, index) => roomImpulse(context, room, index));
     this.worldBus.connect(this.convolver);
     this.dialogueMusic.connect(this.convolver);
-    this.roomBus.connect(this.convolver);
+    this.dialogueRoom.connect(this.convolver);
     this.convolver.connect(this.wet).connect(this.master);
 
     const samples = context.sampleRate * 4;
@@ -267,14 +274,27 @@ export class HorrorAudio {
     const source = this.playBuffer(buffer, at, this.master, .90);
     if (source) {
       this.currentDialogue = source;
-      ramp(this.dialogueMusic.gain, at, .25, .12);
+      for (const { bus, gain, attack, release } of DIALOGUE_DUCK) {
+        const bed = this[bus].gain;
+        const end = at + Math.max(attack, buffer.duration);
+        ramp(bed, at, gain, attack);
+        bed.setValueAtTime(gain, end);
+        bed.linearRampToValueAtTime(1, end + release);
+      }
       source.addEventListener('ended', () => {
-        if (this.currentDialogue !== source) return;
-        this.currentDialogue = null;
-        ramp(this.dialogueMusic.gain, this.context.currentTime, 1, .23);
+        if (this.currentDialogue === source) this.currentDialogue = null;
       }, { once: true });
     }
     return source;
+  }
+
+  stopDialogue(source) {
+    if (!source || this.currentDialogue !== source) return;
+    this.currentDialogue = null;
+    source.stop();
+    for (const { bus, release } of DIALOGUE_DUCK) {
+      ramp(this[bus].gain, this.context.currentTime, 1, release);
+    }
   }
 
   texture(gain, filterType, frequency, q, amplitude, destination) {
@@ -426,8 +446,7 @@ export class HorrorAudio {
       );
       if (!present || emitter.position.active === false || emitter.position.visible === false) {
         // Finish this phrase after a shift. A return to the old phase gets a new call.
-        emitter.finished = true;
-        ramp(emitter.gain.gain, now, 0, .075);
+        this.finishCreatureCall(emitter, now);
         continue;
       }
       const located = this.spatial(emitter.position);
@@ -475,6 +494,12 @@ export class HorrorAudio {
     }
     const bus = this.positionBus(position, at, buffer.duration + .11, true);
     this.playBuffer(buffer, at, bus, VOCAL_GAIN[name]);
+  }
+
+  finishCreatureCall(emitter, at) {
+    if (emitter.finished) return;
+    emitter.finished = true;
+    ramp(emitter.gain.gain, at, 0, .075);
   }
 
   tone(at, start, end, duration, strength, bus, type = 'sine', attack = 0.008) {
@@ -676,6 +701,7 @@ export class HorrorAudio {
         this.duck(at, 0.57, 0.55);
         break;
       case 'death':
+        for (const emitter of this.vocalEmitters) this.finishCreatureCall(emitter, at);
         if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) this.creatureCue('grab', at, position);
         tone(0, 76, 22, 1.25, 0.23);
         tone(0.047, 142, 42, 0.76, 0.063, 'sawtooth', 0.021);

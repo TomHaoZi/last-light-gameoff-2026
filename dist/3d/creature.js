@@ -1,4 +1,4 @@
-import { Group, MathUtils, Vector3 } from 'three';
+import { Group, MathUtils, Sphere, Vector3 } from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 import { clone } from './vendor/utils/SkeletonUtils.js';
 import { makeCreatureBody, animateCreatureBody } from './creature-body.js';
@@ -8,6 +8,8 @@ const { smoothstep } = MathUtils;
 
 const DEPARTMENTS = ['boiler', 'office', 'roof'];
 const SOURCE = new URL('./assets/creature/late-worker.glb', import.meta.url).href;
+// Bounds include the reach and capture poses as well as the resting model.
+const poseBounds = new Sphere(new Vector3(0, .92, 0), 1.55);
 let template = null;
 let loadPromise = null;
 
@@ -64,7 +66,7 @@ function authoredRig(theme, seed) {
     object.material = object.material.clone();
     object.castShadow = true;
     object.receiveShadow = true;
-    if (object.isSkinnedMesh) object.frustumCulled = false;
+    if (object.isSkinnedMesh) object.boundingSphere = poseBounds;
   });
 
   const body = {
