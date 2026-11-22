@@ -71,3 +71,11 @@ Separated touch pointers from keyboard input and reflowed HUD messages and contr
 Two matched three-chapter runs on Apple M4 Chrome measured 59.78–60.00 FPS with a 16.7 ms P90 frame time at desktop High and mobile-emulated Balanced. Visible and shadow render passes drew 13–32% fewer triangles on desktop and 8–25% fewer in mobile emulation. All six profiles stayed at full preset scale. Induced sustained load still lowered scale, and the scale recovered after load cleared. These mobile profiles ran on the M4. Physical phone performance remains unverified.
 
 Chrome touch checks crossed both opening bridges at 320×568 with no deaths and verified movement and camera drag together, cancellation, jump, phase buttons, pause and the checkpoint. The 568×320 safe-area profile kept subtitles, status and targets separate. A packaged desktop run verified the interrupted recording, language switch, checkpoint, capture and full-health revival. All 70 tests passed in the release checkout.
+
+## 3D edition · 3.0.0-rc.7
+
+Desktop players can resume with Enter, recapture the mouse by clicking the scene, and set mouse sensitivity to 50–200%. Chrome and Safari both passed pause and keyboard resume. Sprinting updates the stamina meter without rewriting the room and phase text. A matched Chrome sprint reduced unrelated status-card mutations from 84 to zero.
+
+In three matched Apple M4 WebGL scenes, the first paused frame remained visible with no later draw calls, down from 155–210 calls per callback. Active rendering preserved scene geometry and performed 11–27% fewer local matrix compositions. Quality changes and window resizing re-render the paused scene. Fixed 1440p frame-rate differences were mixed under shared desktop load, so no overall FPS increase is claimed.
+
+The packaged Chrome build accepted ordinary keyboard inputs through all nine stations and all six records. A capture interrupted the rooftop return, and a separate run from a rooftop save fixture verified the complete ending. Both endings also remain covered by the simulation suite. All 70 tests passed in the release checkout.

@@ -264,7 +264,10 @@
 }
 
 .hud-bottom,.bottom-bar { pointer-events: none; }
+.reticle { pointer-events: none; }
 #journal { pointer-events: auto; }
+.sensitivity-range { display: flex; align-items: center; gap: .5rem; }
+#mouse-sensitivity-value { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
 
 .feedback {
   position: absolute;

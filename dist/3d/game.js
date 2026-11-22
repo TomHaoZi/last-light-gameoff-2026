@@ -28,9 +28,9 @@ const strings = {
     firstSteps: 'Save at the emergency lamp. Switch to night for the first bridge.',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
     legend: 'WASD Move · Mouse Look · E Interact', capturedLegend: 'WASD Move · Mouse Look · E Interact · Esc Pause and release mouse',
-    capture: 'Capture mouse', captureFailed: 'This browser blocked mouse capture. Move the mouse within the scene to look around.',
+    capture: 'Capture mouse', captureFailed: 'Move the mouse within the scene to look around. Click the scene to retry capture.',
     controls: 'X switches between day and night. WASD moves. Move the mouse to look around. The game captures it when you start or resume. Esc pauses and releases the mouse. Space jumps, E interacts, Shift sprints, C walks quietly, J opens the journal and M mutes. On touch screens, drag the scene and use the on-screen buttons.',
-    volume: 'Master volume', quality: 'Graphics', high: 'High', medium: 'Balanced', low: 'Performance', adaptive: 'Adaptive resolution', fpsMonitor: 'Show frame rate', reduced: 'Reduce visual effects',
+    volume: 'Master volume', mouseSensitivity: 'Mouse sensitivity', quality: 'Graphics', high: 'High', medium: 'Balanced', low: 'Performance', adaptive: 'Adaptive resolution', fpsMonitor: 'Show frame rate', reduced: 'Reduce visual effects',
     restart: 'Restart 3D shift', restartConfirm: 'Confirm 3D restart', lift: 'Open exit', lampAction: 'Rest at emergency lamp', powerAction: 'Power the exit light', work: 'Operate station', clue: 'Read evidence',
     workDone: 'Handover logged.', clueFound: 'Evidence recorded.', lamp: 'Checkpoint saved. Integrity restored.',
     power: 'The emergency light will stay on when you leave.', locked: 'Finish the handover at all three stations first.',
@@ -56,9 +56,9 @@ const strings = {
     firstSteps: '在应急灯处存档。切到黑夜，就能看见第一座桥。',
     lampSteps: '切到黑夜，让前方的桥出现。',
     legend: 'WASD 移动 · 鼠标转视角 · E 互动', capturedLegend: 'WASD 移动 · 鼠标转视角 · E 互动 · Esc 暂停并释放鼠标',
-    capture: '捕获鼠标', captureFailed: '浏览器未捕获鼠标。将鼠标移到画面内即可转动视角。',
+    capture: '捕获鼠标', captureFailed: '在画面内移动鼠标来转动视角。点击画面可重试捕获。',
     controls: 'X 切换白天和黑夜，WASD 移动。移动鼠标即可转动视角。进入或继续值班时自动捕获鼠标，按 Esc 暂停并释放。空格跳跃，E 互动，Shift 冲刺，C 轻声走，J 打开日志，M 静音。触屏可拖动画面并使用屏幕按钮。',
-    volume: '总音量', quality: '画质', high: '高', medium: '均衡', low: '性能', adaptive: '自适应分辨率', fpsMonitor: '显示帧率', reduced: '减弱视觉特效', restart: '重开 3D 值班', restartConfirm: '确认重开 3D 版',
+    volume: '总音量', mouseSensitivity: '鼠标灵敏度', quality: '画质', high: '高', medium: '均衡', low: '性能', adaptive: '自适应分辨率', fpsMonitor: '显示帧率', reduced: '减弱视觉特效', restart: '重开 3D 值班', restartConfirm: '确认重开 3D 版',
     lift: '打开出口', lampAction: '在应急灯休息', powerAction: '给出口灯通电', work: '操作设备', clue: '查看线索', workDone: '交班已记录。', clueFound: '线索已记下。',
     lamp: '检查点已保存，生命恢复。', power: '你离开后，应急灯也会继续亮着。', locked: '先完成本区的三项交接工作。',
     needDay: '设备只在 17:59 运转，切到白天。', needNight: '这段记忆只在 18:00 出现，切到夜晚。',
@@ -78,6 +78,7 @@ const finePointer = matchMedia('(any-pointer: fine)');
 let lang = ['en', 'zh'].includes(prefs.lang) ? prefs.lang : (navigator.language?.startsWith('zh') ? 'zh' : 'en');
 let muted = prefs.muted === true;
 let volume = Number.isFinite(prefs.volume) ? Math.max(0, Math.min(1, prefs.volume)) : .8;
+let mouseSensitivity = Number.isFinite(prefs.mouseSensitivity) ? Math.max(.5, Math.min(2, prefs.mouseSensitivity)) : 1;
 const state = new Simulation3D({ progress: read(SAVE_KEY) });
 state.quality = ['high', 'medium', 'low'].includes(prefs.quality) ? prefs.quality : (coarsePointer.matches ? 'medium' : 'high');
 state.autoResolution = prefs.adaptive !== false;
@@ -89,13 +90,13 @@ dialogue.preload();
 const keys = new Set();
 const touchKeys = new Map();
 let edges = {}, noticeUntil = 0, lastChapter = -1, lastFrame = 0, accumulator = 0;
-let previouslyLocked = false, freeMouse = null, dragging = null, previousHUD = '', visual = null, error = null;
+let previouslyLocked = false, freeMouse = null, dragging = null, previousHUD = '', previousStamina = -1, visual = null, error = null;
 let overlayMode = '';
 const t = () => strings[lang];
 const screenText = (id, value) => { $(id).textContent = value; };
 
 function savePrefs() {
-  write(settingsKey, { lang, muted, volume, quality: state.quality, adaptive: state.autoResolution, showFps, reduced: state.reduceMotion });
+  write(settingsKey, { lang, muted, volume, mouseSensitivity, quality: state.quality, adaptive: state.autoResolution, showFps, reduced: state.reduceMotion });
 }
 
 function saveProgress() {
@@ -165,7 +166,7 @@ function labels() {
   [
     ['language', lang === 'en' ? '中文' : 'EN'], ['mute', muted ? copy.off : copy.on], ['pause', copy.pause],
     ['settings-button', copy.settings], ['classic-link', copy.archive], ['controls-copy', copy.controls],
-    ['volume-label', copy.volume], ['quality-label', copy.quality], ['adaptive-label', copy.adaptive], ['fps-label', copy.fpsMonitor], ['reduced-label', copy.reduced],
+    ['volume-label', copy.volume], ['mouse-sensitivity-label', copy.mouseSensitivity], ['quality-label', copy.quality], ['adaptive-label', copy.adaptive], ['fps-label', copy.fpsMonitor], ['reduced-label', copy.reduced],
     ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
     ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse],
     ['guide-title', copy.controlsTitle], ['guide-phase', copy.phaseControl], ['primer-action', copy.phaseControl], ['guide-move', copy.move], ['guide-look', copy.look],
@@ -200,7 +201,7 @@ function loadChapter() {
 }
 
 function updateHUD() {
-  const status = [state.levelIndex, state.night, state.hp, state.completed.size, Math.round(state.stamina * 100)].join('/');
+  const status = [state.levelIndex, state.night, state.hp, state.completed.size].join('/');
   if (status !== previousHUD) {
     const copy = t();
     previousHUD = status;
@@ -215,8 +216,12 @@ function updateHUD() {
     $('phase-badge').dataset.night = String(night);
     [...$('health').children].forEach((node, i) => node.classList.toggle('full', i < hp));
     $('health').setAttribute('aria-label', hp + ' HP');
+  }
+  const stamina = Math.round(state.stamina * 100);
+  if (stamina !== previousStamina) {
+    previousStamina = stamina;
     $('stamina').style.width = state.stamina * 100 + '%';
-    $('stamina-meter').setAttribute('aria-valuenow', Math.round(state.stamina * 100));
+    $('stamina-meter').setAttribute('aria-valuenow', stamina);
   }
   const target = state.mode === 'playing' ? state.getInteraction() : null;
   const names = { station: 'work', clue: 'clue', lamp: 'lampAction', door: 'lift', power: 'powerAction' };
@@ -267,6 +272,7 @@ function focusScene() { canvas.focus({ preventScroll: true }); }
 
 function updateMouseLook() {
   const locked = document.pointerLockElement === canvas;
+  $('mouse-sensitivity-row').hidden = !finePointer.matches;
   $('mouse-look').hidden = Boolean(error) || state.mode !== 'playing' || !finePointer.matches || !canvas.requestPointerLock || locked;
   screenText('key-legend', locked ? t().capturedLegend : t().legend);
 }
@@ -297,6 +303,12 @@ function start() {
   dialogue.resume();
 }
 
+function focusResume() {
+  const active = document.activeElement;
+  if (state.mode !== 'paused' || error || document.hidden || !document.hasFocus() || $('panel').open) return;
+  if (active === canvas || active === document.body) $('start').focus({ preventScroll: true });
+}
+
 function pause() {
   if (state.mode !== 'playing') return;
   state.mode = 'paused';
@@ -305,6 +317,7 @@ function pause() {
   saveProgress();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
   updateScreen();
+  requestAnimationFrame(focusResume);
 }
 
 function transitionToMenuWhenUnfocused() {
@@ -364,6 +377,19 @@ function toggleSound() { muted = !muted; sound.setMuted(muted); labels(); savePr
 $('mute').onclick = toggleSound;
 $('volume').value = String(volume);
 $('volume').oninput = () => { volume = Number($('volume').value); sound.setVolume(volume); savePrefs(); };
+const sensitivityControl = $('mouse-sensitivity');
+sensitivityControl.value = String(mouseSensitivity);
+function updateSensitivityLabel() {
+  const label = Math.round(mouseSensitivity * 100) + '%';
+  screenText('mouse-sensitivity-value', label);
+  sensitivityControl.setAttribute('aria-valuetext', label);
+}
+updateSensitivityLabel();
+sensitivityControl.oninput = () => {
+  mouseSensitivity = Number(sensitivityControl.value);
+  updateSensitivityLabel();
+  savePrefs();
+};
 $('quality').value = state.quality;
 $('quality').onchange = () => { state.quality = $('quality').value; savePrefs(); };
 $('adaptive').checked = state.autoResolution;
@@ -389,13 +415,19 @@ document.addEventListener('pointerlockchange', () => {
   previouslyLocked = locked;
   freeMouse = null;
   if (locked && state.mode !== 'playing') document.exitPointerLock();
-  if (!locked && wasLocked) pause();
+  if (!locked && wasLocked) {
+    if (state.mode === 'playing') pause();
+    else requestAnimationFrame(focusResume);
+  }
   updateMouseLook();
 });
 document.addEventListener('pointerlockerror', () => {
   if (state.mode === 'playing') notice(t().captureFailed, 5);
 });
-function mouseLook(dx, dy) { state.look(dx * .0023, -dy * .0023); }
+function mouseLook(dx, dy) {
+  const gain = .0023 * mouseSensitivity;
+  state.look(dx * gain, -dy * gain);
+}
 
 document.addEventListener('mousemove', event => {
   if (document.pointerLockElement === canvas) mouseLook(event.movementX, event.movementY);
@@ -418,6 +450,11 @@ window.addEventListener('keydown', event => {
   if (code === 'KeyM' && !repeat) return toggleSound();
   if (code === 'KeyJ' && !repeat) return showPanel('journal');
   if (code === 'Escape' && !repeat && state.mode === 'playing') return pause();
+  if (event.key === 'Enter' && !repeat && state.mode === 'paused' && (event.target === canvas || event.target === document.body)) {
+    event.preventDefault();
+    start();
+    return;
+  }
   if (state.mode !== 'playing' || !playKeys.has(code)) return;
   if (code === 'Space' && event.target.closest?.('button,a')) return;
   event.preventDefault();
@@ -461,6 +498,10 @@ canvas.addEventListener('pointerdown', event => {
   if (event.pointerType === 'mouse') return;
   canvas.setPointerCapture(event.pointerId);
   dragging = { id: event.pointerId, x: event.clientX, y: event.clientY };
+});
+canvas.addEventListener('click', event => {
+  // Use the completed mouse gesture, like the Resume and Capture buttons.
+  if (event.pointerType === 'mouse' || (!event.pointerType && !coarsePointer.matches)) requestMouseLook();
 });
 canvas.addEventListener('pointermove', event => {
   if (event.pointerType === 'mouse') {

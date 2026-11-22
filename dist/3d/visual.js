@@ -5,7 +5,7 @@ import { mountEnvironment } from './environment-assets.js';
 import { FrameBudget } from './frame-budget.js';
 import { mountPhotoSurfaces } from './photo-surfaces.js';
 import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
-import { createCreature, updateCreature } from './creature.js';
+import { createCreature, preloadCreatureAsset, updateCreature } from './creature.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -136,6 +136,8 @@ class Batch {
       }
       for (const instances of sectors.values()) {
         const batch = new THREE.InstancedMesh(geometry, material, instances.length);
+        // These objects never move. Each instance already holds its world placement.
+        batch.matrixAutoUpdate = false;
         for (const [i, entry] of instances.entries()) {
           batch.setMatrixAt(i, entry.matrix);
           if (entry.color) batch.setColorAt(i, entry.color);
@@ -319,7 +321,11 @@ export class Visual {
   constructor(canvas) {
     this.canvas = canvas;
     this.frameBudget = new FrameBudget();
+    this.desktopPointer = matchMedia('(pointer: fine)');
+    this.overlayFrame = null;
+    this.wasPlaying = false;
     this.scene = new THREE.Scene();
+    this.scene.matrixAutoUpdate = false;
     this.camera = new THREE.PerspectiveCamera(66, 1, .045, 143);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -329,6 +335,13 @@ export class Visual {
     this.renderer.shadowMap.autoUpdate = false;
     this.shadowTime = -1;
     this.shadowPosition = new THREE.Vector3();
+    canvas.ownerDocument.addEventListener('visibilitychange', () => {
+      if (!canvas.ownerDocument.hidden) this.overlayFrame = null;
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.overlayFrame = null;
+      this.shadowTime = -1;
+    });
     this.renderer.setClearColor('#11181d');
     this.probes = new Map();
     this.atmosphere = makeAtmosphere();
@@ -390,6 +403,7 @@ export class Visual {
   load(level, decoded) {
     if (this.stage) this.clearStage();
     this.frameBudget.resetMeasurement();
+    this.overlayFrame = null;
     this.decoded = decoded;
     this.theme = ['boiler', 'office', 'roof'].indexOf(level.theme || level.id);
     if (this.theme < 0) this.theme = /roof|garden|antenna/i.test(level.id) ? 2 : /office|archive/i.test(level.id) ? 1 : 0;
@@ -398,6 +412,7 @@ export class Visual {
     if (!this.probes.has(outdoors)) this.probes.set(outdoors, makeReflectionProbe(outdoors));
     this.scene.environment = this.probes.get(outdoors);
     this.stage = new THREE.Group();
+    this.stage.matrixAutoUpdate = false;
     this.scene.add(this.stage);
     this.objects = new Map();
     this.ambience = [];
@@ -420,6 +435,8 @@ export class Visual {
     this.materials = this.makeMaterials();
     this.materials.floor.userData.castShadow = false;
     this.groups = { neutral: this.stage, day: new THREE.Group(), night: new THREE.Group() };
+    this.groups.day.matrixAutoUpdate = false;
+    this.groups.night.matrixAutoUpdate = false;
     this.stage.add(this.groups.day, this.groups.night);
     this.batches = {
       neutral: new Batch(this.groups.neutral), day: new Batch(this.groups.day), night: new Batch(this.groups.night)
@@ -441,6 +458,9 @@ export class Visual {
     this.makeParticles();
     this.environmentReady = mountEnvironment(this);
     this.surfacesReady = mountPhotoSurfaces(this);
+    const stage = this.stage;
+    const redraw = () => { if (this.stage === stage) this.overlayFrame = null; };
+    for (const ready of [this.environmentReady, this.surfacesReady, preloadCreatureAsset()]) ready.then(redraw, redraw);
     // Sculpt both phases at chapter entry so Shift never has to build a mesh.
     decoded.ghosts.forEach((tile, index) => this.addCreature(tile.col + '/' + tile.row, index));
   }
@@ -1067,7 +1087,7 @@ export class Visual {
     const high = quality === 'high';
     const ratio = Math.min(rawRatio, SIZE[quality] || SIZE.high,
       (high ? 2560 : 1920) / width, (high ? 1440 : 1080) / height) * this.frameBudget.scale;
-    if (this.size[0] === width && this.size[1] === height && this.size[2] === ratio) return;
+    if (this.size[0] === width && this.size[1] === height && this.size[2] === ratio) return false;
     this.size = [width, height, ratio];
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
@@ -1078,6 +1098,7 @@ export class Visual {
     this.frameTarget.setSize(rw, rh);
     this.atmosphere.target.setSize(Math.max(1, Math.round(rw / 3)), Math.max(1, Math.round(rh / 3)));
     this.grade.uniforms.texel.value.set(1 / rw, 1 / rh);
+    return true;
   }
 
   updateLights(state, time, night, exposure) {
@@ -1144,6 +1165,19 @@ export class Visual {
     if (!this.stage) return;
     const quality = typeof state.quality === 'string' ? state.quality.toLowerCase() : 'high';
     const reduced = state.reducedMotion || state.reduceMotion || state.reducedEffects;
+    const playing = state.mode === 'playing';
+    if (playing) {
+      if (!this.wasPlaying) this.frameBudget.resetMeasurement();
+      this.frameBudget.observe(elapsed, state.autoResolution !== false);
+    }
+    this.wasPlaying = playing;
+    const resized = this.resize(quality);
+    if (this.desktopPointer.matches && (state.mode === 'paused' || state.mode === 'won')) {
+      const previous = this.overlayFrame;
+      if (!resized && previous?.mode === state.mode && previous.quality === quality && previous.reduced === reduced) return;
+      this.overlayFrame = { mode: state.mode, quality, reduced };
+      dt = 0;
+    } else this.overlayFrame = null;
     const time = state.time || 0;
     const lifeTime = state.lifeTimer ?? state.lifeTime ?? 0;
     const dying = ['dying', 'dead'].includes(state.life);
@@ -1158,8 +1192,6 @@ export class Visual {
     this.scene.background.copy(this.fogWarm).lerp(this.fogCold, night);
     this.scene.fog.color.copy(this.scene.background);
     this.scene.fog.density = (this.theme === 2 ? .019 : .037) + night * (this.theme === 2 ? .004 : .024);
-    if (state.mode === 'playing') this.frameBudget.observe(elapsed, state.autoResolution !== false);
-    this.resize(quality);
 
     const distance = this.last ? Math.hypot(state.x - this.last.x, state.z - this.last.z) : 0;
     this.last = { x: state.x, z: state.z };
