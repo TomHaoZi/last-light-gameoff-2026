@@ -1,7 +1,7 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 3D edition · 3.0.0-rc.10
+## 2D and 3D browser release · 3.0.0-rc.11
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -18,12 +18,13 @@ python3 scripts/package-3d.py
 - On desktop, press Enter to resume from pause. Set mouse sensitivity from 50% to 200% in Settings. If the browser releases the mouse, click the scene to capture it again.
 - WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The game combines procedural sets with imported props and photographic PBR materials. The high preset adds depth-aware light shafts and contact shading. Balanced and Performance reduce rendering cost. Web Audio synthesizes the score and mixes recorded dialogue, spatial effects and room tone. Adaptive resolution runs within the selected graphics preset. The settings menu can display measured frame rate.
 - The boiler mechanic, records clerk and roof caretaker use imported skinned models and photographic materials. Recorded monster effects are positioned in the room. Four recorded lines play in the stairwell, archive and evacuation intercom with English and Chinese subtitles. Importable models, surfaces and audio ship with the game. [Asset credits and licenses](dist/3d/assets/CREDITS.md).
+- The visual update adds floor-specific fittings, practical fixtures and signs, a refined phase effect, and individual face, workwear and movement details for each 3D pursuer.
 - Hold the directional pad with one finger and drag the scene with another to move and look around together. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
 - The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows the original 2D edition.
 
-## Expanded 2D edition · 2.0.0-rc.1
+## Expanded 2D edition
 
-**Local release candidate: `2.0.0-rc.1`. Expanded gameplay and both endings verified; subjective listening and external-device review remain unverified.**
+The browser release retains the `2.0.0-rc.1` expanded world and its save format. It adds separate painted backdrops for all 18 sections, material wear, more detailed actor sprites and door motion, and a faster-reading phase effect. The archived 2D ZIP is still available below.
 
 Eli is a living adult returning to finish a handover. Day is 17:59 before the fire; night is what remained at 18:00. Twelve years ago Gary returned to release the fire doors, but the register incorrectly said he had already evacuated. The task is to acknowledge the person the record omitted—not to kill an evil Gary.
 

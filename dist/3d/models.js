@@ -223,10 +223,10 @@ class Kit {
     this.visual.lightSource(p.x, p.y, p.z, strength, 'general', scale);
   }
 
-  finish() {
+  finish({ castShadow = true } = {}) {
     for (const [appearance, entries] of this.batches.entries()) {
       const object = new THREE.Mesh(copyGeometry(entries), appearance);
-      object.castShadow = true;
+      object.castShadow = castShadow;
       object.receiveShadow = true;
       this.group.add(object);
     }
@@ -362,6 +362,27 @@ function servicePortal(visual, x, z) {
   kit.finish();
 }
 
+function coolingBank(visual, x, z) {
+  const kit = new Kit(visual, 'Cooling return A and B', x, z);
+  const { graphite, oxidized, steel, brass, red } = kit.materials;
+  kit.rect(graphite, 0, 1.11, .11, 1.81, 1.88, .18, .035);
+  kit.rect(oxidized, 0, 1.15, .25, 1.68, 1.75, .19, .027);
+  kit.rect(steel, 0, .35, .35, 1.47, .13, .21, .021);
+  kit.stamp(0, 1.82, .373, 1.37, .19, 'RETURN MANIFOLD', 'LOW PRESSURE · KEEP CLEAR');
+  fasten(kit, 0, 1.16, .365, 1.52, 1.61, .044);
+  for (const side of [-1, 1]) {
+    const x = side * .47;
+    kit.tube(brass, [[x, .30, .43], [x, .76, .43], [x, 1.42, .43], [x, 1.62, .38],
+      [x, 1.67, .18], [x, 2.36, .18]], .058, 10);
+    kit.round(steel, x, 1.04, .45, .22, .101);
+    kit.ring(red, x, 1.04, .518, .133, .018);
+    kit.rect(red, x, 1.04, .512, .258, .025, .029, .004, side * .53);
+    kit.round(brass, x, 1.04, .54, .062, .02, face, true);
+    kit.rect(graphite, x, .57, .38, .095, .061, .15, .011);
+  }
+  kit.finish({ castShadow: false });
+}
+
 function archiveCeiling(visual, x, z) {
   const kit = new Kit(visual, 'F4 suspended fixtures and cable tray', x, z);
   const { steel, graphite, oxidized, paint, rubber, brass } = kit.materials;
@@ -486,6 +507,43 @@ function filingCabinet(visual, x, z) {
   kit.finish();
 }
 
+function handoverBoard(visual, x, z) {
+  const kit = new Kit(visual, 'Public register handover board', x, z);
+  const { wood, graphite, steel } = kit.materials;
+  kit.rect(graphite, 0, 1.69, .08, 1.94, 1.28, .104, .023);
+  kit.rect(wood, 0, 1.70, .132, 1.84, 1.04, .084, .02);
+  kit.label(0, 1.70, .18, 1.75, .94, (ctx, w, h) => {
+    ctx.fillStyle = '#574735';
+    ctx.fillRect(0, 0, w, h);
+    const sheets = [
+      { x: 36, y: 42, turn: -.065, fill: '#c9bea0', title: 'EVENING SHIFT', rule: 5 },
+      { x: 148, y: 49, turn: .05, fill: '#c7d0bc', title: 'KEY SIGNOUT', rule: 6 },
+      { x: 267, y: 43, turn: -.031, fill: '#d2c39a', title: '17:59', rule: 4 }
+    ];
+    for (const sheet of sheets) {
+      ctx.save();
+      ctx.translate(sheet.x, sheet.y);
+      ctx.rotate(sheet.turn);
+      ctx.fillStyle = '#352e25';
+      ctx.fillRect(3, 5, 83, 124);
+      ctx.fillStyle = sheet.fill;
+      ctx.fillRect(0, 0, 83, 124);
+      ctx.fillStyle = '#392f23';
+      ctx.font = '700 8px monospace';
+      ctx.fillText(sheet.title, 8, 26, 70);
+      ctx.fillStyle = '#686052';
+      for (let row = 0; row < sheet.rule; row++) ctx.fillRect(8, 37 + row * 11, 62 - row % 3 * 6, 2);
+      ctx.fillStyle = '#644333';
+      ctx.beginPath();
+      ctx.arc(41, 11, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  });
+  kit.rect(steel, 0, 2.22, .18, 1.71, .053, .10, .009);
+  kit.finish({ castShadow: false });
+}
+
 function bentBlade() {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array([
@@ -589,18 +647,44 @@ function rooftopBed(visual, x, z) {
   kit.finish();
 }
 
+function rooftopIrrigation(visual, x, z) {
+  const kit = new Kit(visual, 'Roof irrigation header', x, z, Math.PI / 2);
+  const { oxidized, graphite, brass, red, steel } = kit.materials;
+  kit.rect(oxidized, 0, .60, .09, 1.36, 1.05, .15, .021);
+  kit.rect(graphite, 0, .58, .18, 1.20, .89, .064, .016);
+  // Routing follows the planter line, with a second pipe into the roof.
+  kit.tube(brass, [[-.82, .28, .24], [-.60, .28, .24], [-.41, .42, .24],
+    [-.27, .59, .24], [.32, .59, .24], [.45, .47, .24], [.49, .06, .24]], .035, 10);
+  kit.tube(steel, [[-.67, .14, .21], [-.50, .17, .25], [-.23, .18, .255],
+    [.33, .17, .25], [.77, .14, .21]], .047, 10);
+  for (const side of [-1, 1]) {
+    kit.rect(steel, side * .49, .25, .25, .081, .303, .08, .009);
+    kit.round(brass, side * .202, .59, .248, .123, .069);
+  }
+  kit.ring(red, 0, .59, .306, .121, .018);
+  kit.rect(red, 0, .59, .303, .227, .021, .025, .004, -.49);
+  kit.round(steel, 0, .59, .324, .056, .04, face, true);
+  kit.finish({ castShadow: false });
+}
+
 export function decorateModels(visual) {
   const { x, z } = visual.decoded.spawn;
   if (visual.theme === 0) {
     pressureManifold(visual, x - 3.96, z - 5.72);
     servicePortal(visual, x + 1.20, z - 5.96);
+    const wall = visual.decoded.get(20, 5);
+    if (wall?.kind === '#') coolingBank(visual, wall.x, wall.z + 1.23);
   } else if (visual.theme === 1) {
     deskRegister(visual, x - 2.52, z - 4.63);
     archiveCeiling(visual, x - .52, z - 7.40);
     const cabinet = visual.decoded.get(8, 14);
     if (cabinet?.kind === '.') filingCabinet(visual, cabinet.x - 1.04, cabinet.z);
+    const wall = visual.decoded.get(9, 0);
+    if (wall?.kind === '#') handoverBoard(visual, wall.x, wall.z + 1.25);
   } else {
     rooftopIntake(visual, x + 4.82, z - 5.13);
     rooftopBed(visual, x - 3.58, z - 4.42);
+    const wall = visual.decoded.get(9, 6);
+    if (wall?.kind === '#') rooftopIrrigation(visual, wall.x + 1.23, wall.z);
   }
 }

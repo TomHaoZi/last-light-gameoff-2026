@@ -21,6 +21,18 @@ OUTFITS = (
     ("roof", "male_casualsuit02"),
 )
 
+# Approximate worn pigments in linear light, keeping each department readable.
+UNIFORM_WEAR = {
+    "boiler": ((.72, .63, .56), (.25, .14, .075), (.081, .038, .022)),
+    "office": ((.86, .80, .72), (.31, .29, .24), (.066, .033, .033)),
+    "roof": ((.80, .83, .76), (.27, .33, .30), (.060, .044, .038)),
+}
+SKIN_WEAR = {
+    "boiler": ((.83, .73, .62), (.13, .043, .023), .052, 1.743, .118, -.17, .18),
+    "office": ((.81, .75, .74), (.23, .084, .069), -.047, 1.693, .079, .22, .75),
+    "roof": ((.73, .82, .79), (.145, .069, .043), .036, 1.709, .064, .44, .48),
+}
+
 
 def read_obj(path):
     positions, uvs, polygons = [], [], []
@@ -111,22 +123,178 @@ def load_attachment(human, base_weights, map_file):
     return np.array(positions), weights, mask
 
 
-def color_grade(points, body=False):
+def smooth(edge0, edge1, value):
+    progress = np.clip((value - edge0) / (edge1 - edge0), 0, 1)
+    return progress * progress * (3 - 2 * progress)
+
+
+def stain_along_gravity(x, y, root_x, root_y, width, length, lean):
+    age = (root_y - y) / length
+    broken_edge = .003 * np.sin(y * 142 + x * 218) + .002 * np.cos(y * 277 - x * 170)
+    center = root_x + (root_y - y) * lean
+    body = 1 - smooth(.46, 1.08, np.abs(x - center + broken_edge) / width)
+    return body * smooth(-.14, .12, age) * (1 - smooth(.49, 1.08, age))
+
+
+def color_grade(points, department):
+    """Keep the imported texture, adding broad soiling to the fitted cloth."""
     x, y, z = points.T
-    noise = .5 + .5 * np.cos(x * 41 + y * 66 + z * 43) * np.sin(x * 115 - y * 153 + z * 88)
-    soot = np.clip(.48 + .28 * noise + .10 * np.sin(x * 17 + y * 27 + z * 23), 0, 1)
-    if body:
-        front = np.clip((z - .011) * 12, 0, 1)
-        wx = .043 + .009 * np.sin(y * 126)
-        temple = np.exp(-((x - wx) / (.012 + .006 * noise)) ** 2 - ((y - 1.715) / .051) ** 2) * front
-        mouth = np.exp(-((x + .025 - .004*np.sin(y * 130)) / .011) ** 2 - ((y - 1.595) / .023) ** 2) * front
-        stain = np.clip(temple * 1.05 + mouth * .58, 0, 1)
-        neutral = np.column_stack([soot * .87 + .085, soot * .86 + .097, soot * .81 + .115])
-        blood = np.array([.43, .124, .080])
-        return neutral * (1 - stain[:, None]) + blood * stain[:, None]
-    hips = np.exp(-((y - .86) / .240) ** 2 - (x / .18) ** 2)
-    dirt = soot * (.95 - .14 * hips)
-    return np.column_stack([dirt * .96, dirt * .91, dirt * .84])
+    pigment, dust, oil = (np.array(color) for color in UNIFORM_WEAR[department])
+    texture = .89 + .08 * np.sin(x * 29 + y * 20 + z * 28) * np.cos(y * 45 - z * 18)
+    front = smooth(.024, .094, z)
+    knees = np.exp(-((y - .505) / .112) ** 2) * front
+    cuffs = smooth(.295, .48, np.abs(x)) * np.exp(-((y - 1.16) / .22) ** 2)
+    boots = 1 - smooth(.08, .34, y)
+    dust_weight = np.clip(.12 + knees * .32 + cuffs * .27 + boots * .39, 0, .64)
+    dark = stain_along_gravity(x, y, -.095, 1.407, .042, .34, .14)
+    dark += stain_along_gravity(x, y, .086, 1.23, .024, .39, -.15) * .58
+    dark *= front * (.43 if department == "roof" else .73)
+    color = texture[:, None] * pigment * (1 - dust_weight[:, None]) + dust * dust_weight[:, None]
+    dark = np.clip(dark, 0, .72)
+    return color * (1 - dark[:, None]) + oil * dark[:, None]
+
+
+def skin_grade(points, department):
+    """Bake each worker's injuries along the face instead of tinting the whole model."""
+    x, y, z = points.T
+    pigment, dry, root_x, root_y, length, lean, stubble = SKIN_WEAR[department]
+    front = smooth(.065, .117, z)
+    pigment = np.array(pigment)
+    texture = .80 + .075 * np.sin(x * 51 + y * 75 + z * 31) * np.cos(x * 77 - y * 92)
+    socket = np.exp(-((np.abs(x) - .029) / .028) ** 2 - ((y - 1.669) / .021) ** 2) * front
+    neck = np.exp(-((y - 1.532) / .073) ** 2) * (1 - smooth(.065, .125, np.abs(x)))
+    skin = pigment * (texture * (1 - .30 * socket - .27 * neck))[:, None]
+    behind = 1 - smooth(.007, .12, z)
+    temple = np.exp(-((np.abs(x) - .048) / .016) ** 2)
+    hairline = 1.757 - .067 * behind + .020 * temple + .0025 * np.sin(x * 186 + z * 141)
+    hair = smooth(hairline - .004, hairline + .006, y) * stubble
+    hair_color = np.array([.178, .153, .136]) * texture[:, None]
+    skin = skin * (1 - hair[:, None]) + hair_color * hair[:, None]
+    edge = stain_along_gravity(x, y, root_x, root_y, .020, length, lean) * front
+    center = stain_along_gravity(x, y, root_x + .005, root_y, .009, length * .88, lean) * front
+    lip = np.exp(-((x + root_x * .46) / .018) ** 2 - ((y - 1.609) / .017) ** 2) * front
+    weight = np.clip(.55 * edge + .40 * center + .34 * lip, 0, .87)
+    return skin * (1 - weight[:, None]) + np.array(dry) * weight[:, None]
+
+
+def face_shape(points, department):
+    """Alter cheek and chin volumes below the brow, keeping rig and eye sockets intact."""
+    x, y, z = points.T
+    side, depth, chin = {
+        "boiler": (1, .008, -.0035),
+        "office": (-1, .012, .0030),
+        "roof": (1, .006, .0045),
+    }[department]
+    forward = smooth(.064, .109, z)
+    cheek = np.exp(-((x - side * .047) / .017) ** 2 - ((y - 1.636) / .021) ** 2) * forward
+    jaw = np.exp(-(x / .029) ** 2 - ((y - 1.588) / .015) ** 2) * forward
+    result = points.copy()
+    result[:, 0] += side * chin * jaw
+    result[:, 2] += .003 * jaw - depth * cheek
+    return result
+
+
+def texture_positions(size, points, uv, faces):
+    """Interpolate the bind-pose surface onto its existing texture chart."""
+    width, height = size
+    coordinates = uv * (width, height)
+    result = np.full((height, width, 3), np.nan, dtype=np.float32)
+    for _, corners in faces:
+        points_ids, uv_ids = zip(*corners)
+        a, b, c = coordinates[list(uv_ids)]
+        ab, ac = b - a, c - a
+        area = ab[0] * ac[1] - ab[1] * ac[0]
+        if abs(area) < 1e-7:
+            continue
+        lo = np.maximum(0, np.floor(np.minimum(np.minimum(a, b), c)).astype(int))
+        hi = np.minimum((width, height), np.ceil(np.maximum(np.maximum(a, b), c)).astype(int))
+        if np.any(lo >= hi):
+            continue
+        row, col = np.ogrid[lo[1]:hi[1], lo[0]:hi[0]]
+        u = ((col + .5 - a[0]) * ac[1] - (row + .5 - a[1]) * ac[0]) / area
+        v = (ab[0] * (row + .5 - a[1]) - ab[1] * (col + .5 - a[0])) / area
+        inside = (u >= -1e-6) & (v >= -1e-6) & (u + v <= 1 + 1e-6)
+        rows, columns = np.nonzero(inside)
+        pa, pb, pc = points[list(points_ids)]
+        result[lo[1] + rows, lo[0] + columns] = (
+            pa + u[inside, None] * (pb - pa) + v[inside, None] * (pc - pa)
+        )
+    return result
+
+
+def paint_skin(image, points, uv, faces):
+    # Draw pore-scale freckles and eyelid/cheek contours in the bind chart.
+    rgb = ImageEnhance.Color(image).enhance(.69)
+    data = np.asarray(rgb).astype(np.float32)
+    chart = texture_positions(image.size, points, uv, faces)
+    valid = np.isfinite(chart[:, :, 0])
+    x, y, z = chart[valid].T
+    front = smooth(.088, .127, z)
+    side = np.abs(x)
+    eye = np.exp(-((side - .030) / .020) ** 2)
+    socket = eye * (np.exp(-((y - 1.669 - (side - .029) * .14) / .005) ** 2) * .21
+                    - np.exp(-((y - 1.662 - (side - .029) * .14) / .004) ** 2) * .07)
+    furrows = np.zeros_like(x)
+    for crest, center, span, amplitude in [(1.725, -.017, .040, .13), (1.736, .014, .030, .10), (1.752, -.008, .026, .075)]:
+        crease_y = crest + np.sin(x * 106 + crest * 49) * .0027 - x * .047
+        wrinkle = np.exp(-((y - crease_y) / .00115) ** 2)
+        furrows += wrinkle * amplitude * np.exp(-((x - center) / span) ** 4)
+    nasolabial = np.exp(-((side - (.025 + (y - 1.632) * .35)) / .0024) ** 2
+                        - ((y - 1.631) / .019) ** 2)
+    specks = np.maximum(0, np.sin(x * 292 + y * 653 + z * 192) * np.cos(x * 621 - y * 312)) ** 13
+    cheek = np.exp(-((side - .046) / .023) ** 2 - ((y - 1.650) / .043) ** 2)
+    grade = 1 - front * (furrows + .12 * nasolabial + socket + specks * cheek * .23)
+    data[valid] *= grade[:, None]
+    return Image.fromarray(np.uint8(np.clip(data, 0, 255)))
+
+
+def paint_badge(values, x, y, front, department):
+    if department != "boiler":
+        return values
+    text, color = "B2 / STEAM", (155, 130, 90)
+    left, top, width, height = -.039, 1.329, .077, .034
+    # A small cloth tag worn over the chest, with a dim stitched border.
+    badge = Image.new("RGBA", (104, 38))
+    draw = ImageDraw.Draw(badge)
+    draw.rounded_rectangle((1, 1, 102, 36), radius=5, fill=(32, 39, 37, 247), outline=(*color, 255), width=1)
+    draw.text((52, 19), text, anchor="mm", fill=(*color, 255), font=ImageFont.load_default(size=15))
+    sample_x = np.floor((x - left) / width * 104).astype(int)
+    sample_y = np.floor((top - y + (x - left - width / 2) * .079) / height * 38).astype(int)
+    mask = (sample_x >= 0) & (sample_x < 104) & (sample_y >= 0) & (sample_y < 38) & (front > .9)
+    stamp = np.asarray(badge)[sample_y[mask], sample_x[mask]]
+    worn = .08 * np.sin(x[mask] * 861 + y[mask] * 424) ** 9
+    opacity = stamp[:, 3:4] / 255 * (.90 + worn[:, None])
+    values[mask] = values[mask] * (1 - opacity) + stamp[:, :3] * opacity
+    return values
+
+
+def paint_uniform(image, points, uv, faces, department):
+    if department == "roof":
+        image = replace_roof_logo(image)
+    data = np.asarray(image).astype(np.float32)
+    chart = texture_positions(image.size, points, uv, faces)
+    valid = np.isfinite(chart[:, :, 0])
+    x, y, z = chart[valid].T
+    front = smooth(.023, .099, z)
+    height = np.clip(y / 1.60, 0, 1)
+    grain = np.sin(x * 389 + z * 397) * np.cos(y * 464 + x * 261)
+    abrasion = np.maximum(0, np.sin(y * 54 + x * 49 + z * 23) * np.cos(x * 213 - y * 133)) ** 4
+    grit = (.045 * grain + .12 * abrasion) * (1 - .52 * height)
+    if department == "roof":
+        # Rain lifts dirt up at the waist and runs down one side of the jacket.
+        wet = stain_along_gravity(x, y, -.118, 1.323, .053, .40, .13) * front * .44
+        wet += np.exp(-((y - .937 + x * .12) / .056) ** 2) * front * .16
+    else:
+        wet = stain_along_gravity(x, y, -.105, 1.362, .030, .45, .125) * front
+        wet += stain_along_gravity(x, y, .083, 1.165, .017, .39, -.12) * front * .65
+    wet = np.clip(wet, 0, 1)
+    wear = grit * (.82 if department == "office" else 1)
+    chest = np.exp(-((x + .034) / .126) ** 2 - ((y - 1.26) / .126) ** 2)
+    dirt = .55 * wet + (.12 if department == "boiler" else .09) * chest
+    values = data[valid] * (1 + wear - dirt)[:, None]
+    values += np.array([24, 8, -4]) * wet[:, None]
+    data[valid] = paint_badge(values, x, y, front, department)
+    return Image.fromarray(np.uint8(np.clip(data, 0, 255)))
 
 
 def replace_roof_logo(image):
@@ -179,7 +347,7 @@ class Glb:
             obj["max"] = array.max(axis=0).tolist()
         return self.add("accessors", obj)
 
-    def image(self, origin, size, quality=85, alpha=False, treatment=None):
+    def image(self, origin, size, quality=85, alpha=False, paint=None):
         with Image.open(origin) as source:
             source.thumbnail((size, size), Image.Resampling.LANCZOS)
             output = io.BytesIO()
@@ -187,18 +355,15 @@ class Glb:
                 source.convert("RGBA").save(output, "PNG", optimize=True)
             else:
                 rgb = source.convert("RGB")
-                if treatment == "skin":
-                    rgb = ImageEnhance.Color(rgb).enhance(.71)
-                elif treatment == "roof":
-                    rgb = replace_roof_logo(rgb)
+                if paint:
+                    rgb = paint(rgb)
                 rgb.save(output, "JPEG", quality=quality, optimize=True, subsampling=0)
         picture = self.add("images", dict(bufferView=self.view(output.getvalue()),
                            mimeType="image/png" if alpha else "image/jpeg"))
         return self.add("textures", dict(source=picture, sampler=0))
 
-    def material(self, name, diffuse, normal=None, roughness=.84, tint=None, alpha=False, treatment=None):
-        map_id = self.image(diffuse, 2048 if treatment == "skin" else 1024,
-                            alpha=alpha, treatment=treatment)
+    def material(self, name, diffuse, normal=None, roughness=.84, tint=None, alpha=False, size=1024, paint=None):
+        map_id = self.image(diffuse, size, alpha=alpha, paint=paint)
         pbr = dict(baseColorTexture=dict(index=map_id), metallicFactor=0, roughnessFactor=roughness)
         if tint:
             pbr["baseColorFactor"] = tint
@@ -309,9 +474,9 @@ def run(makehuman, assets, output):
         glb.doc["nodes"][parent].setdefault("children", []).append(target_node)
 
     skin_path = assets / "skins/old_caucasian_male/old_lightskinned_male_diffuse.png"
-    skin_mat = glb.material("Weathered skin", skin_path, roughness=.89, treatment="skin")
-    base_normals = vertex_normals(human, visible)
-    base_color = color_grade(meters(human), body=True)
+    skin_points = meters(human)
+    skin_mat = glb.material("Weathered skin", skin_path, roughness=.83, size=2048,
+                           paint=lambda rgb: paint_skin(rgb, skin_points, base_uv, visible))
 
     shoe_dir = assets / "clothes/shoes04"
     feet, shoe_uv, shoe_faces, shoe_weights, shoe_mask = attachment(shoe_dir, "shoes04")
@@ -327,14 +492,15 @@ def run(makehuman, assets, output):
         cloth_mat = glb.material(f"Uniform {department}", suit_dir / f"{suit}_diffuse.png",
                                 suit_dir / f"{suit}_normal.png", .91,
                                 [.58, .65, .64, 1] if department == "roof" else None,
-                                treatment="roof" if department == "roof" else None)
-        gauze = color_grade(cloth)
+                                paint=lambda rgb: paint_uniform(rgb, cloth, uv, faces, department))
+        gauze = color_grade(cloth, department)
         hidden |= shoe_mask
         # This is the author-supplied clothing mask. Preserve remaining skin to
         # the edge of each opening, including face/hands and exposed neck.
         body = [(tag, face) for tag, face in visible if not all(v in hidden for v, _ in face)]
-        node(f"Skin {department}", glb.mesh(f"Skin {department}", skin_mat, meters(human), base_uv, body,
-             weighted, normals=base_normals, color=base_color), uniform)
+        shaped = face_shape(skin_points, department)
+        node(f"Skin {department}", glb.mesh(f"Skin {department}", skin_mat, shaped, base_uv, body,
+             weighted, normals=vertex_normals(shaped, visible), color=skin_grade(shaped, department)), uniform)
         node(f"Clothing {department}", glb.mesh(f"Clothing {department}", cloth_mat, cloth, uv, faces,
              weights, color=gauze), uniform)
 

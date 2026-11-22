@@ -8,6 +8,7 @@ import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
 import { createCreature, isSharedCreatureGeometry, preloadCreatureAsset, scheduleOfficeCreatureTextures, updateCreature } from './creature.js';
 import { makeOfficeProgramWarmup } from './office-phase-programs.js';
 import { waitForRenderIdle } from './render-idle.js';
+import { mountWallSigns } from './set-dressing.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -24,13 +25,19 @@ const COLD = new THREE.Color('#9bcfea');
 const YELLOW = new THREE.Color('#ffb95a');
 const PALE = new THREE.Color('#b8e8ff');
 const SAFE = new THREE.Color('#72e6bf');
+const OFFICE_LIGHT = new THREE.Color('#f3efcf');
+const STATION_TITLES = [
+  { A: 'PRESSURE', B: 'COOLING', C: 'INTERLOCK' },
+  { A: 'REGISTER', B: 'CORRECTION', C: 'LUNCHBOX' },
+  { A: 'FIRST BED', B: 'WEST BEDS', C: 'TANK FEED' }
+];
 const BOILER = {
   floor: '#696460', wall: '#6c6159', ceiling: '#4e453c', low: '#261c18',
   daySky: '#302520', nightSky: '#152230', steel: '#586263', accent: '#b36b30'
 };
 const OFFICE = {
-  floor: '#61564d', wall: '#8c8278', ceiling: '#76685c', low: '#211d20',
-  daySky: '#39302c', nightSky: '#14232b', steel: '#626f74', accent: '#71514a'
+  floor: '#61564d', wall: '#a8a295', ceiling: '#857d6b', low: '#302622',
+  daySky: '#3d3831', nightSky: '#16272e', steel: '#626f74', accent: '#725049'
 };
 const ROOF = {
   floor: '#596467', wall: '#6b6d69', ceiling: '#515651', low: '#182425',
@@ -296,12 +303,14 @@ void main() {
   float range = length(center);
   float ripple = 0.0;
   if (shift > 0.0) {
-    ripple = shift * (1.0 - smoothstep(.008,.058,abs(range-(1.0-shift)*.80)));
+    float surge = length(center * vec2(1.32, .90));
+    float edge = abs(surge - (1.0 - shift) * .83);
+    ripple = shift * (1.0 - smoothstep(.004, .046, edge)) * (.72 + .28 * abs(center.y * 2.0));
   }
-  vec2 jitter = center * (lifeJitter + .021 * ripple);
+  vec2 jitter = center * (lifeJitter + .014 * ripple);
   vec2 sampleUv = uv + jitter;
   vec3 base = texture2D(frameTex, sampleUv).rgb;
-  float spread = .006 * ripple + .0025 * life;
+  float spread = .0038 * ripple + .0025 * life;
   if (spread > .0001) {
     base.r = texture2D(frameTex,sampleUv+center*spread).r;
     base.b = texture2D(frameTex,sampleUv-center*spread).b;
@@ -318,7 +327,7 @@ void main() {
   float vignette = 1.0 - smoothstep(.24,.76,range) * (.19+.13*night+.27*life);
   base *= vignette;
   base = mix(base,base*vec3(.81,1.01,1.12),night*.41);
-  base += vec3(.025,.080,.106)*ripple;
+  base += mix(vec3(.085, .052, .028), vec3(.019, .053, .073), night) * ripple;
   base = mix(base,base*vec3(1.29,.59,.56),smoothstep(.26,.71,range)*danger*.56);
   gl_FragColor = vec4(max(base,0.),1.);
   #include <tonemapping_fragment>
@@ -458,6 +467,7 @@ export class Visual {
     this.makePropClusters();
     this.makeArrival();
     decorateModels(this);
+    mountWallSigns(this, TILE);
     for (const lamp of decoded.lamps) this.makeSafeLamp(lamp);
     for (const station of decoded.stations) this.makeStation(station);
     if (decoded.power) this.makeStation(decoded.power, true);
@@ -569,6 +579,7 @@ export class Visual {
       rust: standard('#89413c', { roughness: .71 }),
       bone: standard('#c4b6a2', { roughness: .7 }),
       brass: standard('#a28c60', { metalness: .36, roughness: .46 }),
+      frosted: standard('#507076', { metalness: .18, roughness: .43, emissive: '#39555b', emissiveIntensity: .16 }),
       day: standard('#826032', { ...gratingSurface, metalness: .53, roughness: .47, emissive: '#9a571b', emissiveIntensity: .14 }),
       night: standard('#406877', { ...gratingSurface, metalness: .58, roughness: .39, emissive: '#1e6e93', emissiveIntensity: .27 }),
       dayLine: emit('#ffb649', 1.4), nightLine: emit('#5bc5f5', 1.65),
@@ -593,6 +604,10 @@ export class Visual {
       b.box(m.dark, xFace, roof ? 1.29 : .13, zFace, TILE + .04, .14, .094, angle);
       if (roof) {
         b.box(m.steel, xFace, 1.44, zFace, TILE, .08, .15, angle);
+      } else if (this.theme === 1) {
+        b.box(m.low, xFace, .54, zFace, TILE, .87, .055, angle);
+        b.box(m.accent, xFace, .983, zFace, TILE, .083, .10, angle);
+        b.box(m.bone, xFace, 2.91, zFace, TILE, .07, .055, angle);
       } else {
         b.box(m.low, xFace, .44, zFace, TILE, .63, .055, angle);
         b.box(m.steel, xFace, .76, zFace, TILE, .037, .075, angle);
@@ -607,10 +622,13 @@ export class Visual {
     const b = this.batches.neutral;
     const roof = this.theme === 2;
     const pattern = (tile.row * 19 + tile.col * 13 + (dx + 2) * 7 + dz * 17) % 19;
+    const panel = (material, offset, y, width, height, depth, u = 0) =>
+      b.box(material, x + dx * offset + dz * u, y, z + dz * offset - dx * u, width, height, depth, angle);
     if (roof) {
-      if (pattern % 4 === 0) {
-        b.box(m.accent, x, .92, z, 1.2, .19, .075, angle);
-        b.box(m.bone, x, .95, z, .86, .025, .085, angle);
+      if (pattern % 3 === 0) {
+        panel(m.steel, .02, .66, .072, 1.52, .082, -.92);
+        panel(m.dark, .028, .20, .58, .11, .071);
+        panel(m.rust, .006, .69, .04, .96, .038, -.85);
       }
       return;
     }
@@ -622,23 +640,35 @@ export class Visual {
       const oz = dx * (pattern < 9 ? .74 : -.74);
       b.box(m.steel, x + ox, y - .05, z + oz, .105, .205, .202, angle);
       b.box(m.rust, x - dx * .018 + ox, y - .28, z - dz * .018 + oz, .049, .38, .028, angle);
+      if (pattern < 5) {
+        // Carry a visible supply line into the wall instead of ending it at every bay.
+        const dropX = x + ox + dx * .053;
+        const dropZ = z + oz + dz * .053;
+        b.pipe(m.copper, new THREE.Vector3(dropX, .08, dropZ), new THREE.Vector3(dropX, y, dropZ), .066);
+        panel(m.dark, .064, 1.58, .112, .105, .091, pattern < 9 ? -.74 : .74);
+      }
       if (pattern % 5 === 0 && neighbor === '.') {
-        b.box(m.steel, x + dx * .13, .68, z + dz * .13, 1.52, .97, .22, angle);
-        for (let i = 0; i < 7; i++) b.box(m.dark, x + dx * .25, .37 + i * .1, z + dz * .25, 1.25, .03, .012, angle);
-        b.box(m.copper, x + dx * .18, 1.22, z + dz * .18, 1.58, .065, .24, angle);
+        panel(m.steel, .13, .68, 1.46, 1.04, .22);
+        panel(m.dark, .252, .68, 1.29, .84, .035);
+        for (let i = 0; i < 5; i++) panel(m.steel, .276, .38 + i * .14, 1.23, .055, .053);
+        panel(m.copper, .18, 1.22, 1.58, .065, .24);
       }
     } else {
-      if (pattern >= 8 && neighbor === '.') {
-        b.box(m.accent, x + dx * .04, 1.28, z + dz * .04, 1.43, .84, .13, angle);
-        b.box(m.dark, x + dx * .105, 1.28, z + dz * .105, 1.36, .77, .035, angle);
-        b.box(m.steel, x + dx * .13, 1.28, z + dz * .13, 1.31, .72, .015, angle);
-        if (pattern % 2 === 0) {
-          for (let i = 0; i < 5; i++) b.box(m.dark, x + dx * .14, 1.02 + i * .128, z + dz * .14, 1.32, .022, .022, angle);
+      panel(m.accent, .016, .54, .050, .76, .10, -.97);
+      if (pattern >= 13 && neighbor === '.') {
+        panel(m.accent, .046, 1.87, 1.58, 1.14, .14);
+        panel(m.dark, .113, 1.885, 1.42, .97, .040);
+        for (const u of [-.36, .36]) {
+          panel(m.frosted, .141, 1.90, .677, .88, .019, u);
+          panel(m.steel, .156, 2.08, .69, .027, .021, u);
+          panel(m.steel, .160, 1.55, .69, .028, .027, u);
         }
-      } else if (pattern % 4 === 0) {
-        b.box(m.accent, x + dx * .025, 1.62, z + dz * .025, .9, 1.93, .07, angle);
-        const pull = Math.sign(dx || dz);
-        b.box(m.brass, x + dx * .075 + dz * pull * .26, 1.02, z + dz * .075 - dx * pull * .26, .17, .05, .085, angle);
+        panel(m.bone, .114, 1.29, 1.64, .074, .17);
+      } else if (pattern === 1 || pattern === 7) {
+        panel(m.accent, .035, 1.38, .94, 2.35, .09);
+        panel(m.low, .084, 1.50, .76, 2.02, .04);
+        panel(m.frosted, .110, 1.92, .48, .71, .018);
+        panel(m.brass, .109, 1.05, .17, .045, .073, .25);
       }
     }
   }
@@ -651,11 +681,21 @@ export class Visual {
     const material = PHASE[kind] ? m[PHASE[kind]] : m.floor;
     if (!PHASE[kind]) {
       const angle = (col * 3 + row * 7) % 3 ? 0 : Math.PI;
-      batch.box(material, x, -.14, z, TILE - .013, .28, TILE - .013, angle, tint(variant()));
+      const floorTint = tint(variant());
+      if (this.theme === 1 && (col === 10 || row === 11) && row >= 11) {
+        floorTint.multiplyScalar(.87);
+        floorTint.r *= .87;
+        floorTint.b *= 1.06;
+      }
+      batch.box(material, x, -.14, z, TILE - .013, .28, TILE - .013, angle, floorTint);
     }
     if (this.theme !== 2) {
       this.batches.neutral.box(m.ceiling, x, 3.34, z, TILE + .013, .15, TILE + .013);
-      if ((col + row * 2) % 4 === 0) this.batches.neutral.box(m.dark, x, 3.12, z + .85, TILE + .025, .2, .16);
+      if (this.theme === 0 && (col + row * 2) % 4 === 0) {
+        this.batches.neutral.box(m.dark, x, 3.12, z + .85, TILE + .025, .2, .16);
+      } else if (this.theme === 1 && row % 4 === 2) {
+        this.batches.neutral.box(m.low, x, 3.163, z + 1.10, TILE + .025, .17, .27);
+      }
       if (PHASE[kind]) this.batches.neutral.box(m.low, x, -5.8, z, TILE + .012, .2, TILE + .012);
     }
     if (PHASE[kind]) {
@@ -680,23 +720,58 @@ export class Visual {
       }
       return;
     }
-    if (this.theme === 2) batch.box(m.low, x, -.65, z, TILE - .015, .93, TILE - .015);
+    if (this.theme === 2) {
+      batch.box(m.low, x, -.65, z, TILE - .015, .93, TILE - .015);
+      this.makeRoofFascia(tile);
+    }
     if (this.theme === 0 && (col + row * 7) % 8 === 0) {
       batch.box(m.accent, x + .9, .006, z, .045, .016, 2.28);
     }
-    if (kind === 'S' || kind === 'E' || (kind === '.' && (col + row * 3) % 12 === 0)) {
+    const archiveCorner = this.theme === 1 && kind === '.' &&
+      (col === 9 && row === 10 || col === 21 && row === 9);
+    if (kind === 'S' || kind === 'E' || (kind === '.' && (col + row * 3) % 12 === 0) || archiveCorner) {
       this.fixture(x, this.theme === 2 ? 2.74 : 2.98, z, kind === 'E' ? 'safe' : 'general');
+    }
+  }
+
+  makeRoofFascia(tile) {
+    const b = this.batches.neutral;
+    const m = this.materials;
+    for (const [dx, dz] of FACES) {
+      const adjacent = this.decoded.get(tile.col + dx, tile.row + dz);
+      if (adjacent && !adjacent.phase) continue;
+      // Permanent roof edges only. Keep the trim entirely under the neutral slab.
+      const x = tile.x + dx * (HALF - .063);
+      const z = tile.z + dz * (HALF - .063);
+      const angle = dx ? Math.PI / 2 : 0;
+      b.box(m.steel, x, -.235, z, TILE - .021, .13, .10, angle);
+      b.box(m.wall, x, -1.34, z, TILE - .028, 1.41, .093, angle);
+      if ((tile.row + tile.col) % 3 === 0) {
+        b.box(m.dark, x, -1.12, z, .14, 1.52, .101, angle);
+      }
     }
   }
 
   fixture(x, y, z, type) {
     const m = this.materials;
     const b = this.batches.neutral;
-    const roof = this.theme === 2;
-    const face = roof ? m.steel : m.dark;
-    b.box(face, x, y + .08, z, .68, .14, .36);
-    b.box(type === 'safe' ? m.safe : m.lamp, x, y, z, .52, .052, .18);
-    if (roof) b.box(m.steel, x + .3, y / 2, z, .045, y, .045);
+    const lens = type === 'safe' ? m.safe : m.lamp;
+    if (this.theme === 2) {
+      b.box(m.steel, x, y + .08, z, .68, .14, .36);
+      b.box(lens, x, y, z, .52, .052, .18);
+      b.box(m.steel, x + .33, y / 2, z, .047, y, .047);
+      b.box(m.dark, x + .33, .067, z, .22, .13, .21);
+    } else if (this.theme === 1) {
+      b.box(m.dark, x, y + .07, z, 1.12, .145, .38);
+      b.box(m.bone, x, y + .006, z, 1.06, .042, .35);
+      for (const dz of [-.076, .076]) b.box(lens, x, y - .029, z + dz, .90, .032, .105);
+      b.box(m.dark, x, y - .033, z, .94, .029, .024);
+    } else {
+      b.box(m.dark, x, y + .08, z, .72, .15, .36);
+      b.box(m.copper, x, y + .027, z, .67, .07, .27);
+      b.box(lens, x, y - .018, z, .52, .062, .18);
+      for (const dx of [-.22, .22]) b.box(m.dark, x + dx, y - .056, z, .037, .021, .23);
+    }
     this.lightSource(x, y - .11, z, type === 'safe' ? 17 : 15, type, .75);
   }
 
@@ -842,7 +917,8 @@ export class Visual {
   }
 
   lightSource(x, y, z, strength, type, scale) {
-    const color = type === 'safe' ? SAFE : type === 'alarm' ? YELLOW : WARM;
+    const color = type === 'safe' ? SAFE : type === 'alarm' ? YELLOW :
+      this.theme === 1 ? OFFICE_LIGHT : WARM;
     const material = new THREE.SpriteMaterial({
       map: this.glow, color, transparent: true, opacity: .32, depthWrite: false,
       blending: THREE.AdditiveBlending, toneMapped: false
@@ -892,16 +968,20 @@ export class Visual {
     const id = tile.key || tile.kind;
     b.box(m.dark, x, .06, z, .62, .13, .54, angle);
     const signal = emit('#f1b457', 1.7);
-    const indicator = mesh(this.stage, unitSphere, signal, [x, 1.20, z], [.12, .12, .12]);
+    const indicator = mesh(this.stage, unitSphere, signal, [x, 1.183, z], [.087, .071, .087]);
+    b.add(unitCylinder, m.brass, [x, 1.138, z], [.132, .035, .132]);
     const group = new THREE.Group();
     group.position.set(x - dx * .24, .93, z - dz * .24);
     group.rotation.y = angle;
     this.stage.add(group);
     let action;
-    const title = ['PRESSURE', 'DOCUMENT', 'CONTROL'][this.theme];
     if (this.theme === 0) {
       b.box(m.steel, x, .53, z, .42, 1.06, .48, angle);
       b.box(m.copper, x, .80, z, .5, .27, .52, angle);
+      b.box(m.dark, x, 1.114, z, .43, .14, .48, angle);
+      for (const u of [-.147, .147]) {
+        b.box(m.brass, x - dx * .257 + dz * u, .69, z - dz * .257 - dx * u, .065, .064, .029, angle);
+      }
       const valve = new THREE.TorusGeometry(.21, .035, 9, 20);
       action = new THREE.Group();
       group.add(action);
@@ -912,8 +992,13 @@ export class Visual {
     } else if (this.theme === 1) {
       b.box(m.accent, x, .47, z, .58, .92, .53, angle);
       b.box(m.steel, x, .95, z, .64, .11, .58, angle);
+      b.box(m.accent, x + dx * .16, 1.065, z + dz * .16, .36, .14, .20, angle);
+      b.box(m.steel, x, 1.054, z, .14, .14, .16, angle);
       action = mesh(group, unitBox, m.bone, [0, .085, .19], [.44, .028, .28]);
-      for (let i = 0; i < 4; i++) b.box(m.dark, x - dx * .269, .23 + i * .14, z - dz * .269, .33, .012, .012, angle);
+      for (let i = 0; i < 4; i++) {
+        b.box(m.dark, x - dx * .269, .23 + i * .14, z - dz * .269, .33, .014, .012, angle);
+        b.box(m.brass, x - dx * .28, .285 + i * .14, z - dz * .28, .105, .035, .023, angle);
+      }
       if (id === 'B') {
         const desk = new THREE.Group();
         desk.position.set(x + .24, 0, z + .24);
@@ -929,14 +1014,23 @@ export class Visual {
     } else {
       b.box(m.steel, x, .59, z, .47, 1.18, .43, angle);
       b.box(m.dark, x, .97, z, .53, .32, .49, angle);
+      for (const u of [-.164, .164]) {
+        b.box(m.brass, x - dx * .218 + dz * u, 1.052, z - dz * .218 - dx * u, .054, .044, .065, angle);
+      }
+      const pipeX = x + dz * .272;
+      const pipeZ = z - dx * .272;
+      b.pipe(m.copper, new THREE.Vector3(pipeX, .055, pipeZ), new THREE.Vector3(pipeX, .77, pipeZ), .071);
       action = mesh(group, unitBox, m.brass, [0, 0, .09], [.07, .22, .055]);
       action.rotation.z = -.48;
     }
     const label = power
       ? spriteText('POWER', '#a8dfd4', 'EMERGENCY LIGHT')
-      : spriteText(`${id} · ${title}`, '#ffd38d', 'HANDOVER CONTROL');
+      : spriteText(`${id} · ${STATION_TITLES[this.theme][id]}`, '#dec498', 'HANDOVER');
     this.localTextures.push(label);
-    placeSign(this.stage, label, x, 1.56, z, 1.1, .275);
+    const front = [.271, .276, .25][this.theme];
+    const plate = mesh(this.stage, unitPlane, new THREE.MeshBasicMaterial({ map: label }),
+      [x - dx * front, .863, z - dz * front], [.424, .106, 1]);
+    plate.rotation.y = Math.atan2(-dx, -dz);
     this.objects.set(id, { indicator, action, kind: power ? 'power' : 'station' });
   }
 
@@ -986,23 +1080,36 @@ export class Visual {
     g.position.set(x + dx * .71, 0, z + dz * .71);
     g.rotation.y = Math.atan2(dx, dz);
     this.stage.add(g);
+    const frame = new Batch(g);
     for (const edge of [-1, 1]) {
-      mesh(g, unitBox, m.dark, [.86 * edge, 1.22, 0], [.13, 2.44, .21]);
-      mesh(g, unitBox, m.copper, [.82 * edge, 1.23, -.11], [.034, 2.44, .036]);
+      frame.box(m.dark, .89 * edge, 1.22, 0, .19, 2.44, .24);
+      frame.box(m.steel, .90 * edge, 1.25, -.131, .115, 2.18, .042);
+      frame.box(m.copper, .827 * edge, 1.23, -.155, .032, 2.21, .038);
+      for (const y of [.16, .38, 2.17, 2.36]) {
+        frame.add(unitCylinder, m.brass, [.902 * edge, y, -.161], [.028, .026, .028],
+          { x: Math.PI / 2, y: 0, z: 0 });
+      }
     }
-    mesh(g, unitBox, m.dark, [0, 2.49, 0], [1.86, .18, .25]);
-    mesh(g, unitBox, m.dark, [0, .035, 0], [1.80, .07, .25]);
+    frame.box(m.dark, 0, 2.49, 0, 1.96, .23, .31);
+    frame.box(m.steel, 0, 2.463, -.153, 1.81, .171, .082);
+    frame.box(m.dark, 0, .035, 0, 1.80, .07, .25);
+    frame.box(m.brass, 0, .071, -.116, 1.52, .021, .048);
+    frame.build();
     this.door = new THREE.Group();
     g.add(this.door);
-    mesh(this.door, unitBox, m.steel, [0, 1.22, 0], [1.55, 2.42, .125]);
+    const shutter = new Batch(this.door);
+    shutter.box(m.steel, 0, 1.22, 0, 1.55, 2.42, .125);
     for (let i = 0; i < 10; i++) {
       const y = .17 + i * .227;
-      mesh(this.door, unitBox, m.dark, [0, y, -.07], [1.55, .044, .030]);
-      mesh(this.door, unitBox, m.copper, [0, y + .04, -.082], [1.43, .014, .018]);
+      shutter.box(m.dark, 0, y, -.07, 1.55, .044, .030);
+      shutter.box(m.copper, 0, y + .04, -.082, 1.43, .014, .018);
     }
+    shutter.box(m.dark, 0, .106, -.078, 1.53, .083, .04);
+    shutter.build();
     const label = spriteText(this.theme === 2 ? 'EXIT' : 'SERVICE LIFT', '#9ce6cf', 'EMERGENCY ACCESS');
     this.localTextures.push(label);
-    placeSign(this.stage, label, x + dx * .49, 2.12, z + dz * .49, 1.36, .34);
+    const panel = mesh(g, unitPlane, new THREE.MeshBasicMaterial({ map: label }), [0, 2.47, -.196], [.68, .17, 1]);
+    panel.rotation.y = Math.PI;
     this.doorLight = this.lightSource(x - dx * .18, 2.37, z - dz * .18, 13, 'safe', .83);
   }
 
@@ -1161,8 +1268,10 @@ export class Visual {
 
   updateLights(state, time, night, exposure) {
     const roof = this.theme === 2;
-    this.fill.color.set('#dce3ed').lerp(COLD, night * .8);
-    this.fill.intensity = roof ? 1.50 - night * .39 : .94 - night * .22;
+    const office = this.theme === 1;
+    this.fill.color.set(office ? '#e9decb' : '#dce3ed').lerp(COLD, night * .8);
+    this.fill.intensity = roof ? 1.50 - night * .39 : office ? 1.02 - night * .25 : .94 - night * .22;
+    if (office) this.materials.frosted.emissiveIntensity = .13 + night * .16;
     this.scene.environmentIntensity = roof ? .63 - night * .31 : .57 - night * .19;
     this.rim.color.copy(WARM).lerp(COLD, night);
     this.rim.intensity = roof ? 1.85 - night * .18 : .64 - night * .12;
@@ -1209,7 +1318,7 @@ export class Visual {
       tints.value[i].copy(this.nearLights[i].color);
     }
     for (const source of this.ambience) {
-      if (source.type === 'general') source.sprite.material.color.copy(WARM).lerp(COLD, night * .9);
+      if (source.type === 'general') source.sprite.material.color.copy(source.color).lerp(COLD, night * .9);
       source.sprite.material.opacity = .23 + .08 * Math.sin(time * 1.75 + source.x * .4) + night * .08;
     }
     for (const { tile, pool, beacon } of this.safeLamps) {

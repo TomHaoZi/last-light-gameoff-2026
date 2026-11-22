@@ -1,5 +1,13 @@
 # Progress · 2.0.0-rc.1
 
+## Dual-edition visual refresh · 3.0.0-rc.11
+
+- Added pixel-crafted room dressings and day/night backdrops across all 18 sections, revised the janitor and ghosts, and redrew door and phase effects. Seventy-two paired Chrome fixture cases cover the 18 sections in each phase. Inactive platforms remain pixel-invisible during the transition.
+- Added 3D fittings and signs for each of the three floors and revised the three pursuers' faces, clothing and motion using the existing rig and texture sizes. Nineteen paired scene checks ran at 2560×1440 High with 2× MSAA and reported zero WebGL errors.
+- Independent fresh Chrome runs reached the complete endings in both editions. The 2D run completed 18 mechanisms and 60 shifts, then passed completed-save reload, all-section revisit and the Chinese journal. The 3D run collected six records and triggered all four recorded dialogue cues. Both completed with zero deaths or runtime errors. Two combined-package iframe smoke runs also confirmed day/night and exact saves across the edition round trip.
+- Five cold archive walk trials per version held 2560×1440 High and 2× MSAA. The first switch after walking to the bridge stayed between 16.6 and 16.7 ms, and the entry median was about 267 ms for each version. The slowest entry was 283 ms before and 333 ms after the art update. Both builds showed occasional 50 ms frames when first revealing a new area.
+- Syntax checks covered 63 modules and all 71 automated tests passed. The historical release evidence below covers the original expansion.
+
 ## Current implementation and verified state
 
 - User wants autonomous sustained work, reasonable recovery from transient failures and durable checkpoints, not repeated “continue?” prompts. Global Pi preference is in `~/.pi/agent/AGENTS.md`. Bounded tests and honest session/disconnection limits still apply.

@@ -8,6 +8,11 @@ import { applyPreparedCreatureTextures, prepareOfficeTextures } from './creature
 const { smoothstep } = MathUtils;
 
 const DEPARTMENTS = ['boiler', 'office', 'roof'];
+const POSTURE = [
+  { lean: .086, list: -.048, chin: .012, tilt: .087, search: .16, reachingSide: 1 },
+  { lean: -.068, list: .035, chin: -.026, tilt: -.071, search: .27, reachingSide: -1 },
+  { lean: .016, list: -.022, chin: .029, tilt: .041, search: .19, reachingSide: 1 }
+];
 const SOURCE = new URL('./assets/creature/late-worker.glb', import.meta.url).href;
 // Bounds include the reach and capture poses as well as the resting model.
 const poseBounds = new Sphere(new Vector3(0, .92, 0), 1.55);
@@ -121,7 +126,8 @@ function authoredRig(theme, seed) {
   };
   const head = joints.get('head');
   const jaw = joints.get('jaw');
-  const animated = new Set([body.hips, body.torso, body.neck, jaw]);
+  const eyes = [joints.get('eye.L'), joints.get('eye.R')];
+  const animated = new Set([body.hips, body.torso, body.neck, jaw, ...eyes]);
   // The capture camera reads the head before the scene updates world matrices.
   for (let ancestor = head; ancestor; ancestor = ancestor.parent) animated.add(ancestor);
   for (const { shoulder, elbow, wrist, fingers } of body.arms) {
@@ -135,7 +141,7 @@ function authoredRig(theme, seed) {
     object.matrixAutoUpdate = false;
   });
   return {
-    body, head, jaw, hipsBaseline: body.hips.position.y - .906,
+    body, head, jaw, eyes, hipsBaseline: body.hips.position.y - .906,
     torsoBaseline: body.torso.position.z - .012
   };
 }
@@ -190,30 +196,39 @@ export function updateCreature(actor, { time, threat = 0, attack = 0, night = fa
   });
 
   const breath = Math.sin(time * 3.3 + actor.seed);
-  const glance = Math.sin(time * 2.6 + actor.seed) * (1 - urgency);
-  actor.body.torso.rotation.z += .052 * Math.sin(actor.seed);
-  actor.body.torso.rotation.x += .045 * (1 - reach);
+  const posture = POSTURE[actor.theme] ?? POSTURE[0];
+  // Patrol eyes lead the head; at contact the gaze steadies on the player.
+  const searchTime = time * 1.94 + actor.seed;
+  const gaze = Math.tanh(2.4 * Math.sin(searchTime)) * (1 - urgency);
+  const glance = Math.tanh(1.76 * Math.sin(searchTime - .34)) * (1 - urgency);
+  actor.body.torso.rotation.z += (.030 * Math.sin(actor.seed) + posture.list) * (1 - .65 * reach);
+  actor.body.torso.rotation.x += (.045 + posture.lean) * (1 - reach);
   const flinch = reduced ? 0 : Math.sin(time * 14.1 + actor.seed) * .016 * urgency;
   actor.body.neck.rotation.set(
-    -.095 - urgency * .11 - reach * .22 + breath * .028,
-    glance * .16 + flinch,
-    .035 + glance * .048 - reach * .042
+    -.095 - urgency * .11 - reach * .22 + breath * .028 + posture.chin * (1 - reach),
+    glance * posture.search + flinch,
+    (.035 + posture.tilt) * (1 - reach) + glance * .048 - reach * .025
   );
   const yell = smoothstep(threat, .32, .77) * (.24 + .48 * Math.abs(Math.sin(time * 4.1 + actor.seed)));
   const howl = MathUtils.clamp(.046 + yell * .30 + reach * .13 + attack * .38 + breath * .021, 0, .83);
   if (actor.jaw) {
     actor.body.hips.position.y += actor.hipsBaseline;
     actor.body.torso.position.z += actor.torsoBaseline;
-    actor.jaw.rotation.x = howl * .64;
+    actor.jaw.rotation.x = howl * .60;
+    actor.jaw.rotation.z = Math.sin(actor.seed) * howl * .055;
+    const eyeTurn = reduced ? 0 : MathUtils.clamp(gaze * .19 - glance * posture.search, -.16, .16);
+    const eyeLift = reach * .086 + urgency * .052;
+    for (const eye of actor.eyes) eye.rotation.set(-eyeLift, eyeTurn, 0);
     for (const { shoulder, elbow, fingers, side } of actor.body.arms) {
       // The original MakeHuman bind pose already has a bend at the elbow
       // and the arms away from the body; ground them before the chase pose.
-      shoulder.rotation.z -= side * (.64 - reach * .14);
-      shoulder.rotation.y -= side * reach * .27;
+      const handReach = side === posture.reachingSide ? reach : reach * smoothstep(reach, .18, .90);
+      shoulder.rotation.z -= side * (.64 - handReach * .14);
+      shoulder.rotation.y -= side * handReach * .25;
       elbow.rotation.x *= .83;
-      elbow.rotation.y = -side * reach * .34;
+      elbow.rotation.y = -side * handReach * .32;
       for (const { bone, axis, depth } of fingers) {
-        bone.quaternion.setFromAxisAngle(axis, depth * (.15 + .68 * reach + .13 * attack));
+        bone.quaternion.setFromAxisAngle(axis, depth * (.18 + .62 * handReach + .16 * attack));
       }
     }
     return;

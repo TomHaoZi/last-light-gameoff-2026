@@ -8,16 +8,17 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.10"
+VERSION = "3.0.0-rc.11"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
     "simulation.js", "lighting.js", "models.js", "surfaces.js",
     "creature.js", "creature-body.js", "creature-head.js", "creature-voice.js",
-    "creature-textures.js", "render-idle.js", "office-phase-programs.js",
+    "creature-textures.js", "render-idle.js", "office-phase-programs.js", "set-dressing.js",
     "vendor/three.module.js", "vendor/three.core.js",
     "vendor/THREE-LICENSE.txt", "classic/index.html", "classic/style.css",
-    "classic/game.js", "dialogue.js", "frame-budget.js", "photo-surfaces.js",
+    "classic/game.js", "classic/actor-art.js", "classic/sector-art.js", "classic/sector-scenery.js",
+    "dialogue.js", "frame-budget.js", "photo-surfaces.js",
     "environment-assets.js", "vendor/loaders/GLTFLoader.js",
     "vendor/utils/BufferGeometryUtils.js", "vendor/utils/SkeletonUtils.js",
     "assets/CREDITS.md", "assets/creature/late-worker.glb",
