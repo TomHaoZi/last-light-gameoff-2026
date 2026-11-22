@@ -1170,5 +1170,14 @@
         ]
       }
     ]
+  },
+  "navigationPatch": {
+    "version": "3.0.0-rc.13",
+    "archiveSha256": "903a597ca740f627b906d83e122eed36a21c8b046c84be708711d7d95333fb1b",
+    "changedEntries": [
+      "BUILD.json",
+      "classic/index.html",
+      "index.html"
+    ]
   }
 }

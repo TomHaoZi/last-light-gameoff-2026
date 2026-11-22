@@ -1,5 +1,9 @@
 # Progress · 2.0.0-rc.1
 
+## Browser title navigation · 3.0.0-rc.13
+
+- Both title logos now target explicit index files so they open the title screen on the itch.io CDN. The packaged Chrome smoke passed both logo links and both edition switches. The route receipt identifies the three archive entries in this navigation patch.
+
 ## Advanced routes · 3.0.0-rc.12
 
 - Both fresh 2D Chrome journeys cleared all 18 work areas and persisted their respective endings. The complete route deliberately missed the first phase catch in every section, recovered, then completed 131 ordered jumps and 77 airborne phase switches. The normal route used the existing section controller without mandatory advanced routes. Neither journey lost a life.
