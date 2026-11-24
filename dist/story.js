@@ -31,3 +31,13 @@ export const STORY={
   replay:'回访章节',light:'出口灯已切换至独立应急供电。',journal:'交班日志',noEntries:'找到的记录与证据会保存在这里。',close:'返回游戏',interact:'E · 操作 / 阅读',evidenceLabel:'证据',
  }
 };
+
+// The work order names the object on the desk or wall, so the bearing means something on arrival.
+export const WORK_OBJECTS = {
+ 'duty-signoff': ['SIGN-IN BOOK', '签到簿'], freight: ['BYPASS VALVE', '旁通阀'], relief: ['RELIEF VALVE', '泄压阀'],
+ coolant: ['COOLING LINE', '冷却管'], bridge: ['BRIDGE LATCH', '桥锁'], 'main-valve': ['MAIN VALVE', '总阀门'],
+ register: ['SHIFT REGISTER', '值班登记簿'], 'public-list': ['EVACUATION LIST', '疏散名单'], record: ['GARY’S RECORD', 'Gary 的档案'],
+ phone: ['TELEPHONE', '电话'], 'fire-door': ['FIRE DOOR', '防火门'], lunchbox: ['GARY’S LUNCH', 'Gary 的午餐'],
+ 'roof-power': ['POWER PANEL', '配电盘'], reservoir: ['WATER TANK', '储水罐'], plants: ['ROOFTOP PLANTS', '屋顶花盆'],
+ evacuation: ['EXTERIOR LATCH', '楼外门闩'], circuit: ['LIGHT CIRCUIT', '照明电路'], 'last-door': ['EXIT BEACON', '出口信标']
+};

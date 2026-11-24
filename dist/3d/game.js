@@ -2,6 +2,7 @@ import { Visual } from './visual.js';
 import { HorrorAudio } from './audio.js';
 import { Dialogue } from './dialogue.js';
 import { Simulation3D, SAVE_KEY, STEP } from './simulation.js';
+import { loadRun, storeRun, restartRun } from './save.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -26,6 +27,10 @@ const strings = {
     move: 'Move', look: 'Look around', use: 'Interact', jump: 'Jump', mouse: 'Move the mouse',
     drag: 'Drag the scene', onScreen: 'On-screen buttons', tapDayNight: 'Day / Night button', space: 'Space',
     firstSteps: 'Save at the emergency lamp. Switch to night for the first bridge.',
+    exitReady: 'Take the lift beside the fire interlock.',
+    archiveExit: 'Take the lift beyond Gary’s wing.',
+    roofExit: 'The roof exit is open. Leave when you’re ready.',
+    roofCircuit: 'The exit is open. Its independent light is still off.',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
     shortcutKeys: 'Hold Shift, jump with Space, switch midair with X.',
     shortcutTouch: 'Hold Sprint, tap Jump, then tap Day / Night in the air.',
@@ -35,6 +40,9 @@ const strings = {
     volume: 'Master volume', mouseSensitivity: 'Mouse sensitivity', quality: 'Graphics', high: 'High', medium: 'Balanced', low: 'Performance', adaptive: 'Adaptive resolution', fpsMonitor: 'Show frame rate', reduced: 'Reduce visual effects',
     restart: 'Restart 3D shift', restartConfirm: 'Confirm 3D restart', lift: 'Open exit', lampAction: 'Rest at emergency lamp', powerAction: 'Power the exit light', work: 'Operate station', clue: 'Read evidence',
     workDone: 'Handover logged.', clueFound: 'Evidence recorded.', lamp: 'Checkpoint saved. Integrity restored.',
+    reviewRecord: 'Reread journal entry', lightOn: 'Exit light is on', lightOff: 'exit light has no power',
+    remainingRecords: n => `${n} unread ${n === 1 ? 'record stays' : 'records stay'} on this floor`,
+    remainingStations: n => `Exit locked · ${n} ${n === 1 ? 'station' : 'stations'} left`,
     power: 'The emergency light will stay on when you leave.', locked: 'Finish the handover at all three stations first.',
     needDay: 'This equipment works at 17:59. Switch to day.', needNight: 'This memory exists at 18:00. Switch to night.',
     warning: 'It’s coming. Break line of sight or reach a lamp.', fall: 'THE FLOOR IS GONE', ghost: 'IT FOUND YOU', machinery: 'INTEGRITY LOST',
@@ -43,6 +51,7 @@ const strings = {
     normal: 'You finished the handover and made it to the street. The register is still missing part of the story. The building waits for someone to read it.',
     full: 'You restored the record. Gary stayed. He held the doors while the others got out. You leave his name on the register and a light for the next person.',
     run: 'Shift complete', fps: '3D could not start. This build requires a browser with WebGL 2 enabled.', saveFailed: 'Browser storage is unavailable. You can play, but progress will not persist.',
+    protectedSave: 'Your existing save cannot be loaded in this version. It is protected. Play for this session, or choose Restart in Settings to back it up and begin a new save.',
     quiet: 'Quiet', sprint: 'Sprint', shift: 'Day / Night', touchUse: 'Use', directions: ['Forward', 'Left', 'Back', 'Right']
   },
   zh: {
@@ -56,6 +65,10 @@ const strings = {
     move: '移动', look: '转动视角', use: '互动', jump: '跳跃', mouse: '直接移动鼠标',
     drag: '拖动画面', onScreen: '屏幕按钮', tapDayNight: '「昼夜」按钮', space: '空格',
     firstSteps: '在应急灯处存档。切到黑夜，就能看见第一座桥。',
+    exitReady: '去消防联锁旁搭电梯。',
+    archiveExit: '穿过 Gary 的办公区，去尽头搭电梯。',
+    roofExit: '屋顶出口已打开。准备好就可以离开。',
+    roofCircuit: '屋顶出口已打开，门边的独立应急灯还没通电。',
     lampSteps: '切到黑夜，让前方的桥出现。',
     shortcutKeys: '按住 Shift 冲刺，用空格跳跃，在空中按 X 切换。',
     shortcutTouch: '按住「冲刺」，点「跳跃」，再在半空点「昼夜」。',
@@ -65,6 +78,9 @@ const strings = {
     volume: '总音量', mouseSensitivity: '鼠标灵敏度', quality: '画质', high: '高', medium: '均衡', low: '性能', adaptive: '自适应分辨率', fpsMonitor: '显示帧率', reduced: '减弱视觉特效', restart: '重开 3D 值班', restartConfirm: '确认重开 3D 版',
     lift: '打开出口', lampAction: '在应急灯休息', powerAction: '给出口灯通电', work: '操作设备', clue: '查看线索', workDone: '交班已记录。', clueFound: '线索已记下。',
     lamp: '检查点已保存，生命恢复。', power: '你离开后，应急灯也会继续亮着。', locked: '先完成本区的三项交接工作。',
+    reviewRecord: '重读日志里的记录', lightOn: '出口灯已通电', lightOff: '出口灯还未通电',
+    remainingRecords: n => `离开会错过本层 ${n} 份未读记录`,
+    remainingStations: n => `出口未解锁 · 还剩 ${n} 项交接`,
     needDay: '设备只在 17:59 运转，切到白天。', needNight: '这段记忆只在 18:00 出现，切到夜晚。',
     warning: '它来了。拐弯甩开它，或者跑到应急灯下。', fall: '脚下的路消失了', ghost: '它找到你了', machinery: '生命耗尽', revival: '在应急灯下醒来',
     journalEmpty: '还没有线索。留意楼里的文件。', evidence: '线索', workCount: '项交接已完成',
@@ -72,6 +88,7 @@ const strings = {
     normal: '你做完了交接，回到了街上。登记簿里仍缺着一段故事。大楼还在等人把它读完。',
     full: '你修正了登记簿。Gary 没有离开，他一直撑着门，直到其他人出去。你把他的名字留在纸上，也为下一个人留了一盏灯。',
     run: '交班完成', fps: '3D 版启动失败。请用支持并启用了 WebGL 2 的浏览器。', saveFailed: '浏览器存储不可用。可以继续玩，但本次进度无法保存。',
+    protectedSave: '此版本无法读取现有存档，已保留原档。可以临时游玩，或在设置里选择重新开始，备份原档后建立新存档。',
     quiet: '轻声', sprint: '冲刺', shift: '昼夜', touchUse: '互动', directions: ['前进', '左移', '后退', '右移']
   }
 };
@@ -83,7 +100,10 @@ let lang = ['en', 'zh'].includes(prefs.lang) ? prefs.lang : (navigator.language?
 let muted = prefs.muted === true;
 let volume = Number.isFinite(prefs.volume) ? Math.max(0, Math.min(1, prefs.volume)) : .8;
 let mouseSensitivity = Number.isFinite(prefs.mouseSensitivity) ? Math.max(.5, Math.min(2, prefs.mouseSensitivity)) : 1;
-const state = new Simulation3D({ progress: read(SAVE_KEY) });
+let storage;
+try { storage = window.localStorage; } catch {}
+let storedRun = loadRun(storage);
+const state = new Simulation3D({ progress: storedRun.progress });
 state.quality = ['high', 'medium', 'low'].includes(prefs.quality) ? prefs.quality : (coarsePointer.matches ? 'medium' : 'high');
 state.autoResolution = prefs.adaptive !== false;
 let showFps = prefs.showFps === true;
@@ -104,7 +124,10 @@ function savePrefs() {
 }
 
 function saveProgress() {
-  if (!write(SAVE_KEY, state.saveData())) notice(t().saveFailed, 5);
+  const progress = state.saveData();
+  const issue = storeRun(storage, progress);
+  storedRun = { progress: issue ? storedRun.progress : progress, issue };
+  if (issue) notice(t()[issue], 5);
 }
 
 function notice(copy, secs = 3) {
@@ -137,6 +160,13 @@ canvas.addEventListener('webglcontextrestored', () => {
   updateScreen(true);
 });
 
+function currentObjective() {
+  const { level, completed, map, progress } = state;
+  if (completed.size < map.stations.length) return lang === 'zh' ? level.objectiveZh : level.objective;
+  if (map.power) return progress.powered ? t().roofExit : t().roofCircuit;
+  return level.id === 'office' ? t().archiveExit : t().exitReady;
+}
+
 function updateScreen(force = false) {
   const mode = error ? 'error' : state.mode;
   if (mode === overlayMode && !force) return;
@@ -149,7 +179,7 @@ function updateScreen(force = false) {
   $('intro').hidden = active;
   $('hud').hidden = !active;
   $('pause').hidden = !active;
-  $('classic-link').hidden = mode !== 'menu' && mode !== 'error';
+  $('classic-link').hidden = active;
   $('quick-guide').hidden = mode !== 'menu' && mode !== 'paused';
   $('phase-primer').hidden = $('quick-guide').hidden;
   $('screen-tip').hidden = mode !== 'menu';
@@ -157,13 +187,15 @@ function updateScreen(force = false) {
   updateMouseLook();
   $('intro').classList.toggle('compact', mode !== 'menu');
   if (active) return;
+  const enteringBoiler = state.levelIndex === 0 && !state.completed.size && state.checkpoint === state.map.spawn;
+  screenText('guide-note', enteringBoiler ? copy.firstSteps : currentObjective());
   screenText('screen-strap', mode === 'won' ? copy.run : copy.handover);
   if (mode === 'menu' && lang === 'en') $('screen-title').replaceChildren('LAST ', document.createElement('br'), 'LIGHT');
   else screenText('screen-title', mode === 'paused' ? copy.paused : mode === 'won' ? (state.ending === 'complete' ? copy.fullTitle : copy.normalTitle) : copy.title);
   screenText('screen-subtitle', copy.subtitle);
   screenText('screen-story', mode === 'error' ? copy.fps : mode === 'paused' ? copy.pausedStory : mode === 'won' ? (state.ending === 'complete' ? copy.full : copy.normal) : copy.intro);
-  screenText('start', mode === 'won' ? copy.journal : mode === 'paused' ? copy.resume : read(SAVE_KEY) ? copy.resumeSave : copy.start);
-  screenText('screen-tip', copy.tip);
+  screenText('start', mode === 'won' ? copy.journal : mode === 'paused' ? copy.resume : storedRun.progress ? copy.resumeSave : copy.start);
+  screenText('screen-tip', storedRun.issue ? copy[storedRun.issue] : copy.tip);
 }
 
 function labels() {
@@ -178,7 +210,7 @@ function labels() {
     ['voice-credits', lang === 'zh' ? '配音演员与录音来源' : 'Voice cast and recording credits'], ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
     ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse],
     ['guide-title', copy.controlsTitle], ['guide-phase', copy.phaseControl], ['primer-action', copy.phaseControl], ['guide-move', copy.move], ['guide-look', copy.look],
-    ['guide-use', copy.use], ['guide-jump', copy.jump], ['guide-note', copy.firstSteps], ['mouse-look', copy.capture]
+    ['guide-use', copy.use], ['guide-jump', copy.jump], ['mouse-look', copy.capture]
   ].forEach(([id, value]) => screenText(id, value));
   const touch = coarsePointer.matches;
   const keyCap = key => Object.assign(document.createElement('kbd'), { textContent: key });
@@ -208,8 +240,30 @@ function loadChapter() {
   notice(lang === 'zh' ? state.level.subtitleZh : state.level.subtitle, 5);
 }
 
+function interactionPrompt({ type, id }) {
+  const copy = t();
+  const use = coarsePointer.matches ? '' : '[E] ';
+  if (type === 'station') {
+    if (state.completed.has(id)) return copy.workDone;
+    const phase = state.requiredPhase(id);
+    if (phase && phase !== (state.night ? 'night' : 'day')) return phase === 'night' ? copy.needNight : copy.needDay;
+    return use + copy.work;
+  }
+  if (type === 'clue') return use + (state.hasRecord(id) ? copy.reviewRecord : copy.clue);
+  if (type === 'power') return state.progress.powered ? copy.lightOn : use + copy.powerAction;
+  if (type === 'lamp') return use + copy.lampAction;
+
+  const stationsLeft = state.map.stations.length - state.completed.size;
+  if (stationsLeft) return copy.remainingStations(stationsLeft);
+  let text = use + copy.lift;
+  const unread = state.map.clues.reduce((count, tile) => count + Number(!state.hasRecord(tile.key)), 0);
+  if (unread) text += ' · ' + copy.remainingRecords(unread);
+  if (state.map.power && !state.progress.powered) text += ' · ' + copy.lightOff;
+  return text;
+}
+
 function updateHUD() {
-  const status = [state.levelIndex, state.night, state.hp, state.completed.size].join('/');
+  const status = [state.levelIndex, state.night, state.hp, state.completed.size, state.progress.powered].join('/');
   if (status !== previousHUD) {
     const copy = t();
     previousHUD = status;
@@ -217,7 +271,7 @@ function updateHUD() {
     screenText('floor-label', copy.chapter + ' ' + (levelIndex + 1) + ' / ' + state.levels.length);
     screenText('room-title', lang === 'zh' ? level.zh : level.title);
     screenText('station-progress', completed.size + ' / ' + map.stations.length + ' ' + copy.workCount);
-    screenText('objective', ' · ' + (lang === 'zh' ? level.objectiveZh : level.objective));
+    screenText('objective', ' · ' + currentObjective());
     screenText('phase-time', night ? '18:00' : '17:59');
     screenText('phase-label', night ? copy.after : copy.before);
     screenText('phase-action', night ? copy.toDay : copy.toNight);
@@ -232,11 +286,10 @@ function updateHUD() {
     $('stamina-meter').setAttribute('aria-valuenow', stamina);
   }
   const target = state.mode === 'playing' ? state.getInteraction() : null;
-  const names = { station: 'work', clue: 'clue', lamp: 'lampAction', door: 'lift', power: 'powerAction' };
   const shortcut = state.map.shortcut;
   const atShortcut = state.mode === 'playing' && state.life === 'alive' && shortcut &&
     state.map.at(state.x, state.z) === shortcut.pads[0];
-  const prompt = target ? (coarsePointer.matches ? '' : '[E] ') + t()[names[target.type]] :
+  const prompt = target ? interactionPrompt(target) :
     atShortcut ? shortcut.title[Number(lang === 'zh')] + ' · ' +
       t()[coarsePointer.matches ? 'shortcutTouch' : 'shortcutKeys'] : '';
   if ($('interaction').textContent !== prompt) screenText('interaction', prompt);
@@ -301,11 +354,11 @@ function requestMouseLook() {
 function start() {
   if (error) return;
   if (state.mode === 'won') return showPanel('journal');
-  const firstShift = state.mode === 'menu' && !read(SAVE_KEY);
+  const firstShift = state.mode === 'menu' && !storedRun.progress;
   clearInput();
   state.mode = 'playing';
   updateScreen();
-  if (firstShift) notice(t().firstSteps, 8);
+  if (firstShift) notice(storedRun.issue ? t()[storedRun.issue] : t().firstSteps, 8);
   sound.setMuted(muted);
   sound.setVolume(volume);
   focusScene();
@@ -343,7 +396,7 @@ function showPanel(view) {
   const isJournal = view === 'journal';
   $('settings').hidden = isJournal;
   $('journal-view').hidden = !isJournal;
-  $('restart').hidden = !read(SAVE_KEY) && state.mode !== 'won';
+  $('restart').hidden = !storedRun.progress && storedRun.issue !== 'protectedSave' && state.mode !== 'won';
   $('confirm-restart').hidden = true;
   screenText('panel-title', isJournal ? t().journal : t().settings);
   if (isJournal) {
@@ -412,8 +465,11 @@ $('reduced').checked = state.reduceMotion;
 $('reduced').onchange = () => { state.reduceMotion = $('reduced').checked; savePrefs(); };
 $('restart').onclick = () => { $('confirm-restart').hidden = false; $('confirm-restart').focus(); };
 $('confirm-restart').onclick = () => {
-  const previous = read(SAVE_KEY);
-  if (previous && !write(SAVE_KEY + '-backup', previous)) return;
+  if (!restartRun(storage)) {
+    notice(t().saveFailed, 5);
+    return;
+  }
+  storedRun = loadRun(storage);
   state.reset();
   dialogue.reset();
   lastChapter = -1;

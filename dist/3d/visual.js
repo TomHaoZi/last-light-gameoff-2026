@@ -1540,7 +1540,7 @@ export class Visual {
         object.indicator.material.opacity = .075 + pulse * .22;
         object.indicator.scale.y = .67 + pulse * .95;
       } else if (object.kind === 'clue') {
-        object.indicator.visible = !(state.clues?.has?.(key) || state.evidence?.has?.(key) || state.completed?.has?.(key));
+        object.indicator.visible = !(state.hasRecord?.(key) || state.clues?.has?.(key) || state.evidence?.has?.(key));
       } else {
         const done = object.kind === 'power' ? state.powered ?? state.progress?.powered : state.completed?.has?.(key);
         updateWorkstation(object, done, time);

@@ -70,6 +70,13 @@ export class Simulation3D {
     this.progress.chapter = index;
     this.level = this.levels[index];
     this.map = decodeLevel(this.level);
+    this.interactionTargets = [
+      ...this.map.stations.map(tile => ({ type: 'station', tile })),
+      ...this.map.clues.map(tile => ({ type: 'clue', tile })),
+      ...this.map.lamps.map(tile => ({ type: 'lamp', tile })),
+      ...(this.map.power ? [{ type: 'power', tile: this.map.power }] : []),
+      { type: 'door', tile: this.map.exit }
+    ];
     this.night = false;
     this.shiftFx = 0;
     this.shiftCooldown = 0;
@@ -194,15 +201,8 @@ export class Simulation3D {
 
   getInteraction() {
     if (this.life !== 'alive' || this.departing || this.y > .6) return null;
-    const candidates = [
-      ...this.map.stations.map(tile => ({ type: 'station', tile })),
-      ...this.map.clues.map(tile => ({ type: 'clue', tile })),
-      ...this.map.lamps.map(tile => ({ type: 'lamp', tile })),
-      ...(this.map.power ? [{ type: 'power', tile: this.map.power }] : []),
-      { type: 'door', tile: this.map.exit }
-    ];
     let best = null;
-    for (const target of candidates) {
+    for (const target of this.interactionTargets) {
       const { tile } = target;
       const range = distance(this, tile);
       if (range > 1.68 || (best && range >= best.range) || !this.canSee(this, tile)) continue;
@@ -216,6 +216,8 @@ export class Simulation3D {
   }
 
   requiredPhase(id) { return this.level.requiredPhase?.[id]; }
+
+  hasRecord(id) { return this.progress.evidence.includes(this.levelIndex + '/' + id); }
 
   interact() {
     const target = this.getInteraction();
@@ -231,7 +233,7 @@ export class Simulation3D {
       this.emit('story', { pair: tile.messages ?? this.level.messages?.[id], id: 'workDone', station: id });
     } else if (type === 'clue') {
       const evidence = this.levelIndex + '/' + id;
-      if (!this.progress.evidence.includes(evidence)) {
+      if (!this.hasRecord(id)) {
         this.progress.evidence.push(evidence);
         this.emit('sound', { name: 'pickup', position: tile });
       }

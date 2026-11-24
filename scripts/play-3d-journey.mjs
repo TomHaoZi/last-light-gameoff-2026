@@ -28,13 +28,14 @@ const centre = tile => (tile + .5) * TILE;
 
 // This circuit stays on the regular corridors. It shares the trusted-input
 // browser session with the separate shortcut and recovery checks.
-async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap }, ending, chapter, route) {
+async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide }, ending, chapter, route) {
   const start = await snapshot();
   assert.equal(start.chapter, chapter);
   assert.ok(Math.abs(start.yaw) < .01);
   let col = Math.floor(start.x / TILE);
   let row = Math.floor(start.z / TILE);
   const proof = { chapter, phaseChanges: [], interactions: [] };
+  if (pauseAndReadGuide) proof.pauseGuide = await pauseAndReadGuide();
   const started = performance.now();
   for (const command of route.trim().split(/\s+/)) {
     assert.ok(performance.now() - started < 85000, 'Chapter reached its time limit');
@@ -49,9 +50,11 @@ async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap }, ending,
       }
       if (command.startsWith('@')) {
         const marker = command[1];
-        if (ending === 'normal' && '12'.includes(marker)) continue;
+        if (ending === 'normal' && '12P'.includes(marker)) continue;
+        const hudBefore = await readHud?.();
         await tap('KeyE');
         const state = await snapshot();
+        const hudAfter = await readHud?.();
         if ('ABC'.includes(marker)) assert.ok(state.work.includes(marker), 'Station worked');
         if ('12'.includes(marker)) assert.ok(state.evidence.includes(chapter + '/' + marker), 'Record found');
         if (marker === 'E') {
@@ -59,7 +62,7 @@ async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap }, ending,
             await whenPlaying(progress => progress.chapter === chapter + 1, 'exit to next chapter');
           } else await whenPlaying(progress => progress.mode === 'won', 'exit to ending');
         }
-        proof.interactions.push({ marker, x: before.x, z: before.z, work: state.work, records: state.evidence });
+        proof.interactions.push({ marker, x: before.x, z: before.z, work: state.work, records: state.evidence, hudBefore, hudAfter });
         continue;
       }
       const [, direction, count = '1', sprint] = /^([NESW])(\d+)?(!)?$/.exec(command);

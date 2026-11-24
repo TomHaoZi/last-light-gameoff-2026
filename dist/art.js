@@ -1,4 +1,5 @@
 import {phaseActive} from './phase.js';
+import {WORK_OBJECTS} from './story.js';
 import {sectorDecor,sectorActors,cinemaOverlay} from './sector-art.js';
 import {sceneryBackdrop,sceneryCanopy} from './sector-scenery.js';
 import {drawApparition,drawJanitor,drawPhaseRipple} from './actor-art.js';
@@ -6,6 +7,7 @@ import {drawApparition,drawJanitor,drawPhaseRipple} from './actor-art.js';
 // No per-pixel noise: wear marks are deterministic connected clusters.
 export const RAMPS={teal:['#9db8a1','#628e82','#355c59','#193c40'],brick:['#b4a782','#7c8069','#4e6259','#263f40'],iron:['#adb9a0','#6d9189','#3e6264','#1d3c43'],rust:['#e4bb78','#b17d54','#754f3e','#403b35'],gold:['#ffdfa0','#dcad66','#946e49','#513f37'],blue:['#a6c2bd','#648e98','#3d5b70','#243b4b'],cloth:['#d4d2a0','#9ba97e','#657b62','#354e48'],skin:['#ffe0a2','#dfb57b','#aa7955','#654d3c']};
 const blend=(a,b,t)=>{const x=parseInt(a.slice(1),16),y=parseInt(b.slice(1),16);return '#'+[16,8,0].map(s=>Math.round(((x>>s)&255)*(1-t)+((y>>s)&255)*t).toString(16).padStart(2,'0')).join('');};
+const BEARINGS = ['→','↘','↓','↙','←','↖','↑','↗'];
 export class Art{
  constructor(canvas){this.canvas=canvas;this.c=canvas.getContext('2d',{alpha:false});this.c.imageSmoothingEnabled=false;this.t=0;this.n=0;this.cam=0;}
  rect(x,y,w,h,col){this.c.fillStyle=this.ambientColors?.get(col)??col;this.c.fillRect(Math.round(x),Math.round(y),Math.ceil(w),Math.ceil(h));}
@@ -133,6 +135,21 @@ export class Art{
    this.glow(x,y-17,20,12,'#e7ad79',.12);
   }
  }
+ routeObjective(s){
+   const zh=s.lang==='zh',p=s.player;
+   if(s.scene||s.mode!=='playing'||s.door.phase!=='closed'||(p.lifeState!=='alive'&&p.lifeState!=='hurt'))return;
+   const target=s.station;
+   let label=WORK_OBJECTS[target.scene][zh?1:0];
+   let dx=target.x-p.x-7,dy=target.y-p.y-14,ready=Math.hypot(dx,dy)<35;
+   if(s.station.done){
+     const gate=s.doors.find(door=>door.phase==='closed'&&!door.locked);
+     dx=(gate?gate.x:s.exitX)-p.x;dy=(gate?gate.y:s.exitY)-p.y;
+     label=gate?(zh?'开闸门':'OPEN GATE'):(zh?'出口':'EXIT');
+     ready=gate?Math.abs(dx)<40&&Math.abs(dy)<65:p.grounded&&dx<30&&Math.abs(dy)<12;
+   }
+   const direction=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;
+   this.label(`${ready?'[E]':BEARINGS[direction]}  ${label}`,262,260,s.station.done?'#b9d8cc':'#f1d197',8);
+ }
  elevator(x,ready,floor,door){
   x-=this.cam;
   if(x<-55||x>520)return;
@@ -188,6 +205,7 @@ export class Art{
    if(s.expanded)sceneryCanopy(this,s);
    for(let i=-1;!s.expanded&&i<4;i++){const x=i*390-((this.cam*1.13)%390)-12;this.pipe(x,-4,9,68,true,[RAMPS.iron[1],RAMPS.iron[2],RAMPS.iron[3],'#19393f']);this.pipe(x,63,34,7,false,[RAMPS.iron[1],RAMPS.iron[2],RAMPS.iron[3],'#19393f']);}
    this.rect(0,246,480,24,'#142e34');this.line(0,246,480,'#49665f');for(let i=0;i<3;i++){const lit=i<s.player.hp;this.box(10+i*14,252,10,10,lit?RAMPS.rust:RAMPS.iron);this.rect(13+i*14,254,4,5,lit?'#f0c477':'#31494c');if(lit)this.glow(15+i*14,255,10,8,'#eab86e',.12);}this.label(`HP ${s.player.hp}/3`,54,260,s.player.hp===1?'#ef897c':'#d7c79c',6);this.label(s.lang==='zh'?s.shortZh:s.short,92,259,'#b4c6af',6);this.label(`${s.items.filter(i=>i.got).length}/3`,450,259,'#e9c28a',7);
+   if(s.expanded)this.routeObjective(s);
    if(s.messageTimer>0&&!s.scene){const lines=this.wrap(s.message,430,7);const h=lines.length*11+12;this.rect(12,28,456,h,'#142b34ee');this.line(12,28,456,'#a8a783');lines.forEach((line,i)=>this.label(line,22,41+i*11,'#e8dfb9',7));}
    if(s.player.lifeState==='alive'&&([ ...s.items.filter(i=>i.present!==false&&!i.got),...(s.evidence||[]).filter(i=>!i.got)].some(i=>Math.hypot(i.x-s.player.x,i.y-s.player.y-14)<38)||(s.doors||[]).some(d=>d.phase==='closed'&&Math.abs(d.x-s.player.x)<43&&Math.abs(d.y-s.player.y)<65)||(s.player.hp<s.player.maxHp&&(s.checkpoints||[]).some(l=>Math.hypot(l.x-s.player.x,l.y-s.player.y)<28))))this.label('[E]',s.player.x-this.cam-1,s.player.y-(s.cameraY||0)-8,'#f2d89e',6);
    const warning=s.ghosts.find(g=>g.spawned!==false&&phaseActive(g,s.night)&&['alert','chase'].includes(g.state)&&Math.abs((g.xNow??g.x)-s.player.x)<220&&Math.abs((g.yNow??g.y)-s.player.y)<100);

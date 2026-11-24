@@ -12,7 +12,9 @@ export const FIXED_DT=1/120;
 export class Simulation{
  constructor(progress=freshSave()){
   this.progress=progress;this.expanded=progress.worldRevision===2;this.sector=progress.sector||0;this.floor=progress.floor;this.lang=progress.lang;this.mode='menu';this.time=0;this.deaths=0;this.shifts=0;this.log=[];this.pending=[];
-  this.short='';this.shortZh='';this.message='';this.messageTimer=0;this.muted=false;this.soundFlash=0;this.reducedEffects=progress.settings.reducedEffects;this.loadFloor(this.floor,true);if(progress.finished){this.mode='won';this.ending=progress.ending||'normal';}else if(progress.resumeMode==='between')this.mode='between';
+  this.short='';this.shortZh='';this.message='';this.messageTimer=0;this.muted=false;this.soundFlash=0;this.reducedEffects=progress.settings.reducedEffects;this.loadFloor(this.floor,true);if(progress.finished)this.ending=progress.ending||'normal';
+  if(progress.resumeMode==='between')this.mode='between';
+  else if(progress.finished&&progress.resumeMode!=='revisit')this.mode='won';
  }
  emit(type,data={}){const e={tick:Math.round(this.time/FIXED_DT),type,...data};this.pending.push(e);this.log.push(e);if(this.log.length>100)this.log.shift();}
  drain(){return this.pending.splice(0);}
@@ -52,7 +54,7 @@ export class Simulation{
  start(){if(this.mode==='between'){this.loadFloor(this.floor+1);this.emit('floor');}this.mode='playing';if(this.expanded&&this.floor===0&&this.sector===0&&!this.events.includes('arrival-seen'))beginScene(this,'clock','intro');this.emit('save');}
  pause(){if(this.mode==='playing'){this.mode='paused';this.emit('save');return true;}return false;}
  resume(){if(this.mode==='paused')this.mode='playing';}
- persist(){const p=this.progress;p.floor=this.floor;p.lang=this.lang;if(this.expanded)p.sector=this.sector;p.hp=this.player.hp>0?this.player.hp:3;p.chapterProgress[this.floor]=this.items.map(i=>i.got);p.checkpointId=this.checkpointId;p.resumeMode=this.mode==='between'?'between':'menu';p.ending=this.ending||null;return p;}
+ persist(){const p=this.progress;p.floor=this.floor;p.lang=this.lang;if(this.expanded)p.sector=this.sector;p.hp=this.player.hp>0?this.player.hp:3;p.chapterProgress[this.floor]=this.items.map(i=>i.got);p.checkpointId=this.checkpointId;p.resumeMode=this.mode==='between'?'between':p.finished&&this.mode!=='won'?'revisit':'menu';p.ending=this.ending||null;return p;}
  beginDeath(kind,ghost=null){if(kill(this,kind,ghost)){this.emit('death',{kind});this.emit('clear-input');this.emit('save');}}
  interact(){
   if(this.mode!=='playing'||!['alive','hurt'].includes(this.player.lifeState)||this.door.phase!=='closed'||this.interaction)return;
@@ -81,7 +83,7 @@ export class Simulation{
    if(this.floor===2){this.mode='won';this.ending=this.progress.evidence.length===6&&this.events.includes('record-corrected')&&this.events.includes('emergency-light')?'complete':'normal';this.progress.finished=true;this.emit('ending',{ending:this.ending});}else{this.mode='between';if(!this.events.includes(`chapter-${this.floor}-complete`))this.events.push(`chapter-${this.floor}-complete`);this.emit('between');}this.emit('save');}return;}
   if(this.door.phase!=='closed'){this.updateLift(dt);return;}
   if(this.interaction){this.interaction.time+=dt;if(this.interaction.time>=.55){const {item,index}=this.interaction;item.got=true;this.player.anim='idle';this.player.lifeState='alive';this.interaction=null;const eventId=`task-${this.floor}-${index}`;if(!this.events.includes(eventId))this.events.push(eventId);if(this.floor===1&&index===1&&!this.events.includes('record-corrected'))this.events.push('record-corrected');this.noiseTime=.8;this.noiseLevel=1;this.emit('task',{index});this.emit('save');}return;}
-  const life=updateLife(this,dt);if(life==='respawn'){this.emit('clear-input');this.emit('sound',{name:'revive'});this.emit('save');}if(life==='locked'||life==='respawn')return;
+  const life=updateLife(this,dt);if(life==='respawn'){this.emit('respawn');this.emit('clear-input');this.emit('sound',{name:'revive'});this.emit('save');}if(life==='locked'||life==='respawn')return;
   if(input.shift){const result=commitShift(this);this.emit(result.ok?'shift':'shift-rejected',{reason:result.reason});}
   if(input.interact){this.interact();if(this.interaction||this.scene||this.door.phase!=='closed')return;}
   for(const d of this.doors)updateDoor(d,this.player,dt);
@@ -89,7 +91,7 @@ export class Simulation{
   const p=this.player,near=this.collisionIndex?this.collisionIndex.query(p.x-40,p.y-20,p.x+60,p.y+65):this.platforms,out=stepPlayer(p,input,near,this.night,dt,{width:this.worldWidth,solids:[...this.walls,...doorColliders(this.doors)]});
   if(out.jump)this.emit('sound',{name:'jump'});if(out.land)this.emit('sound',{name:'land',amount:out.fall});
   if(p.grounded&&Math.abs(p.vx)>12){this.footDistance+=Math.abs(p.vx)*dt;if(this.footDistance>17){this.footDistance=0;this.emit('sound',{name:'step',surface:p.surface});}}
-  for(const cp of this.checkpoints){if(p.grounded&&Math.hypot(p.x-cp.x,p.y-cp.y)<21&&this.checkpointId!==cp.id){this.checkpointId=cp.id;p.checkpoint=cp.x;p.hp=3;this.emit('checkpoint',{id:cp.id});this.emit('save');}}
+  this.updateCheckpoint();
   if(p.x>500&&!this.events.includes('tutorial')){this.events.push('tutorial');this.emit('tutorial');}
   if(p.y>(this.expanded?this.worldHeight+90:330))this.beginDeath('fall');
   for(const h of this.hazards){const phase=h.day?!this.night:this.night,cycle=(this.time+(h.offset||0))%(h.period||1),enabled=!h.disabled&&phase&&(!h.period||cycle>h.warning&&cycle<h.warning+1.4);if(enabled&&p.x+12>h.x&&p.x<h.x+h.w&&p.y+28>(h.y??210)&&p.y<(h.y??210)+(h.h??18)){if(damage(this,h.x+h.w/2)){this.redFlash=.5;this.emit('sound',{name:'hurt'});if(p.lifeState==='dying'){this.emit('death',{kind:'hazard'});this.emit('clear-input');}this.emit('save');}}}
@@ -101,6 +103,21 @@ export class Simulation{
   const tx=Math.max(0,Math.min(this.worldWidth-480,p.x-180+p.dir*15));this.camera+=(tx-this.camera)*Math.min(1,dt*6);
   const ty=this.expanded?Math.max(0,Math.min(this.worldHeight-246,p.y-130)):Math.max(-220,Math.min(0,p.y-145));this.cameraY+=(ty-this.cameraY)*Math.min(1,dt*4);
   for(const q of this.particles){q.life-=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;}this.particles=this.particles.filter(q=>q.life>0);
+ }
+ updateCheckpoint(){
+  const p=this.player;
+  if(!p.grounded)return;
+  let nearest=null,bestDistance=21*21;
+  for(const lamp of this.checkpoints){
+   const distance=(p.x-lamp.x)**2+(p.y-lamp.y)**2;
+   if(distance>=21*21)continue;
+   // Some arrival and corridor lamps overlap. Keep an active lamp until we leave its range.
+   if(lamp.id===this.checkpointId)return;
+   if(distance<bestDistance){nearest=lamp;bestDistance=distance;}
+  }
+  if(!nearest)return;
+  this.checkpointId=nearest.id;p.checkpoint=nearest.x;p.hp=p.maxHp;
+  this.emit('checkpoint',{id:nearest.id});this.emit('save');
  }
  updateLift(dt){const d=this.door;d.progress+=dt;if(d.phase==='opening'&&d.progress>=.4){d.phase='entering';d.progress=0;}else if(d.phase==='entering'){this.player.x+=((this.door.target==='back'?8:this.exitX)+7-this.player.x)*Math.min(1,dt*7);if(d.progress>=.45){d.phase='closing';d.progress=0;this.emit('sound',{name:'door'});}}else if(d.phase==='closing'&&d.progress>=.4){d.phase='done';this.completionTimer=.65;}}
  snapshot(){return {time:this.time,worldRevision:this.expanded?2:1,sector:this.sector,world:{width:this.worldWidth,height:this.worldHeight||270},station:this.station?{...this.station}:null,mechanisms:this.progress.mechanisms?.slice(),scene:this.scene?{...this.scene,text:sceneText(this)}:null,pursuit:this.pursuit?{...this.pursuit}:null,floor:this.floor,phase:this.night?'night':'day',mode:this.mode,player:{...this.player},items:this.items.map(i=>({...i})),ghosts:this.ghosts.map(g=>({id:g.id,kind:g.kind,state:g.state,x:g.xNow,y:g.yNow,phase:g.phase,spawned:g.spawned,facing:g.facing,stateTime:g.stateTime,pathIndex:g.pathIndex,cooldown:g.cooldown,target:g.target?{...g.target}:null,collisionShape:{...g.collisionShape}})),doors:this.doors.map(d=>({...d})),lift:{...this.door},camera:{x:this.camera,y:this.cameraY},checkpoint:this.checkpointId,room:this.room,evidence:this.progress.evidence.slice(),events:this.events.slice(),deaths:this.deaths,shifts:this.shifts,death:this.death?{...this.death}:null,ending:this.ending,log:this.log.slice(-20)};}

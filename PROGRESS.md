@@ -1,5 +1,11 @@
 # Progress · 2.0.0-rc.1
 
+## RC15 · Desktop gameplay verification
+
+Fresh Chrome keyboard runs finished the normal and complete endings of both editions with zero deaths. The full 2D route crossed all 18 sectors, landed in order 131 times on the service routes and switched phase in midair 77 times. A separate run completed the three original maps after migrating a real v1 save. The 3D runs cleared nine stations, both endings survived an edition switch and reload, and capture and fall drills restored health at the chosen lamp on each of the three floors. Both 2D endings retained their work and evidence after revisiting all 18 areas.
+
+The release fixes overlapping checkpoint triggers, inconsistent phase feedback on revival, guidance after completing the work, and edition switching after a 3D ending. The 900 × 506 browser frame now shows the whole 2D playfield after clock-in. Both editions protect progress from older tabs and unreadable saves. See the [section-by-section acceptance record](docs/gameplay-flow-rc15.md).
+
 ## Blender character and horror pass · 3.0.0-rc.14
 
 Three skinned workers have separate facial damage, hair, missing teeth, uniforms and work equipment. Edited Blender sources ship with the repository. The first-person janitor operates stations, raises a hand during capture and checks a working watch. The three instruments, folding inspection gates, phase light, breath and dust render in the playable floors. Classic ghost sprites carry their own small injuries.

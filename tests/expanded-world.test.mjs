@@ -23,6 +23,41 @@ test('all new lamps are physically supported in both memories',()=>{
  }}
 });
 
+test('overlapping checkpoint lights keep the active save and only ring on a new arrival',()=>{
+ for(let floor=0;floor<3;floor++)for(const sector of [0,4]){
+  const s=new Simulation();s.loadSector(floor,sector);s.mode='playing';
+  const arrival=s.checkpoints[0],near=s.checkpoints.find(c=>c.id.endsWith('/lamp-0'));
+  assert.ok(Math.abs(arrival.x-near.x)<21);
+  for(const lamp of [arrival,near]){
+   s.checkpointId=lamp.id;s.player.hp=2;s.player.x=lamp.x;s.player.y=lamp.y;
+   s.drain();ticks(s,120);
+   assert.equal(s.checkpointId,lamp.id);assert.equal(s.player.hp,2);
+   assert.deepEqual(s.drain().filter(e=>e.type==='save'||e.type==='checkpoint'),[]);
+  }
+  const next=s.checkpoints.find(c=>c.id.endsWith('/lamp-1'));
+  s.player.x=next.x;s.player.y=next.y;ticks(s,120);
+  const events=s.drain();assert.equal(s.checkpointId,next.id);assert.equal(s.player.hp,3);
+  assert.equal(events.filter(e=>e.type==='checkpoint').length,1);
+  assert.equal(events.filter(e=>e.type==='save').length,1);
+ }
+});
+
+test('the 2D objective follows the work order, service gate and exit in every room',()=>{
+ const capture={label(value){this.value=value;}};
+ for(let floor=0;floor<3;floor++)for(let sector=0;sector<6;sector++){
+  const s=new Simulation();s.loadSector(floor,sector);s.mode='playing';
+  for(const lang of ['en','zh']){
+   s.lang=lang;s.station.done=false;s.player.x=s.station.x-90;s.player.y=s.station.y-14;
+   Art.prototype.routeObjective.call(capture,s);assert.match(capture.value,/^→  .+/u);
+   s.player.x=s.station.x-7;Art.prototype.routeObjective.call(capture,s);assert.match(capture.value,/^\[E\]  .+/);
+   const gate=s.doors[0];gate.locked=false;gate.phase='closed';s.station.done=true;s.player.x=gate.x-12;s.player.y=gate.y;
+   Art.prototype.routeObjective.call(capture,s);assert.equal(capture.value,lang==='zh'?'[E]  开闸门':'[E]  OPEN GATE');
+   gate.phase='open';s.player.x=s.exitX;s.player.y=s.exitY;Art.prototype.routeObjective.call(capture,s);
+   assert.equal(capture.value,lang==='zh'?'[E]  出口':'[E]  EXIT');
+  }
+ }
+});
+
 test('work is animated before permanent pressure, hazard, door and lift changes commit',()=>{
  const s=workFixture(0,1);assert.ok(s.scene);assert.equal(s.station.done,false);assert.equal(s.doors[0].locked,true);const count=s.platforms.length;
  ticks(s,100);assert.equal(s.station.done,false);s.pause();const age=s.scene.time;ticks(s,100);assert.equal(s.scene.time,age);s.resume();ticks(s,1100);

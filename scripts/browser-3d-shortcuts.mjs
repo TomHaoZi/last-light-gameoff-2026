@@ -19,12 +19,12 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const server = createServer(async (req, res) => {
   try {
     const { pathname } = new URL(req.url, 'http://localhost');
-    if (pathname === '/') {
+    if (pathname === '/__qa_profile__') {
       res.setHeader('Content-Type', 'text/html');
       res.end('<!doctype html><title>Private test profile</title>');
       return;
     }
-    const file = resolve(root, '.' + pathname);
+    const file = resolve(root, '.' + pathname, pathname.endsWith('/') ? 'index.html' : '');
     assert.ok(file.startsWith(root + '/'));
     res.setHeader('Content-Type', mime[extname(file)] ?? 'application/octet-stream');
     res.end(await readFile(file));
@@ -84,7 +84,7 @@ async function whenPlaying(check, title, limit = 5000) {
   }, title, limit);
 }
 
-const keys = { KeyA: 'a', KeyD: 'd', KeyE: 'e', KeyS: 's', KeyW: 'w', KeyX: 'x', ShiftLeft: 'Shift', Space: ' ' };
+const keys = { KeyA: 'a', KeyD: 'd', KeyE: 'e', KeyS: 's', KeyW: 'w', KeyX: 'x', ShiftLeft: 'Shift', Space: ' ', Escape: 'Escape' };
 const input = (code, down) => send('Input.dispatchKeyEvent', { code, key: keys[code], type: down ? 'keyDown' : 'keyUp' });
 async function hold(codes, run) {
   for (const key of codes) await input(key, true);
@@ -102,7 +102,7 @@ async function moveTo(axis, target) {
   const direction = Math.sign(delta);
   const code = motion[axis][Number(direction > 0)];
   return hold([code], () => whenPlaying(
-    state => (target - state[axis]) * direction < .07, 'walking to ' + axis + ' ' + target, 4500));
+    state => (target - state[axis]) * direction < .07, 'walking to ' + axis + ' ' + target, Math.max(4500, 1000 + Math.abs(delta) * 350)));
 }
 
 async function phaseTo(phase) {
@@ -143,7 +143,7 @@ async function jump(from, to) {
 }
 
 async function startChapter(index) {
-  await send('Page.navigate', { url: origin + '/' });
+  await send('Page.navigate', { url: origin + '/__qa_profile__' });
   await until(() => read("document.readyState === 'complete' && document.title === 'Private test profile'"), 'private profile');
   if (index !== undefined) {
     await read(`localStorage.setItem('last-light-3d-v1', JSON.stringify({ schema: 1, chapter: ${index} }))`);
@@ -151,11 +151,93 @@ async function startChapter(index) {
   await read("localStorage.setItem('last-light-3d-v1-settings', JSON.stringify({ lang: 'en', quality: 'high', adaptive: false }))");
   await send('Page.navigate', { url: origin + gameEntry });
   await until(async () => (await snapshot())?.webgl, 'WebGL initialized');
-  const point = await read("(() => { const r = document.querySelector('#start').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()");
+  if (process.env.JOURNEY) {
+    const observation = await send('Runtime.evaluate', { awaitPromise: true, expression: `import('./visual.js').then(({ Visual }) => {
+      const update = Visual.prototype.updateProps;
+      Visual.prototype.updateProps = function(state, time) {
+        update.call(this, state, time);
+        window.clueMeshVisibility = Object.fromEntries(state.map.clues.map(tile =>
+          [tile.key, this.objects.get(tile.key).indicator.visible]));
+      };
+    })` });
+    assert.equal(observation.exceptionDetails, undefined, 'Attach read-only clue mesh observer');
+  }
+  await clickVisible('#start');
+  await whenPlaying(state => state.chapter === (index ?? 0) && state.mode === 'playing', 'chapter started');
+}
+
+async function clickVisible(selector) {
+  const point = await until(() => read(`(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    if (!element) return null;
+    element.scrollIntoView({block:'center', behavior:'instant'});
+    const r = element.getBoundingClientRect();
+    const x = r.x + r.width / 2, y = r.y + r.height / 2;
+    return r.width && r.height && element.contains(document.elementFromPoint(x, y)) ? {x, y} : null;
+  })()`), 'visible, clickable control ' + selector);
   for (const type of ['mousePressed','mouseReleased']) {
     await send('Input.dispatchMouseEvent', { ...point, type, button: 'left', clickCount: 1 });
   }
-  await whenPlaying(state => state.chapter === (index ?? 0) && state.mode === 'playing', 'chapter started');
+}
+
+const readHud = () => read(`({
+  prompt: document.querySelector('#interaction').textContent,
+  objective: document.querySelector('#objective').textContent,
+  work: document.querySelector('#station-progress').textContent,
+  cluePapers: window.clueMeshVisibility
+})`);
+
+async function pauseAndReadGuide() {
+  await tap('Escape');
+  await whenPlaying(state => state.mode === 'paused', 'player paused at landing');
+  const guide = await read("document.querySelector('#guide-note').textContent");
+  await clickVisible('#start');
+  await whenPlaying(state => state.mode === 'playing', 'continued after reading the guide');
+  return guide;
+}
+
+async function playGhostRecoveries() {
+  // From a real lamp, enter a live patrol's corridor. The ghost may catch the
+  // player on the approach or while they wait at the end of the corridor.
+  const patrols = [
+    { lamp: [5, 15], path: ['night', ['z', 10], 'day', ['z', 8], ['x', 12], ['z', 7], ['x', 15]] },
+    { lamp: [10, 13], path: [['x', 11], ['z', 2], ['x', 13]] },
+    { lamp: [11, 15], path: ['night', ['z', 10], 'day', ['z', 8], ['x', 5], ['z', 5]] }
+  ];
+  for (const [chapter, { lamp, path }] of patrols.entries()) {
+    await startChapter(chapter);
+    await approach(...lamp);
+    await tap('KeyE');
+    const before = await snapshot();
+    assert.equal(await read("JSON.parse(localStorage.getItem('last-light-3d-v1')).checkpoint"), lamp.join('/'));
+    try {
+      for (const leg of path) {
+        if (typeof leg === 'string') await phaseTo(leg);
+        else await moveTo(leg[0], tileCentre(leg[1]));
+      }
+      await until(async () => (await snapshot()).life === 'dying', 'patrol made contact', 8000);
+    } catch (error) {
+      if ((await snapshot()).life !== 'dying') throw error;
+    }
+    const hit = await snapshot();
+    assert.equal(hit.hp, 0);
+    assert.equal(hit.deaths, before.deaths + 1);
+    const message = await read("document.querySelector('#death-copy').textContent");
+    assert.equal(message, 'IT FOUND YOU');
+    await until(async () => (await snapshot()).life === 'respawning', 'ghost capture recovery animation');
+    const revived = await whenRevived();
+    assert.ok(at(revived, ...lamp));
+    assert.equal(revived.deaths, hit.deaths);
+    assert.equal(revived.hp, 3);
+    console.log(JSON.stringify({ chapter: LEVELS[chapter].id, ghost: message, capture: [hit.x,hit.z], lamp, restoredHP: revived.hp, deaths: revived.deaths }));
+  }
+}
+
+async function whenRevived() {
+  return until(async () => {
+    const state = await snapshot();
+    return state.life === 'alive' && state;
+  }, 'regained control after death', 5000);
 }
 
 async function playShortcuts() {
@@ -218,11 +300,30 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
   if (process.env.JOURNEY) {
     await startChapter();
-    const proof = await play3DJourney({ snapshot, until, whenPlaying, moveTo, hold, tap }, process.env.JOURNEY);
+    const proof = await play3DJourney({ snapshot, until, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide }, process.env.JOURNEY);
     const saved = await read("JSON.parse(localStorage.getItem('last-light-3d-v1'))");
     assert.equal(saved.finished, true);
-    console.log(JSON.stringify({ ...proof, saved: true }));
-  } else await playShortcuts();
+    await send('Page.reload', { ignoreCache: true });
+    await until(() => read("performance.getEntriesByType('navigation')[0]?.type === 'reload' && document.readyState === 'complete'"), 'new document loaded after refresh');
+    const reopened = await until(async () => {
+      const state = await snapshot();
+      return state?.webgl && state.mode === 'won' && state;
+    }, 'reopened the saved ending');
+    assert.equal(reopened.ending, proof.ending);
+    await clickVisible('#start');
+    await until(() => read("document.querySelector('#panel').open"), 'opening the saved journal');
+    const journalCount = await read("document.querySelectorAll('#journal-list article').length");
+    assert.equal(journalCount, proof.records.length);
+    await clickVisible('#close-panel');
+    await until(() => read("!document.querySelector('#panel').open"), 'closed ending journal');
+    await clickVisible('#classic-link');
+    await until(() => read("document.readyState === 'complete' && Boolean(window.lastLight?.snapshot() && document.querySelector('#play-3d'))"), 'classic title and canvas finished loading');
+    await clickVisible('#play-3d');
+    await until(async () => (await snapshot())?.ending === proof.ending, 'returned from classic to the same 3D ending');
+    assert.deepEqual(await read("JSON.parse(localStorage.getItem('last-light-3d-v1'))"), saved);
+    console.log(JSON.stringify({ ...proof, saved: true, reopenedEnding: reopened.ending, journalCount, returnedFromClassic: true }));
+  } else if (process.env.GHOST_RECOVERY) await playGhostRecoveries();
+  else await playShortcuts();
   assert.deepEqual(exceptions, []);
 } finally {
   if (socket?.readyState === WebSocket.OPEN) {

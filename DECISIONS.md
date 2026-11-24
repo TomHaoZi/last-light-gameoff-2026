@@ -1,5 +1,9 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.15 · Gameplay and save recovery
+
+A 2D checkpoint remains active while its trigger overlaps another lamp. Work and exit cues point to the current task while the player chooses a route. The 3D lift reports the remaining records on its floor before departure. The journal, completed ending and edition switch remain accessible to returning players. Both games preserve unreadable or newer-format saves until a deliberate restart can back up their original bytes.
+
 ## 3.0.0-rc.14 · Character and encounter art
 
 Author the workers, janitor, instruments and service lift in Blender and export the meshes into the browser build. Keep the existing collision, phase timing, rig and save semantics. Put department-specific damage into the shared skin atlas, align stains with clothing seams and keep the player's sightline and aiming point clear. The watch, station instruments and elevator leaves follow the simulation state. Voice performances carry per-source credits and can be understood through either subtitle language.
