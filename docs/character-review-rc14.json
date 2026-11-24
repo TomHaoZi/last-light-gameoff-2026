@@ -1,0 +1,287 @@
+{
+  "build": "3.0.0-rc.14",
+  "date": "2026-11-24",
+  "zipBytes": 15980093,
+  "sha256": "8f6ccc8fe5e131cc9061e99b16f6290f7de1fee7d47f71a1e68677078b4bfef5",
+  "automatedTestsPassed": 92,
+  "syntaxCheckedModules": 73,
+  "threeDimensionalJourneys": [
+    {
+      "ending": "normal",
+      "deaths": 0,
+      "records": [],
+      "saved": true,
+      "chapters": [
+        {
+          "index": 0,
+          "switches": 3,
+          "interactions": 4
+        },
+        {
+          "index": 1,
+          "switches": 6,
+          "interactions": 4
+        },
+        {
+          "index": 2,
+          "switches": 8,
+          "interactions": 5
+        }
+      ]
+    },
+    {
+      "ending": "complete",
+      "deaths": 0,
+      "records": [
+        "0/1",
+        "0/2",
+        "1/1",
+        "1/2",
+        "2/1",
+        "2/2"
+      ],
+      "saved": true,
+      "chapters": [
+        {
+          "index": 0,
+          "switches": 3,
+          "interactions": 6
+        },
+        {
+          "index": 1,
+          "switches": 6,
+          "interactions": 6
+        },
+        {
+          "index": 2,
+          "switches": 8,
+          "interactions": 7
+        }
+      ]
+    }
+  ],
+  "classic": {
+    "fullKeyboardPlaythrough": true,
+    "sections": 18,
+    "ending": "complete",
+    "changedSpriteHash": "9d735fa7428c8df17c2fd819d563fa087c92ea7884e38306dde99ed340753ff5"
+  },
+  "shortcuts": [
+    {
+      "floor": "boiler",
+      "orderedJumps": 3,
+      "plannedFallRecovered": true,
+      "airborneShifts": 2
+    },
+    {
+      "floor": "office",
+      "orderedJumps": 3,
+      "plannedFallRecovered": true,
+      "airborneShifts": 2
+    },
+    {
+      "floor": "roof",
+      "orderedJumps": 4,
+      "plannedFallRecovered": true,
+      "airborneShifts": 3
+    }
+  ],
+  "sceneChecks": {
+    "all_authored": true,
+    "active_breath": true,
+    "hidden_clears": true,
+    "reduced_clears": true,
+    "phase_clears": true,
+    "latch_first": true,
+    "hinges_connected": true,
+    "full_fold": true,
+    "gate_sheds_dust": true,
+    "reach_animation": true,
+    "watch_advances_one_minute": true,
+    "gl_ok": true,
+    "console_ok": true,
+    "restart_loaded": true,
+    "arrival0_drawn": true,
+    "arrival1_drawn": true,
+    "arrival2_drawn": true,
+    "restart_drawn": true
+  },
+  "faceLightingPairs": [
+    {
+      "floor": 0,
+      "night": false,
+      "active": true,
+      "authored": true,
+      "gl": 0
+    },
+    {
+      "floor": 0,
+      "night": true,
+      "active": true,
+      "authored": true,
+      "gl": 0
+    },
+    {
+      "floor": 1,
+      "night": false,
+      "active": true,
+      "authored": true,
+      "gl": 0
+    },
+    {
+      "floor": 1,
+      "night": true,
+      "active": true,
+      "authored": true,
+      "gl": 0
+    },
+    {
+      "floor": 2,
+      "night": false,
+      "active": true,
+      "authored": true,
+      "gl": 0
+    },
+    {
+      "floor": 2,
+      "night": true,
+      "active": true,
+      "authored": true,
+      "gl": 0
+    }
+  ],
+  "frameComparison": {
+    "setup": "Chrome, Apple M4 Metal, 2560 x 1440 High, 2x MSAA, adaptive off. Three fresh Chrome processes per build. Renderer fixture, archive entry / turn / first night and approaching an active worker. Entry measures CPU load through first render, excluding network download.",
+    "rc13": [
+      {
+        "entryMs": 583.8,
+        "switchFrameMs": [
+          16.7,
+          16.7,
+          16.7,
+          16.6
+        ],
+        "turnP50P95MaxMs": [
+          16.7,
+          16.8,
+          16.8
+        ],
+        "encounterP50P95MaxMs": [
+          16.7,
+          16.7,
+          16.8
+        ]
+      },
+      {
+        "entryMs": 601.3,
+        "switchFrameMs": [
+          16.7,
+          16.6,
+          16.7,
+          16.7
+        ],
+        "turnP50P95MaxMs": [
+          16.7,
+          16.7,
+          16.8
+        ],
+        "encounterP50P95MaxMs": [
+          16.7,
+          16.8,
+          16.8
+        ]
+      },
+      {
+        "entryMs": 587.6,
+        "switchFrameMs": [
+          16.8,
+          16.6,
+          16.6,
+          16.7
+        ],
+        "turnP50P95MaxMs": [
+          16.7,
+          16.7,
+          16.8
+        ],
+        "encounterP50P95MaxMs": [
+          16.7,
+          16.8,
+          16.8
+        ]
+      }
+    ],
+    "rc14": [
+      {
+        "entryMs": 582.6,
+        "switchFrameMs": [
+          16.6,
+          16.7,
+          16.7,
+          16.6
+        ],
+        "turnP50P95MaxMs": [
+          16.7,
+          16.7,
+          16.8
+        ],
+        "encounterP50P95MaxMs": [
+          16.7,
+          16.8,
+          16.8
+        ]
+      },
+      {
+        "entryMs": 591.2,
+        "switchFrameMs": [
+          16.7,
+          16.6,
+          16.7,
+          16.6
+        ],
+        "turnP50P95MaxMs": [
+          16.7,
+          16.8,
+          16.8
+        ],
+        "encounterP50P95MaxMs": [
+          16.7,
+          16.8,
+          16.8
+        ]
+      },
+      {
+        "entryMs": 587.9,
+        "switchFrameMs": [
+          16.6,
+          16.7,
+          16.6,
+          16.7
+        ],
+        "turnP50P95MaxMs": [
+          16.7,
+          16.7,
+          16.8
+        ],
+        "encounterP50P95MaxMs": [
+          16.7,
+          16.7,
+          16.8
+        ]
+      }
+    ]
+  },
+  "audio": {
+    "localRecordedCues": 12,
+    "languages": [
+      "English speech",
+      "English or Chinese subtitles"
+    ],
+    "renderedSeconds": 60,
+    "peakDbFS": -1.31,
+    "clippedSamples": 0,
+    "nonFiniteSamples": 0,
+    "subjectiveHeadphoneReview": false
+  },
+  "editionRoundTrip": true
+}

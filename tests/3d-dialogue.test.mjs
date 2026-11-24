@@ -74,3 +74,51 @@ test('changing chapters prevents pending recordings from starting, and a new shi
   assert.equal(words.textContent, 'Sister? Are you there?');
   assert.equal(sources.length, 2);
 });
+
+test('the register changes by phase, the boiler knocks at its valve, and endings have distinct recordings', () => {
+  const dialogue = new Dialogue({}, { querySelector: () => ({}) });
+  const ids = [];
+  const effects = [];
+  dialogue.play = id => ids.push(id);
+  dialogue.sound.cue = (...args) => effects.push(args);
+  const valve = { kind: 'A', x: 4, z: 3 };
+  const state = { levelIndex: 0, night: false, completed: new Set(), map: { stations: [valve] } };
+  const story = station => dialogue.onGameEvent({ type: 'story', station }, state);
+  const notice = id => dialogue.onGameEvent({ type: 'notice', id }, state);
+  const sound = name => dialogue.onGameEvent({ type: 'sound', name }, state);
+  notice('lamp');
+  state.completed.add('B');
+  notice('lamp');
+  story('A');
+  notice('locked');
+  assert.deepEqual(effects, [['hatch', valve]]);
+  state.levelIndex = 1;
+  story('A');
+  state.night = true;
+  story('A');
+  story('C');
+  state.levelIndex = 2;
+  notice('power');
+  state.ending = 'normal';
+  sound('ending');
+  state.ending = 'complete';
+  sound('ending');
+  assert.deepEqual(ids, ['gap', 'doors', 'register', 'exchange', 'lunch', 'circuit', 'farewell', 'recovered']);
+});
+
+test('the two halves of a transmission have localized captions even without audio', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const speaker = {}, words = {};
+  const caption = { hidden: true, querySelector: tag => tag === 'strong' ? speaker : words };
+  const dialogue = new Dialogue({ context: null }, caption);
+  dialogue.files.set('exchange', Promise.resolve(null));
+  dialogue.play('exchange');
+  assert.match(words.textContent, /number you have dialled/);
+  t.mock.timers.tick(3310);
+  assert.match(words.textContent, /hang up/);
+  dialogue.setLanguage('zh');
+  assert.equal(words.textContent, '请挂断，稍后再拨。');
+  dialogue.stop();
+  t.mock.timers.tick(4000);
+  assert.equal(caption.hidden, true);
+});

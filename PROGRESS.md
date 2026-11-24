@@ -1,5 +1,13 @@
 # Progress · 2.0.0-rc.1
 
+## Blender character and horror pass · 3.0.0-rc.14
+
+Three skinned workers have separate facial damage, hair, missing teeth, uniforms and work equipment. Edited Blender sources ship with the repository. The first-person janitor operates stations, raises a hand during capture and checks a working watch. The three instruments, folding inspection gates, phase light, breath and dust render in the playable floors. Classic ghost sprites carry their own small injuries.
+
+Two fresh Chrome keyboard runs completed both 3D endings from the packaged build with zero deaths. The complete ending recovered all six records. Ten optional jumps and seven airborne switches passed alongside a deliberate fall and checkpoint recovery on each floor. The 2D keyboard run completed all 18 work areas and saved the complete ending. All 92 automated tests passed. Three 1440p High archive trials on Apple M4 kept the release build at 2× MSAA. See the [measurements](docs/character-review-rc14.json) for timing distributions and the [in-engine screenshots](media/character-art-rc14.jpg) for the final character art.
+
+Twelve performed English lines include eight new cues with English and Chinese subtitles. The 60-second audio engine render peaked at −1.31 dBFS with zero invalid or clipped samples. Physical headphone listening was unavailable.
+
 ## Browser title navigation · 3.0.0-rc.13
 
 - Both title logos now target explicit index files so they open the title screen on the itch.io CDN. The packaged Chrome smoke passed both logo links and both edition switches. The route receipt identifies the three archive entries in this navigation patch.

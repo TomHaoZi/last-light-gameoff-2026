@@ -127,7 +127,20 @@ function authoredRig(theme, seed) {
   const head = joints.get('head');
   const jaw = joints.get('jaw');
   const eyes = [joints.get('eye.L'), joints.get('eye.R')];
+  const facialMuscles = ['L', 'R'].map(side => {
+    const brow = joints.get('oculi01.' + side);
+    const cheek = joints.get('levator05.' + side);
+    const lip = joints.get('oris03.' + side);
+    return {
+      sign: side === 'L' ? 1 : -1,
+      brow, browY: brow.position.y, cheek, cheekY: cheek.position.y, lip, lipY: lip.position.y,
+      lid: joints.get('orbicularis03.' + side), lowerLid: joints.get('orbicularis04.' + side)
+    };
+  });
   const animated = new Set([body.hips, body.torso, body.neck, jaw, ...eyes]);
+  for (const { brow, cheek, lip, lid, lowerLid } of facialMuscles) {
+    animated.add(brow).add(cheek).add(lip).add(lid).add(lowerLid);
+  }
   // The capture camera reads the head before the scene updates world matrices.
   for (let ancestor = head; ancestor; ancestor = ancestor.parent) animated.add(ancestor);
   for (const { shoulder, elbow, wrist, fingers } of body.arms) {
@@ -141,7 +154,7 @@ function authoredRig(theme, seed) {
     object.matrixAutoUpdate = false;
   });
   return {
-    body, head, jaw, eyes, hipsBaseline: body.hips.position.y - .906,
+    body, head, jaw, eyes, facialMuscles, hipsBaseline: body.hips.position.y - .906,
     torsoBaseline: body.torso.position.z - .012
   };
 }
@@ -219,6 +232,18 @@ export function updateCreature(actor, { time, threat = 0, attack = 0, night = fa
     const eyeTurn = reduced ? 0 : MathUtils.clamp(gaze * .19 - glance * posture.search, -.16, .16);
     const eyeLift = reach * .086 + urgency * .052;
     for (const eye of actor.eyes) eye.rotation.set(-eyeLift, eyeTurn, 0);
+    // A tightening brow precedes the teeth. The injured side is slower to blink
+    // and retracts its lip higher as the capture jaw opens.
+    for (const muscle of actor.facialMuscles) {
+      const injured = muscle.sign === posture.reachingSide;
+      const beat = (time + actor.seed + (injured ? .045 : 0)) % 4.73;
+      const blink = (1 - smoothstep(Math.abs(beat - .103), .014, .103)) * (1 - reach);
+      muscle.lid.rotation.x = blink * (injured ? .33 : .46) + urgency * .05;
+      muscle.lowerLid.rotation.x = -blink * .088 - urgency * .044;
+      muscle.brow.position.y = muscle.browY - urgency * (injured ? .0029 : .0046);
+      muscle.cheek.position.y = muscle.cheekY + howl * (injured ? .008 : .0041);
+      muscle.lip.position.y = muscle.lipY + howl * (injured ? .0105 : .0069);
+    }
     for (const { shoulder, elbow, fingers, side } of actor.body.arms) {
       // The original MakeHuman bind pose already has a bend at the elbow
       // and the arms away from the body; ground them before the chase pose.

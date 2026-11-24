@@ -470,3 +470,9 @@
   .hud-bottom .feedback { grid-area: 2 / 2 / 3 / 3; }
   .hud-bottom .bottom-bar { grid-area: 3 / 1 / 4 / 4; }
 }
+
+.title-card > #dialogue { display: block; margin: 0 0 1.25rem; max-width: 34rem; }
+
+.cast-credits { margin: 1rem 0; font-size: .83rem; color: var(--muted); }
+.cast-credits summary { color: var(--ink); cursor: pointer; }
+.cast-credits p { margin: .5rem 0; }

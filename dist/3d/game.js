@@ -143,6 +143,9 @@ function updateScreen(force = false) {
   overlayMode = mode;
   const copy = t();
   const active = mode === 'playing';
+  const caption = $('dialogue');
+  if (mode === 'won') $('screen-story').after(caption);
+  else if (!caption.parentElement.matches('.feedback')) document.querySelector('.feedback').prepend(caption);
   $('intro').hidden = active;
   $('hud').hidden = !active;
   $('pause').hidden = !active;
@@ -171,7 +174,8 @@ function labels() {
     ['language', lang === 'en' ? '中文' : 'EN'], ['mute', muted ? copy.off : copy.on], ['pause', copy.pause],
     ['settings-button', copy.settings], ['classic-link', copy.play2D], ['controls-copy', copy.controls],
     ['volume-label', copy.volume], ['mouse-sensitivity-label', copy.mouseSensitivity], ['quality-label', copy.quality], ['adaptive-label', copy.adaptive], ['fps-label', copy.fpsMonitor], ['reduced-label', copy.reduced],
-    ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
+    ['voice-edits', lang === 'zh' ? '录音为 LAST LIGHT 剪辑、均衡和混音。' : 'Edited, equalized and mixed for LAST LIGHT.'],
+    ['voice-credits', lang === 'zh' ? '配音演员与录音来源' : 'Voice cast and recording credits'], ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
     ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse],
     ['guide-title', copy.controlsTitle], ['guide-phase', copy.phaseControl], ['primer-action', copy.phaseControl], ['guide-move', copy.move], ['guide-look', copy.look],
     ['guide-use', copy.use], ['guide-jump', copy.jump], ['guide-note', copy.firstSteps], ['mouse-look', copy.capture]
@@ -250,7 +254,7 @@ function processEvents() {
   for (const event of state.drain()) {
     if (event.type === 'sound') {
       sound.cue(event.name, event.position);
-      if (event.name === 'shift' && !state.levelIndex && state.night) dialogue.play('lost');
+      if (['interact', 'pickup', 'door'].includes(event.name)) visual?.janitorHands.operate();
     }
     if (event.type === 'warning') { sound.cue('warning', event.ghost); notice(t().warning, 2.6); }
     if (event.type === 'notice') {
@@ -259,12 +263,11 @@ function processEvents() {
     }
     if (event.type === 'story') {
       notice(event.pair?.[lang === 'zh' ? 1 : 0] ?? t()[event.id], 6);
-      if (!state.levelIndex && event.station === 'C') dialogue.play('evacuate');
-      if (state.levelIndex === 1 && event.clue) dialogue.play(event.clue === '1' ? 'calling' : 'trapped');
     }
     if (event.type === 'save') saveProgress();
     if (event.type === 'chapter') loadChapter();
     if (event.type === 'death') { clearInput(); dialogue.stop(); }
+    dialogue.onGameEvent(event, state);
   }
 }
 

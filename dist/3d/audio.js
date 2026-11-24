@@ -4,7 +4,8 @@ const SILENCE = 0.0001;
 const MAX_VOICES = 70;
 const DIALOGUE_DUCK = [
   { bus: 'dialogueMusic', gain: .34, attack: .08, release: .23 },
-  { bus: 'dialogueRoom', gain: .40, attack: .055, release: .28 }
+  { bus: 'dialogueRoom', gain: .40, attack: .055, release: .28 },
+  { bus: 'dialogueThreat', gain: .70, attack: .09, release: .21 }
 ];
 const CUE_COOLDOWN = { step: .105, warning: 1.38, howl: 7.8, snarl: 2.65, breath: 2.25 };
 const VOCAL_GAIN = {
@@ -19,6 +20,19 @@ const RECORDED_VOCALS = {
   snarl: { file: 'creature-growl', gain: .61 },
   grab: { file: 'creature-grab', gain: .78 },
   breath: { file: 'creature-exhale', gain: .38 }
+};
+// Distinct acoustic footprints for the three pursuers. All layers share the
+// actor's moving emitter, so a phase change can cut the whole performance.
+const CREATURE_TIMBRES = [
+  { rate: .86, metal: 732, breath: .12 },   // Boiler worker: slow chest, loose chain.
+  { rate: 1.07, metal: 1410, breath: .16 }, // Night clerk: sharper intake, badge clip.
+  { rate: .96, metal: 328, breath: .24 }    // Both-phase figure: double breath and a wet rattle.
+];
+
+const VOICE_CHANNELS = {
+  stairwell: { low: 92, high: 7000, delay: .067, echo: .15, pan: -.29 },
+  archive: { low: 185, high: 4400, delay: .029, echo: .075, pan: .19 },
+  intercom: { low: 270, high: 3950, delay: .054, echo: .14, pan: .32 }
 };
 const RECORDED_STEPS = {
   concrete: { file: 'step-stone', gain: .50 },
@@ -156,6 +170,8 @@ export class HorrorAudio {
 
     this.closeBus = context.createGain();
     this.worldBus = context.createGain();
+    this.dialogueThreat = context.createGain();
+    this.dialogueThreat.connect(this.worldBus);
     this.scoreBus = context.createGain();
     this.dialogueMusic = context.createGain();
     this.dialogueRoom = context.createGain();
@@ -184,6 +200,25 @@ export class HorrorAudio {
     this.dialogueMusic.connect(this.convolver);
     this.dialogueRoom.connect(this.convolver);
     this.convolver.connect(this.wet).connect(this.master);
+
+    this.voiceChannels = new Map();
+    for (const [name, profile] of Object.entries(VOICE_CHANNELS)) {
+      const input = context.createBiquadFilter();
+      input.type = 'highpass';
+      input.frequency.value = profile.low;
+      const cabinet = context.createBiquadFilter();
+      cabinet.type = 'lowpass';
+      cabinet.frequency.value = profile.high;
+      input.connect(cabinet).connect(this.master);
+      const wall = context.createDelay(.15);
+      wall.delayTime.value = profile.delay;
+      const returnLevel = context.createGain();
+      returnLevel.gain.value = profile.echo;
+      const pan = context.createStereoPanner();
+      pan.pan.value = profile.pan;
+      cabinet.connect(wall).connect(returnLevel).connect(pan).connect(this.master);
+      this.voiceChannels.set(name, input);
+    }
 
     const samples = context.sampleRate * 4;
     this.noiseBuffer = context.createBuffer(1, samples, context.sampleRate);
@@ -268,12 +303,19 @@ export class HorrorAudio {
     return this.playBuffer(buffer, at, bus, gain, speed, (offset ?? 0) + delay, length);
   }
 
-  playDialogue(buffer) {
+  playDialogue(buffer, channel) {
     if (!this.context || this.paused || this.muted || !buffer) return null;
     const at = this.context.currentTime + .008;
-    const source = this.playBuffer(buffer, at, this.master, .90);
+    const bus = this.voiceChannels.get(channel) ?? this.master;
+    const source = this.playBuffer(buffer, at, bus, .90);
     if (source) {
       this.currentDialogue = source;
+      if (channel === 'intercom') {
+        // Contact bounce precedes the first consonant. Switching off or pausing
+        // cuts the transmission without leaving a scheduled tail under the menu.
+        this.noise(at, .038, .045, 2750, .83, bus, .002, 930);
+        this.tone(at + .017, 176, 82, .048, .034, bus, 'triangle');
+      }
       for (const { bus, gain, attack, release } of DIALOGUE_DUCK) {
         const bed = this[bus].gain;
         const end = at + Math.max(attack, buffer.duration);
@@ -328,7 +370,7 @@ export class HorrorAudio {
     const gate = context.createGain();
     const pan = context.createStereoPanner();
     gate.gain.value = 0;
-    input.connect(gate).connect(pan).connect(this.worldBus);
+    input.connect(gate).connect(pan).connect(this.dialogueThreat);
     const breath = this.texture(context.createGain(), 'bandpass', 740 - index * 83, 1.55, 0, input);
     const wheeze = this.texture(context.createGain(), 'bandpass', 2330 - index * 141, 1.15, 0, input);
     return { breath, wheeze, gate, pan };
@@ -476,10 +518,30 @@ export class HorrorAudio {
     const clip = RECORDED_VOCALS[name];
     const recording = this.recordings.get(clip.file);
     if (recording) {
-      const speed = .94 + this.random() * .12;
-      const bus = this.positionBus(position, at, recording.duration / speed + .12, true);
-      this.playBuffer(recording, at, bus, clip.gain, speed);
-      if (name === 'grab') this.playRecording('creature-exhale', at + .39, bus, .25, .86);
+      const actor = CREATURE_TIMBRES[position?.index] ?? CREATURE_TIMBRES[0];
+      const speed = actor.rate * (.96 + this.random() * .08);
+      const inhale = name === 'scream' ? .093 : name === 'howl' ? .16 : 0;
+      const held = name === 'grab' ? 1.75 : 1;
+      const bus = this.positionBus(position, at, Math.max(held, inhale + recording.duration / speed) + .19, true);
+      this.playBuffer(recording, at + inhale, bus, clip.gain, speed);
+      if (inhale) {
+        this.playRecording('creature-exhale', at, bus, actor.breath, 1.16 * speed, .01, inhale + .095);
+      }
+      if (name === 'scream' || name === 'snarl') {
+        // Clothing and loose fittings follow the lunge a few frames after the mouth.
+        this.noise(at + .09, .14, .055, 1460, .8, bus, .018, 410);
+        this.tone(at + .132, actor.metal, actor.metal * .93, .092, .036, bus, 'triangle');
+        this.tone(at + .203, actor.metal * 1.48, actor.metal * 1.42, .087, .019, bus);
+      }
+      if (name === 'howl') {
+        // A slowed take puts a second, lower throat underneath the held note.
+        this.playRecording('creature-growl', at + inhale + .24, bus, .19, .76 * speed, .16, .78);
+      }
+      if (name === 'grab') {
+        this.playRecording('creature-exhale', at + .39, bus, .25, .86);
+        this.noise(at + .07, .29, .097, 2310, 1.1, bus, .021, 660);
+        this.noise(at + .25, .21, .076, 590, 1.2, bus, .038, 165);
+      }
       return;
     }
     if (name === 'breath') return;
@@ -595,7 +657,8 @@ export class HorrorAudio {
   }
 
   positionBus(position, at, length = 2.1, follow = false) {
-    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) return this.worldBus;
+    const bus = follow ? this.dialogueThreat : this.worldBus;
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) return bus;
     const context = this.context;
     const channel = this.spatial(position);
     const filter = context.createBiquadFilter();
@@ -605,7 +668,7 @@ export class HorrorAudio {
     filter.frequency.value = this.distanceCutoff(channel.distance);
     pan.pan.value = channel.pan;
     gain.gain.value = channel.amplitude;
-    gain.connect(filter).connect(pan).connect(this.worldBus);
+    gain.connect(filter).connect(pan).connect(bus);
     const emitter = follow ? { position, gain, filter, pan, floor: this.level } : null;
     if (emitter) this.vocalEmitters.add(emitter);
     // A silent source fires onended on the audio clock even in suspended tabs.
@@ -689,6 +752,14 @@ export class HorrorAudio {
       case 'interact':
         noise(0, 0.13, 0.14, 1870, 1.2, 0.009, 670);
         tone(0.045, 183, 94, 0.25, 0.12, 'triangle');
+        break;
+      case 'hatch':
+        // The stationary valve falls quiet; someone knocks from the far side.
+        for (const delay of [.32, .65, 1.21]) {
+          tone(delay, 191, 115, .15, .17, 'triangle', .003);
+          tone(delay + .007, 467, 444, .27, .052);
+          noise(delay, .075, .15, 1340, 1.3, .004, 710);
+        }
         break;
       case 'pickup':
         [0, 3, 7].forEach((note, i) => this.bell(at + i * 0.09, freq(57 + note), 0.052, bus, 1.25));

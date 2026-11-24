@@ -13,3 +13,5 @@ These recordings are bundled under [CC0 1.0](https://creativecommons.org/publicd
 - `room-boiler.m4a` comes from blaukreuz's machinery recording. [Utility room rear](https://freesound.org/people/blaukreuz/sounds/212780/)
 - `room-office.m4a` comes from mbezzola's technical room ventilation recording. [Room tone air conditioning equipment 3](https://freesound.org/people/mbezzola/sounds/652475/)
 - `room-roof.m4a` comes from PostProdDog's outdoor stereo field recording. [traffic passes and wind gusts blow the autumn leaves ambience](https://freesound.org/people/PostProdDog/sounds/537329/)
+
+Each pursuer uses the credited actor and field recordings above. Live playback varies the attack, breath, pitch and foley for the individual pursuer. The howl layers in a lower throat take. The lunge has a cloth drag and a short metal fitting rattle, and the close attack adds two movements of fabric. These additional layers and the three knocks behind the boiler service hatch are synthesized in the game.

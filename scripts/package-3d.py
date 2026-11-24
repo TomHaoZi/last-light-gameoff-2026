@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.13"
+VERSION = "3.0.0-rc.14"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
@@ -24,16 +24,19 @@ REQUIRED_FILES = {
     "assets/CREDITS.md", "assets/creature/late-worker.glb",
     "assets/creature/SOURCES.md", "assets/env/CREDITS.md",
     "assets/dialogue/CREDITS.md", "assets/surfaces/CREDITS.md",
-    "audio/CREDITS.md",
+    "audio/CREDITS.md", "air-effects.js", "service-lift.js", "station-traces.js", "workstation-models.js", "janitor-hands.js",
+    "assets/janitor/janitor.glb", "assets/janitor/CREDITS.md", "assets/env/service-lift.glb",
 }
 
 
 REQUIRED_FILES.update(
-    f"assets/dialogue/{name}.m4a" for name in ("lost", "evacuate", "calling", "trapped")
+    f"assets/dialogue/{name}.m4a" for name in ("lost", "evacuate", "calling", "trapped",
+        "circuit", "doors", "exchange", "farewell", "gap", "lunch", "recovered", "register")
 )
 REQUIRED_FILES.update(
     f"assets/env/{name}.glb" for name in
-    ("compressor", "dispatch-radio", "fire-alarm", "records-desk", "records-lamp", "roof-condenser")
+    ("compressor", "dispatch-radio", "fire-alarm", "records-desk", "records-lamp", "roof-condenser",
+     "station-flow", "station-pressure", "station-timeclock")
 )
 REQUIRED_FILES.update(
     f"assets/surfaces/{kind}-{channel}.webp"

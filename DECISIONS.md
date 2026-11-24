@@ -1,5 +1,9 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.14 · Character and encounter art
+
+Author the workers, janitor, instruments and service lift in Blender and export the meshes into the browser build. Keep the existing collision, phase timing, rig and save semantics. Put department-specific damage into the shared skin atlas, align stains with clothing seams and keep the player's sightline and aiming point clear. The watch, station instruments and elevator leaves follow the simulation state. Voice performances carry per-source credits and can be understood through either subtitle language.
+
 - Advanced maintenance routes branch from neutral platforms and rejoin the existing walkthroughs. Every 2D section provides a neutral finish lamp. Each 3D shortcut has a nearby retry lamp, and arrow markings belong to the actual floor phase. A second fire-corridor stairwell gives players who miss the handover jump a way back to the controls from the lower corridor. Saved checkpoint names and both save schemas are retained.
 - The dual-edition visual update uses cached, authored pixel layers and existing simulation geometry in 2D. In 3D, floor-specific dressing and physical labels use per-floor batches, while the three pursuers keep the original topology, skeleton and texture sizes. Both editions keep their separate save formats and one authoritative day/night phase.
 - Expanded world revision 2 is separate from retained-map save compatibility. Legacy v3 values are backed up before interpreting new fields and continue on their original maps; fresh shifts opt into the new chapter architecture automatically.

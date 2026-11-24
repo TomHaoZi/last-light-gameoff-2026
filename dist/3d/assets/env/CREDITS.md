@@ -10,3 +10,7 @@ Poly Haven makes these six models available for modification and redistribution 
 - `roof-condenser.glb` is the weathered variant of Monsta3D’s Exterior Aircon Unit. [Source model](https://polyhaven.com/a/exterior_aircon_unit)
 
 The game bundles resized PBR textures inside each GLB and simplifies the compressor, radio and lamp meshes for browser performance.
+
+The folding steel service lift is an original LAST LIGHT model. Rebuild its landing, inspection gates, cab and deadbolts using Blender 4.5 and `art/blender/build_service_lift.py`.
+
+The pressure gauge, punch clock and rooftop flow meter are original Blender models. Rebuild the three moving instruments with `art/blender/build_workstation_models.py`.

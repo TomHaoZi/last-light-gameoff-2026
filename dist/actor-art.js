@@ -111,6 +111,24 @@ export function drawApparition(a, ghost, x, y) {
   a.rect(x - 3, y - 7, 3, 9, GHOST[1]);
   a.rect(x - 2, y - 2, 1, 7, GHOST[0]);
 
+  // Two- and three-pixel clusters keep the damaged side readable at 1×.
+  const clot = '#633d42', dried = '#81534c', slough = '#9e9d80';
+  if (ghost.kind === 'listener') {
+    a.rect(x + 3, y - 10, 3, 3, dried);
+    a.rect(x + 4, y - 8, 2, 4, clot);
+    a.line(x + 3, y - 10, 2, slough);
+    a.rect(x + 3, y - 4, 4, 2, dried);
+  } else if (ghost.kind === 'watcher') {
+    a.rect(x - 3, y - 9, 4, 2, clot);
+    a.rect(x - 2, y - 7, 2, 4, dried);
+    a.rect(x - 3, y - 4, 4, 2, clot);
+    a.line(x - 5, y - 11, 2, slough);
+  } else {
+    a.rect(x - 5, y - 12, 2, 4, dried);
+    a.line(x - 5, y - 11, 2, slough);
+    a.rect(x - 4, y - 9, 2, 3, clot);
+    a.rect(x - 7, y - 5, 3, 3, dried);
+  }
   if (ghost.kind === 'listener') {
     a.rect(x - 9, y - 16, 4, 7, GHOST[2]);
     a.rect(x + 5, y - 17, 4, 7, GHOST[2]);

@@ -8,6 +8,11 @@ import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
 import { createCreature, isSharedCreatureGeometry, preloadCreatureAsset, scheduleOfficeCreatureTextures, updateCreature } from './creature.js';
 import { makeOfficeProgramWarmup } from './office-phase-programs.js';
 import { waitForRenderIdle } from './render-idle.js';
+import { JanitorHands } from './janitor-hands.js';
+import { AirEffects } from './air-effects.js';
+import { mountServiceLift, poseServiceLift } from './service-lift.js';
+import { mountStationTrace } from './station-traces.js';
+import { mountWorkstations, updateWorkstation } from './workstation-models.js';
 import { mountWallSigns } from './set-dressing.js';
 
 const TILE = 2.4;
@@ -315,6 +320,14 @@ void main() {
     base.r = texture2D(frameTex,sampleUv+center*spread).r;
     base.b = texture2D(frameTex,sampleUv-center*spread).b;
   }
+  if (shift > .15 && effects > .5) {
+    // A brief change in reflected light travels along the surfaces in this phase.
+    float distanceToWall = eyeDepth(sampleUv);
+    float radius = .18 + 22.0 * (1.0 - shift) * (1.0 - shift);
+    float band = (1.0 - smoothstep(.12, .32 + radius*.055, abs(distanceToWall-radius))) * shift;
+    vec3 bounce = mix(vec3(.23,.12,.037),vec3(.06,.17,.23),night);
+    base += bounce * band * (.16 + min(1.0, dot(base,vec3(.3,.59,.11))));
+  }
   if (effects > .5) {
     float depth = eyeDepth(sampleUv);
     if (depth < 21.0) base *= 1.0 - contact(sampleUv, depth) * .36;
@@ -364,6 +377,7 @@ export class Visual {
     this.renderer.setClearColor('#11181d');
     this.probes = new Map();
     this.atmosphere = makeAtmosphere();
+    this.janitorHands = new JanitorHands(this.camera);
     this.rig = new THREE.Group();
     this.scene.add(this.rig, this.camera);
     this.fill = new THREE.HemisphereLight('#c9dae2', '#362e29', 1.01);
@@ -472,17 +486,21 @@ export class Visual {
     for (const lamp of decoded.lamps) this.makeSafeLamp(lamp);
     for (const station of decoded.stations) this.makeStation(station);
     if (decoded.power) this.makeStation(decoded.power, true);
+    mountStationTrace(this);
     for (const clue of decoded.clues) this.makeClue(clue);
     for (const hazard of decoded.hazards) this.makeHazard(hazard);
+    this.air = new AirEffects(this.stage);
+    this.liftLeaves = null;
     this.makeDoor(decoded.exit);
     if (this.theme === 2) this.makeSkyline();
     Object.values(this.batches).forEach(batch => batch.build());
     this.makeParticles();
+    this.workstationsReady = mountWorkstations(this);
     this.environmentReady = mountEnvironment(this);
     this.surfacesReady = mountPhotoSurfaces(this);
     const stage = this.stage;
     const redraw = () => { if (this.stage === stage) this.overlayFrame = null; };
-    for (const ready of [this.environmentReady, this.surfacesReady, preloadCreatureAsset()]) ready.then(redraw, redraw);
+    for (const ready of [this.environmentReady, this.workstationsReady, this.surfacesReady, preloadCreatureAsset()]) ready.then(redraw, redraw);
     // Sculpt both phases at chapter entry so Shift never has to build a mesh.
     decoded.ghosts.forEach((tile, index) => this.addCreature(tile.col + '/' + tile.row, index));
   }
@@ -507,7 +525,7 @@ export class Visual {
     const actors = [...this.ghosts.values()];
     const nightActors = office ? this.decoded.ghosts.filter(tile => tile.phase === 'night')
       .map(tile => this.ghosts.get(tile.col + '/' + tile.row)).filter(Boolean) : [];
-    const targets = [...nightActors, this.groups.night, this.groups.day, ...actors.filter(actor => !nightActors.includes(actor))];
+    const targets = [...nightActors, this.groups.night, this.groups.day, this.air.mesh, ...actors.filter(actor => !nightActors.includes(actor))];
     const isCurrent = () => this.stage === stage && this.phasePrograms === task &&
       this.renderQuality === 'high' && !renderer.getContext().isContextLost();
     const finishOfficeProgram = office ? makeOfficeProgramWarmup(renderer, stage, this.rig, this.lamp.shadow, isCurrent) : null;
@@ -1100,7 +1118,10 @@ export class Visual {
     g.position.set(x + dx * .71, 0, z + dz * .71);
     g.rotation.y = Math.atan2(dx, dz);
     this.stage.add(g);
-    const frame = new Batch(g);
+    this.doorMount = g;
+    const oldGate = new THREE.Group();
+    g.add(oldGate);
+    const frame = new Batch(oldGate);
     for (const edge of [-1, 1]) {
       frame.box(m.dark, .89 * edge, 1.22, 0, .19, 2.44, .24);
       frame.box(m.steel, .90 * edge, 1.25, -.131, .115, 2.18, .042);
@@ -1116,7 +1137,7 @@ export class Visual {
     frame.box(m.brass, 0, .071, -.116, 1.52, .021, .048);
     frame.build();
     this.door = new THREE.Group();
-    g.add(this.door);
+    oldGate.add(this.door);
     const shutter = new Batch(this.door);
     shutter.box(m.steel, 0, 1.22, 0, 1.55, 2.42, .125);
     for (let i = 0; i < 10; i++) {
@@ -1126,6 +1147,7 @@ export class Visual {
     }
     shutter.box(m.dark, 0, .106, -.078, 1.53, .083, .04);
     shutter.build();
+    this.liftReady = mountServiceLift(this, g, oldGate).catch(error => console.warn('Service lift asset unavailable', error));
     const label = spriteText(this.theme === 2 ? 'EXIT' : 'SERVICE LIFT', '#9ce6cf', 'EMERGENCY ACCESS');
     this.localTextures.push(label);
     const panel = mesh(g, unitPlane, new THREE.MeshBasicMaterial({ map: label }), [0, 2.47, -.196], [.68, .17, 1]);
@@ -1260,6 +1282,7 @@ export class Visual {
       actor.group.position.set(ghost.x, ghost.y || 0, ghost.z);
       actor.placed = true;
       updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced, moving, dt, travel });
+      this.air.breathe(actor, distance, state, this.theme, reduced);
     }
     for (const [key, actor] of this.ghosts) if (!seen.has(key)) actor.group.visible = false;
     return faceExposure;
@@ -1297,9 +1320,18 @@ export class Visual {
     this.rim.intensity = roof ? 1.85 - night * .18 : .64 - night * .12;
     this.lamp.color.copy(WARM).lerp(PALE, night);
     this.lamp.position.copy(this.camera.position);
-    this.lamp.position.y -= .11;
+    // Mount the beam beside the left temple. Off-axis highlights reveal the
+    // bridge of the nose, finger joints and hardware even in a frontal encounter.
+    const offset = .17 + .085 * (1 - exposure);
+    const x = this.camera.position.x + this.view.z * offset;
+    const z = this.camera.position.z - this.view.x * offset;
+    if (this.decoded.at(x, z)?.kind !== '#') {
+      this.lamp.position.x = x;
+      this.lamp.position.z = z;
+    }
+    this.lamp.position.y += .10;
     this.lamp.target.position.copy(this.camera.position).addScaledVector(this.view, 18);
-    this.lamp.intensity = ((roof ? 5.8 : 14.8) + night * 15 + Math.sin(time * 18) * .15 * night) * exposure;
+    this.lamp.intensity = ((roof ? 5.8 : 13.8) + night * 13.5 + Math.sin(time * 18) * .15 * night) * exposure;
     this.eyeFill.position.copy(this.camera.position);
     this.eyeFill.intensity = (.55 + night * .66) * exposure;
     if (time < this.fixtureSearchTime || time - this.fixtureSearchTime >= .12) {
@@ -1426,12 +1458,15 @@ export class Visual {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fov, Math.min(1, dt * 9));
       this.camera.updateProjectionMatrix();
     }
+    this.janitorHands.update(state, dt, this.walk, this.velocity);
     // Prevent the flashlight from flattening a face at arm’s length.
     this.creatureExposure = THREE.MathUtils.lerp(this.creatureExposure, faceExposure, Math.min(1, dt * 13));
     const exposure = caught ? 1 - .94 * THREE.MathUtils.smoothstep(lifeTime, .015, .19) : this.creatureExposure;
     this.updateLights(state, time, night, exposure);
     const door = Math.min(1, Math.max(0, state.door || 0));
     const slide = door * door * (3 - 2 * door);
+    if (this.liftLeaves) poseServiceLift(this.liftLeaves, door);
+    this.air.update(state, this.doorMount, reduced);
     this.door.position.y = slide * 2.28;
     this.door.scale.y = 1 - slide * .91;
     this.door.visible = door < .99;
@@ -1508,6 +1543,7 @@ export class Visual {
         object.indicator.visible = !(state.clues?.has?.(key) || state.evidence?.has?.(key) || state.completed?.has?.(key));
       } else {
         const done = object.kind === 'power' ? state.powered ?? state.progress?.powered : state.completed?.has?.(key);
+        updateWorkstation(object, done, time);
         const material = object.indicator.material;
         material.color.set(done ? '#71d9ad' : '#e8b262');
         material.emissive.copy(material.color);

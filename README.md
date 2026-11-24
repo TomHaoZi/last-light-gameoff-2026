@@ -1,7 +1,7 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.13
+## 2D and 3D browser release · 3.0.0-rc.14
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -17,10 +17,15 @@ python3 scripts/package-3d.py
 - Press **X** or click the phase button to switch day and night. WASD moves, the mouse looks around, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. The first bridge exists at night. Starting or resuming captures the mouse. Esc pauses and releases it. On touch screens, drag the scene to look and tap the phase button to switch.
 - On desktop, press Enter to resume from pause. Set mouse sensitivity from 50% to 200% in Settings. If the browser releases the mouse, click the scene to capture it again.
 - WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The game combines procedural sets with imported props and photographic PBR materials. The high preset adds depth-aware light shafts and contact shading. Balanced and Performance reduce rendering cost. Web Audio synthesizes the score and mixes recorded dialogue, spatial effects and room tone. Adaptive resolution runs within the selected graphics preset. The settings menu can display measured frame rate.
-- The boiler mechanic, records clerk and roof caretaker use imported skinned models and photographic materials. Recorded monster effects are positioned in the room. Four recorded lines play in the stairwell, archive and evacuation intercom with English and Chinese subtitles. Importable models, surfaces and audio ship with the game. [Asset credits and licenses](dist/3d/assets/CREDITS.md).
+- Blender-authored models give the boiler worker, records clerk and roof caretaker their own faces, clothing and equipment. The janitor's hand operates the controls and wears a watch that advances one minute on a shift. Folding inspection gates retract their bolts before opening.
+- Twelve performed English voice cues have English and Chinese subtitles. The lift announcements, archive playback, reply behind Gary’s door and two endings follow different events. Listen for each worker’s approach and for the change from pursuit to contact. [Cast, sources and licenses](dist/3d/assets/CREDITS.md).
 - The visual update adds floor-specific fittings, practical fixtures and signs, a refined phase effect, and individual face, workwear and movement details for each 3D pursuer.
 - Hold the directional pad with one finger and drag the scene with another to move and look around together. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
-- The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows the original 2D edition.
+- The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows both editions.
+
+### Character art sources
+
+Open the [three workers](art/blender/late-workers.blend), [janitor hand](art/characters/janitor.blend) and [folding service lift](art/blender/service-lift.blend) in Blender 4.5 LTS. The runtime includes a pressure dial, archive punch clock and roof flow meter that move when their matching station is operated. [Gameplay screenshots](media/character-art-rc14.jpg) · [Release checks](docs/character-review-rc14.json).
 
 ### Advanced maintenance routes
 
