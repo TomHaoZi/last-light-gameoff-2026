@@ -1,3 +1,4 @@
+import {playAnnex} from './play-annex.mjs';
 // Bounded normal-keyboard browser attempt. No simulation stepping, coordinates,
 // save mutation, teleporting or debug jumps inside the browser.
 import {spawn} from 'node:child_process';import {mkdir,writeFile,readFile,readdir} from 'node:fs/promises';import {createHash} from 'node:crypto';
@@ -21,7 +22,9 @@ try{
  const routes=routesFor(complete);
  let floor=-1,index=0,jumping=false,jumpStart=0,shiftAfter=0,desiredNight=false,lastInteract=0,lastDeath=0;const deadline=Date.now()+Number(process.env.PLAYTEST_MS||180000);
  while(Date.now()<deadline){
-  const s=await evaluate('window.lastLight.snapshot()');if(s.mode==='won'){log.push({event:'ending',snapshot:s});const shot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});await writeFile(`${out}/ending.png`,Buffer.from(shot.data,'base64'));if(complete&&s.ending!=='complete')throw Error('Expected complete ending but got normal');console.log(`${s.ending} ending reached.`);endingReached=true;
+  const s=await evaluate('window.lastLight.snapshot()');
+  if(s.backrooms){const receipt=await playAnnex({snapshot:()=>evaluate('window.lastLight.snapshot()'),key,tap,stop:async()=>{for(const code of [...pressed])await key(code,false);},sleep});log.push({event:'backrooms-complete',receipt});continue;}
+  if(s.mode==='won'){log.push({event:'ending',snapshot:s});const shot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});await writeFile(`${out}/ending.png`,Buffer.from(shot.data,'base64'));if(complete&&s.ending!=='complete')throw Error('Expected complete ending but got normal');console.log(`${s.ending} ending reached.`);endingReached=true;
    if(process.env.VERIFY_REVISIT==='1'){
     await key('ArrowRight',false);await key('Space',false);await click();await sleep(100);await click('#visit-entries button:nth-of-type(2)');await sleep(150);
     const revisit=await evaluate('window.lastLight.snapshot()');if(revisit.floor!==1||revisit.mode!=='playing'||revisit.evidence.length!==s.evidence.length)throw Error('Chapter revisit lost progress or failed to open office');

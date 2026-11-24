@@ -1,9 +1,9 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.15
+## 2D and 3D browser release · 3.0.0-rc.16
 
-[逐关通关记录 / Gameplay verification](docs/gameplay-flow-rc15.md)
+[后室追逐实测 / Records Annex playtest](docs/backrooms-rc16.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -24,6 +24,12 @@ python3 scripts/package-3d.py
 - The visual update adds floor-specific fittings, practical fixtures and signs, a refined phase effect, and individual face, workwear and movement details for each 3D pursuer.
 - Hold the directional pad with one finger and drag the scene with another to move and look around together. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
 - The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows both editions.
+
+### The Records Annex
+
+A transfer slip sends the janitor into a stretch of lit corridors between the archives and the next safe room. A worker follows through both phases. In **2D**, hold Right or D, jump the carts and gaps with Space, and switch in the air with X. The emergency lamp halfway through records your progress. Players with a finished save can enter the annex from Chapters. In **3D**, hold W facing the fire door, steer around tall shelving with A/D, jump the barriers with Space and use X when a phase bridge is missing. The transfer floor gives forward movement full running speed. The cry behind you changes direction as you turn your head.
+
+The steam trap downstairs, outgoing slip case in the offices, roof drainage hopper and modular annex are original [Blender assemblies](art/blender/backrooms-annex.blend). The 3D game loads their meshes. The pixel edition uses orthographic Cycles renders of the same props. [Desktop gameplay captures](media/backrooms-rc16.jpg).
 
 ### Character art sources
 

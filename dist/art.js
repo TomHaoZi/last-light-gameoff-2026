@@ -1,3 +1,4 @@
+import {drawBackrooms} from './backrooms-art.js';
 import {phaseActive} from './phase.js';
 import {WORK_OBJECTS} from './story.js';
 import {sectorDecor,sectorActors,cinemaOverlay} from './sector-art.js';
@@ -183,7 +184,7 @@ export class Art{
   this.glow(x+14,141,34,17,ready?'#edcb84':'#8aa58d',wave*.18);
   if(ready&&phase==='closed'){this.label('[E]',x+9,130,'#ead9aa',7);this.glow(x+15,220,30,13,'#edcb84',.18);}
  }
- render(s,dt){this.t=s.time;this.n=s.phaseMix;this.gameplayNight=s.night;this.cam=Math.floor(s.camera);this.viewTop=s.cameraY||0;this.viewBottom=this.viewTop+280;const c=this.c;c.imageSmoothingEnabled=false;if(s.expanded)sceneryBackdrop(this,s);else this.wall(s.floor,this.cam);
+ render(s,dt){this.t=s.time;this.n=s.phaseMix;this.gameplayNight=s.night;this.cam=Math.floor(s.camera);this.viewTop=s.cameraY||0;this.viewBottom=this.viewTop+280;const c=this.c;c.imageSmoothingEnabled=false;if(s.backrooms){drawBackrooms(this,s);return;}if(s.expanded)sceneryBackdrop(this,s);else this.wall(s.floor,this.cam);
    c.save();c.beginPath();c.rect(0,0,480,246);c.clip();c.translate(0,-Math.floor(s.cameraY||0));
    if(s.expanded)sectorDecor(this,s);else this.officeMezzanine(s);
    if(s.expanded)this.serviceRoute(s);

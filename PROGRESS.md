@@ -1,5 +1,9 @@
 # Progress · 2.0.0-rc.1
 
+## RC16 · Mandatory Records Annex pursuit
+
+Classic and first-person runs each cleared their new transfer floor, both endings and deliberate recovery cases using Chrome keyboard input. The route takes about 45 seconds in either edition. Sixteen editable Blender assemblies supply the corridor and fittings across the boiler room, office and roof. The hands, ghost, swinging door, directional calls and pursuit score now follow the run. See the [desktop acceptance record](docs/backrooms-rc16.md) and [in-game images](media/backrooms-rc16.jpg).
+
 ## RC15 · Desktop gameplay verification
 
 Fresh Chrome keyboard runs finished the normal and complete endings of both editions with zero deaths. The full 2D route crossed all 18 sectors, landed in order 131 times on the service routes and switched phase in midair 77 times. A separate run completed the three original maps after migrating a real v1 save. The 3D runs cleared nine stations, both endings survived an edition switch and reload, and capture and fall drills restored health at the chosen lamp on each of the three floors. Both 2D endings retained their work and evidence after revisiting all 18 areas.

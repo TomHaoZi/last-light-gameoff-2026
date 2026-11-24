@@ -1,4 +1,5 @@
 import { Visual } from './visual.js';
+import { BACKROOMS_TRACK, nextChaseObstacle } from './backrooms-track.js';
 import { HorrorAudio } from './audio.js';
 import { Dialogue } from './dialogue.js';
 import { Simulation3D, SAVE_KEY, STEP } from './simulation.js';
@@ -141,7 +142,7 @@ function readyVisual() {
     const renderer = new Visual(canvas);
     renderer.load(state.level, state.map);
     visual = renderer;
-    lastChapter = state.levelIndex;
+    lastChapter = state.level.id;
   } catch (reason) {
     console.error(reason);
     error = reason;
@@ -162,7 +163,9 @@ canvas.addEventListener('webglcontextrestored', () => {
 
 function currentObjective() {
   const { level, completed, map, progress } = state;
-  if (completed.size < map.stations.length) return lang === 'zh' ? level.objectiveZh : level.objective;
+  if (state.chase && state.departing) return lang === 'zh' ? '门开了。你可以喘口气了。' : 'The door gives. You can breathe.';
+  if (state.chase?.started) return lang === 'zh' ? '奔向绿灯防火门。' : 'Reach the green fire door.';
+  if (state.chase || completed.size < map.stations.length) return lang === 'zh' ? level.objectiveZh : level.objective;
   if (map.power) return progress.powered ? t().roofExit : t().roofCircuit;
   return level.id === 'office' ? t().archiveExit : t().exitReady;
 }
@@ -232,10 +235,10 @@ function labels() {
 }
 
 function loadChapter() {
-  if (lastChapter === state.levelIndex) return;
+  if (lastChapter === state.level.id) return;
   dialogue.stop();
   visual?.load(state.level, state.map);
-  lastChapter = state.levelIndex;
+  lastChapter = state.level.id;
   previousHUD = '';
   notice(lang === 'zh' ? state.level.subtitleZh : state.level.subtitle, 5);
 }
@@ -262,16 +265,38 @@ function interactionPrompt({ type, id }) {
   return text;
 }
 
+function pursuitPrompt() {
+  const zh = lang === 'zh', touch = coarsePointer.matches;
+  if (!state.chase.started) {
+    if (touch) return zh ? '按住前进奔跑 · 跳过断口 · 左右绕架 · 切换长桥' : 'Hold forward to run · Jump gaps · Dodge shelving · Switch bridges';
+    return zh ? '按住 W 奔跑 · 空格跳跃 · A / D 绕架 · X 切换长桥' : 'Hold W to run · Space to jump · A / D to dodge · X to switch bridges';
+  }
+  const part = nextChaseObstacle(state.chase.distance);
+  if (!part) return zh ? '靠向走廊正中，穿过绿灯门' : 'Aim for the centre of the green fire door';
+  if (part.at - state.chase.distance > 11) return '';
+  if (part.kind === 'rack') return part.opening === 'left' ? (zh ? '← 左侧通过' : '← Pass on the left') : (zh ? '右侧通过 →' : 'Pass on the right →');
+  if (part.kind === 'bridge') {
+    if (part.phase === (state.night ? 'night' : 'day')) return zh ? '过桥，保持奔跑' : 'Bridge connected · Keep running';
+    const prefix = touch ? '' : '[X] ';
+    return prefix + (part.phase === 'night' ? (zh ? '切到黑夜接桥' : 'Switch to night for the bridge') : (zh ? '切到白天接桥' : 'Switch to day for the bridge'));
+  }
+  return (touch ? '' : '[Space] ') + (part.kind === 'gap' ? (zh ? '跳过断口' : 'Jump the gap') : (zh ? '跨过矮栏' : 'Jump the barrier'));
+}
+
 function updateHUD() {
-  const status = [state.levelIndex, state.night, state.hp, state.completed.size, state.progress.powered].join('/');
+  const status = [state.level.id, state.chase?.started, state.departing, state.chase ? Math.floor(state.chase.distance / 2) : '', state.night, state.hp, state.completed.size, state.progress.powered].join('/');
   if (status !== previousHUD) {
     const copy = t();
     previousHUD = status;
+    $('hud').classList.toggle('pursuit', Boolean(state.chase));
     const { level, levelIndex, completed, map, night, hp } = state;
-    screenText('floor-label', copy.chapter + ' ' + (levelIndex + 1) + ' / ' + state.levels.length);
+    screenText('floor-label', state.chase ? 'B½' : copy.chapter + ' ' + (levelIndex + 1) + ' / ' + state.levels.length);
     screenText('room-title', lang === 'zh' ? level.zh : level.title);
-    screenText('station-progress', completed.size + ' / ' + map.stations.length + ' ' + copy.workCount);
-    screenText('objective', ' · ' + currentObjective());
+    screenText('station-progress', state.chase ? Math.max(0, Math.ceil(BACKROOMS_TRACK.length - state.chase.distance)) + ' m' : completed.size + ' / ' + map.stations.length + ' ' + copy.workCount);
+    const objective = state.chase && !state.chase.started
+      ? (lang === 'zh' ? '电梯停在夹层。你出来时，身后又响起了脚步声。' : 'The lift stopped between floors. A second pair of footsteps followed you out.')
+      : currentObjective();
+    screenText('objective', ' · ' + objective);
     screenText('phase-time', night ? '18:00' : '17:59');
     screenText('phase-label', night ? copy.after : copy.before);
     screenText('phase-action', night ? copy.toDay : copy.toNight);
@@ -289,14 +314,14 @@ function updateHUD() {
   const shortcut = state.map.shortcut;
   const atShortcut = state.mode === 'playing' && state.life === 'alive' && shortcut &&
     state.map.at(state.x, state.z) === shortcut.pads[0];
-  const prompt = target ? interactionPrompt(target) :
+  const prompt = state.chase && state.life === 'alive' && !state.departing && state.mode === 'playing' ? pursuitPrompt() : target ? interactionPrompt(target) :
     atShortcut ? shortcut.title[Number(lang === 'zh')] + ' · ' +
       t()[coarsePointer.matches ? 'shortcutTouch' : 'shortcutKeys'] : '';
   if ($('interaction').textContent !== prompt) screenText('interaction', prompt);
   $('interaction').hidden = !prompt;
   $('death').hidden = state.life === 'alive' || state.mode !== 'playing';
   if (!$('death').hidden) {
-    const deathCopy = state.life === 'dying' ? t()[state.deathCause] : t().revival;
+    const deathCopy = state.life === 'dying' ? t()[state.deathCause] : state.chase ? (lang === 'zh' ? '回到中转层电梯' : 'Back at the transfer lift') : t().revival;
     if ($('death-copy').textContent !== deathCopy) screenText('death-copy', deathCopy);
     $('death').style.opacity = state.life === 'dying' ? Math.min(1, .2 + state.lifeTimer) : Math.max(0, 1 - state.lifeTimer / .68);
   }
@@ -318,9 +343,9 @@ function processEvents() {
       notice(event.pair?.[lang === 'zh' ? 1 : 0] ?? t()[event.id], 6);
     }
     if (event.type === 'save') saveProgress();
-    if (event.type === 'chapter') loadChapter();
+    if (event.type === 'chapter' || event.type === 'backrooms') loadChapter();
     if (event.type === 'death') { clearInput(); dialogue.stop(); }
-    dialogue.onGameEvent(event, state);
+    if (!state.chase) dialogue.onGameEvent(event, state);
   }
 }
 
@@ -416,8 +441,13 @@ function showPanel(view) {
 }
 
 function soundState() {
+  const run = state.chase;
+  const active = run?.started && state.mode === 'playing' && state.life === 'alive' && !state.departing;
+  const part = active && nextChaseObstacle(run.distance);
   return {
     x: state.x, z: state.z, yaw: state.yaw, night: state.night,
+    chase: active ? { progress: Math.min(1, run.distance / BACKROOMS_TRACK.length), elapsed: run.elapsed,
+      danger: run.danger, threat: state.ghosts[0], obstacle: part && part.at >= run.distance && part.at - run.distance <= 6.1 ? part.id : null } : null,
     level: state.levelIndex, tension: state.tension, ghosts: state.ghosts,
     paused: state.mode === 'paused' || state.mode === 'menu' || document.hidden || Boolean(error)
   };
@@ -634,7 +664,9 @@ window.lastLight3D = Object.freeze({
     chapter: state.levelIndex, mode: state.mode, phase: state.night ? 'night' : 'day',
     x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch,
     mouseLocked: document.pointerLockElement === canvas, hp: state.hp, deaths: state.progress.deaths,
-    work: [...state.completed], evidence: [...state.progress.evidence], life: state.life,
+    work: [...state.completed], evidence: [...state.progress.evidence], life: state.life, deathCause: state.life === 'dying' ? state.deathCause : null,
+    chase: state.chase ? { ...state.chase, length: BACKROOMS_TRACK.length, exiting: state.departing,
+      pursuer: { x: state.ghosts[0].x, z: state.ghosts[0].z } } : null,
     dialogue: { id: dialogue.active?.id ?? null, playing: Boolean(dialogue.active?.source) },
     fps: visual?.frameBudget.fps ?? null, resolutionScale: visual?.frameBudget.scale ?? 1,
     webgl: Boolean(visual && !error), ending: state.mode === 'won' ? state.ending : null

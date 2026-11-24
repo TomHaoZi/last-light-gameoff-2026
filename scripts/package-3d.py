@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.15"
+VERSION = "3.0.0-rc.16"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
@@ -18,7 +18,10 @@ REQUIRED_FILES = {
     "vendor/three.module.js", "vendor/three.core.js",
     "vendor/THREE-LICENSE.txt", "classic/index.html", "classic/style.css",
     "classic/game.js", "classic/actor-art.js", "classic/sector-art.js", "classic/sector-scenery.js",
-    "dialogue.js", "frame-budget.js", "photo-surfaces.js",
+    "backrooms-set.js", "backrooms-track.js", "chase-score.js", "classic/backrooms.js",
+    "classic/backrooms-art.js", "classic/chase-props.js", "classic/backrooms-props.png",
+    "assets/env/backrooms-annex.glb", "assets/env/steamtrap.glb", "assets/env/ticketcase.glb",
+    "assets/env/rainhead.glb", "dialogue.js", "frame-budget.js", "photo-surfaces.js",
     "environment-assets.js", "vendor/loaders/GLTFLoader.js",
     "vendor/utils/BufferGeometryUtils.js", "vendor/utils/SkeletonUtils.js",
     "assets/CREDITS.md", "assets/creature/late-worker.glb",
@@ -59,6 +62,12 @@ def collect_runtime():
     for path in sorted(dist.iterdir()):
         if path.is_file() and not path.is_symlink() and path.suffix in {".html", ".css", ".js"}:
             files[f"classic/{path.name}"] = path.read_bytes()
+
+    files["classic/backrooms-props.png"] = (dist / "backrooms-props.png").read_bytes()
+    audio_import = b"'./3d/chase-score.js'"
+    if files["classic/audio.js"].count(audio_import) != 1:
+        raise ValueError("Expected one shared chase score import in the classic edition")
+    files["classic/audio.js"] = files["classic/audio.js"].replace(audio_import, b"'../chase-score.js'")
 
     missing = REQUIRED_FILES - files.keys()
     if missing:

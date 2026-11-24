@@ -1,3 +1,4 @@
+import { ChaseScore } from './chase-score.js';
 import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
 
 const SILENCE = 0.0001;
@@ -190,8 +191,10 @@ export class HorrorAudio {
     this.scoreBus.connect(this.dialogueMusic).connect(this.master);
     this.roomBus.connect(this.dialogueRoom).connect(this.master);
     this.roomRecordingFilter.connect(this.dialogueRoom);
-    this.dayBus.connect(this.scoreBus);
-    this.nightBus.connect(this.scoreBus);
+    this.roomMusicGate = context.createGain();
+    this.dayBus.connect(this.roomMusicGate);
+    this.nightBus.connect(this.roomMusicGate);
+    this.roomMusicGate.connect(this.scoreBus);
 
     this.convolver = context.createConvolver();
     this.convolver.normalize = false;
@@ -224,6 +227,11 @@ export class HorrorAudio {
     this.noiseBuffer = context.createBuffer(1, samples, context.sampleRate);
     const data = this.noiseBuffer.getChannelData(0);
     for (let i = 0; i < samples; i++) data[i] = this.random() * 2 - 1;
+
+    this.chaseScore = new ChaseScore(context, {
+      music: this.scoreBus, effects: this.dialogueThreat, noise: this.noiseBuffer,
+      spatial: true, recording: name => this.recordings.get(name),
+    });
 
     this.vent = this.texture(context.createGain(), 'bandpass', 510, 0.54, 0.20, this.roomBus);
     this.wind = this.texture(context.createGain(), 'lowpass', 225, 0.7, 0, this.roomBus);
@@ -383,6 +391,7 @@ export class HorrorAudio {
 
   setMuted(value) {
     this.muted = Boolean(value);
+    if (this.muted) this.setChase(null);
     this.syncMaster();
   }
 
@@ -416,7 +425,19 @@ export class HorrorAudio {
     };
   }
 
-  update({ x = 0, z = 0, yaw = 0, night = false, level = 0, tension = 0, ghosts = [], paused = false } = {}) {
+  setChase(state) {
+    if (!this.chaseScore) return;
+    const wasActive = Boolean(this.chaseScore.live);
+    this.chaseScore.update(state, this.player);
+    const active = Boolean(this.chaseScore.live);
+    if (wasActive === active) return;
+    const now = this.context.currentTime;
+    this.roomMusicGate.gain.setTargetAtTime(active ? 0 : 1, now, .04);
+    this.nextScore = now + .08;
+    this.nextRoomEvent = now + 3.5;
+  }
+
+  update({ x = 0, z = 0, yaw = 0, night = false, level = 0, tension = 0, ghosts = [], paused = false, chase = null } = {}) {
     this.player = { x: finite(x), z: finite(z), yaw: finite(yaw) };
     this.tension = clamp(finite(tension), 0, 1);
     if (this.paused !== paused) {
@@ -438,10 +459,12 @@ export class HorrorAudio {
       ramp(this.nightSub.gain.gain, now, night ? 0.063 : 0, 0.18);
       ramp(this.roomRecordingFilter.frequency, now, night ? 2800 : 6800, 0.18);
     }
+    this.setChase(!paused && !this.muted ? chase : null);
     if (paused || now - this.lastFrame < 0.045) return;
     this.lastFrame = now;
 
-    this.updateCreatureSounds(now, ghosts);
+    this.updateCreatureSounds(now, this.chaseScore.live ? [] : ghosts);
+    if (this.chaseScore.live) return;
     if (now + 0.09 >= this.nextScore) {
       this.score(Math.max(now + 0.02, this.nextScore));
       this.nextScore = Math.max(now, this.nextScore) + 0.48;

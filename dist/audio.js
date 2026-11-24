@@ -1,3 +1,5 @@
+import { ChaseScore } from './3d/chase-score.js';
+
 // All sound is synthesized locally. No samples, external media, or recorded voices.
 export const SFX_GAIN = Object.freeze({
   footstepConcrete:.12, // soft sole, beneath the melody
@@ -18,9 +20,15 @@ export class Sound {
     const limiter=c.createDynamicsCompressor();limiter.threshold.value=-3;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=.001;limiter.release.value=.06;
     this.master.connect(compressor).connect(limiter).connect(c.destination);
     this.sfxVolume=c.createGain();this.sfxVolume.connect(this.master);this.sfx=c.createGain();this.sfx.connect(this.sfxVolume);
-    this.musicVolume=c.createGain();this.storyVolume=c.createGain();this.musicVolume.connect(this.storyVolume).connect(this.master);this.music=c.createGain();this.music.connect(this.musicVolume);this.day=c.createGain();this.nite=c.createGain();this.day.connect(this.music);this.nite.connect(this.music);
+    this.musicVolume=c.createGain();this.storyVolume=c.createGain();this.musicVolume.connect(this.storyVolume).connect(this.master);this.music=c.createGain();this.roomMusicGate=c.createGain();this.music.connect(this.roomMusicGate).connect(this.musicVolume);this.day=c.createGain();this.nite=c.createGain();this.day.connect(this.music);this.nite.connect(this.music);
     this.ambDay=c.createGain();this.ambNight=c.createGain();this.ambDay.connect(this.master);this.ambNight.connect(this.master);
     this.noiseBuffer=c.createBuffer(1,c.sampleRate*3,c.sampleRate);const data=this.noiseBuffer.getChannelData(0);let seed=8137;for(let i=0;i<data.length;i++){seed=(seed*16807)%2147483647;data[i]=(seed/2147483647)*2-1;}
+    // Keep the running strings and synthetic throat audible beside the floor's
+    // contactor and footsteps at the classic edition's default master level.
+    const chaseMusic = c.createGain(), chaseEffects = c.createGain();
+    chaseMusic.gain.value = 1.78; chaseEffects.gain.value = 1.36;
+    chaseMusic.connect(this.musicVolume); chaseEffects.connect(this.sfxVolume);
+    this.chaseScore = new ChaseScore(c, { music: chaseMusic, effects: chaseEffects, noise: this.noiseBuffer });
     this.room();this.setPhase(this.night,true);this.next=c.currentTime+.07;this.timer=setInterval(()=>this.schedule(),40);this.setVolumes(this.volumes);await c.resume();
   }
   gain(bus,t,g,d,a=.008){const n=this.ctx.createGain();n.gain.setValueAtTime(.00001,t);n.gain.exponentialRampToValueAtTime(Math.max(.0001,g),t+a);n.gain.exponentialRampToValueAtTime(.00001,t+d);n.connect(bus);return n;}
@@ -70,7 +78,17 @@ export class Sound {
   }
   stopPhone(){// The one-off ring never repeats, approaching cuts its short tail.
     if(this.ctx&&this.floor===1&&this.phoneRang){this.sfx.gain.cancelScheduledValues(this.ctx.currentTime);this.sfx.gain.setTargetAtTime(.1,this.ctx.currentTime,.02);this.sfx.gain.setTargetAtTime(1,this.ctx.currentTime+.25,.04);}}
-  schedule(){if(!this.ctx)return;const c=this.ctx;while(this.next<c.currentTime+.14){const bar=Math.floor((this.notes%512)/32),i=this.notes%32;const phrase=[0,0,5,2,7,5,2,0,0,-2,5,7,2,5,7,0][bar],variation=bar%3===1?MELODY[(31-i)]:MELODY[(i+(this.sector%3)*8)%32],raw=variation+phrase+(this.floor===1?-5:this.floor===2?7:0)+(this.resolution?0:this.sector===4?-2:0);const minor=v=>{const octave=Math.floor(v/12),pc=((v%12)+12)%12;return octave*12+({4:3,9:8,11:10}[pc]??pc);};
+  setChase(state) {
+    if (!this.chaseScore) return;
+    const wasActive = Boolean(this.chaseScore.live);
+    this.chaseScore.update(this.focus && !this.muted ? state : null);
+    const active = Boolean(this.chaseScore.live);
+    if (active === wasActive) return;
+    const now = this.ctx.currentTime;
+    this.roomMusicGate.gain.setTargetAtTime(active ? 0 : 1, now, .04);
+    this.next = now + .07;
+  }
+  schedule(){if(!this.ctx||this.chaseScore?.live)return;const c=this.ctx;while(this.next<c.currentTime+.14){const bar=Math.floor((this.notes%512)/32),i=this.notes%32;const phrase=[0,0,5,2,7,5,2,0,0,-2,5,7,2,5,7,0][bar],variation=bar%3===1?MELODY[(31-i)]:MELODY[(i+(this.sector%3)*8)%32],raw=variation+phrase+(this.floor===1?-5:this.floor===2?7:0)+(this.resolution?0:this.sector===4?-2:0);const minor=v=>{const octave=Math.floor(v/12),pc=((v%12)+12)%12;return octave*12+({4:3,9:8,11:10}[pc]??pc);};
       if(!(bar===3||bar===6)||i%4===0)this.tone(midi(60+raw),midi(60+raw),this.next,this.floor===1?.42:.26,.09,this.floor===2?'sine':'triangle',this.day);
       if(this.tension>.1&&i%4===0){this.tone(49,38,this.next,.18,.055*this.tension,'triangle',this.music);this.noise(this.next,.09,.015*this.tension,1700,this.music);}
       this.tone(midi(36+[0,0,5,7][Math.floor(i/8)]),midi(36+[0,0,5,7][Math.floor(i/8)]),this.next,.16,.085,'triangle',this.day);
@@ -85,7 +103,7 @@ export class Sound {
   setVolumes(v){this.volumes={...this.volumes,...v};if(this.ctx){this.applyVolume();const t=this.ctx.currentTime;for(const [node,value] of [[this.musicVolume,this.volumes.music],[this.sfxVolume,this.volumes.sfx]]){node.gain.cancelScheduledValues(t);node.gain.setValueAtTime(node.gain.value,t);node.gain.linearRampToValueAtTime(value,t+.04);}}}
   setNarrative({sector=0,scene='',pursuit=false,resolution=false}){this.sector=sector;this.sceneId=scene;this.resolution=resolution;const key=`${sector}:${scene}:${pursuit}:${resolution}`;if(!this.ctx||key===this.narrativeKey)return;this.narrativeKey=key;const t=this.ctx.currentTime;this.storyVolume.gain.cancelScheduledValues(t);this.storyVolume.gain.setValueAtTime(this.storyVolume.gain.value,t);this.storyVolume.gain.linearRampToValueAtTime(scene?.62:pursuit?.83:1,t+.7);}
   setTension(value){this.tension=value;}
-  mute(value=!this.muted){this.muted=value;this.applyVolume();return value;}
-  setFocus(v){this.focus=v;this.applyVolume();}
+  mute(value=!this.muted){this.muted=value;if(value)this.setChase(null);this.applyVolume();return value;}
+  setFocus(v){this.focus=v;if(!v)this.setChase(null);this.applyVolume();}
   applyVolume(){if(this.ctx){const t=this.ctx.currentTime;this.master.gain.cancelScheduledValues(t);this.master.gain.setValueAtTime(this.master.gain.value,t);this.master.gain.linearRampToValueAtTime(this.muted||!this.focus?0:.72*this.volumes.master,t+.025);}}
 }

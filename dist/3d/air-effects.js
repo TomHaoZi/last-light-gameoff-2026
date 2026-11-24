@@ -91,7 +91,7 @@ export class AirEffects {
     const changed = this.phase !== state.night;
     this.phase = state.night;
     const door = state.door || 0;
-    if (!reduced && door > .22 && door < .58 && door-this.lastDoor >= .049) {
+    if (mount && !reduced && door > .22 && door < .58 && door-this.lastDoor >= .049) {
       this.lastDoor = door;
       for (const side of [-1,1]) {
         mouth.set(side*(.22+door*.5),.082,-.14);

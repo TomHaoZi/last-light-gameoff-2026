@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { TILE, LEVELS } from '../dist/3d/levels.js';
+import { BACKROOMS_TRACK } from '../dist/3d/backrooms-track.js';
+import { runTransfer } from './play-3d-transfer.mjs';
 import { play3DJourney } from './play-3d-journey.mjs';
 
 // Browser inputs are delivered through CDP. Only the chapter is preselected;
@@ -142,13 +144,15 @@ async function jump(from, to) {
   });
 }
 
-async function startChapter(index) {
+async function startChapter(index, resumePursuit = false) {
   await send('Page.navigate', { url: origin + '/__qa_profile__' });
   await until(() => read("document.readyState === 'complete' && document.title === 'Private test profile'"), 'private profile');
   if (index !== undefined) {
-    await read(`localStorage.setItem('last-light-3d-v1', JSON.stringify({ schema: 1, chapter: ${index} }))`);
+    await read(`localStorage.setItem('last-light-3d-v1', JSON.stringify({ schema: 1, chapter: ${index}, backrooms:${resumePursuit}, work:${resumePursuit ? '{1:["A","B","C"]}' : '{}'} }))`);
   }
-  await read("localStorage.setItem('last-light-3d-v1-settings', JSON.stringify({ lang: 'en', quality: 'high', adaptive: false }))");
+  // Use the performance pass to exercise the Chinese in-game route prompts too.
+  const lang = process.env.TRANSFER_PROFILE ? 'zh' : 'en';
+  await read(`localStorage.setItem('last-light-3d-v1-settings', JSON.stringify({ lang: '${lang}', quality: 'high', adaptive: false }))`);
   await send('Page.navigate', { url: origin + gameEntry });
   await until(async () => (await snapshot())?.webgl, 'WebGL initialized');
   if (process.env.JOURNEY) {
@@ -297,10 +301,10 @@ try {
   await send('Runtime.enable');
   await send('Page.bringToFront');
   await send('Emulation.setFocusEmulationEnabled', { enabled: true });
-  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+  await send('Emulation.setDeviceMetricsOverride', { width: Number(process.env.QA_WIDTH || 1280), height: Number(process.env.QA_HEIGHT || 720), deviceScaleFactor: 1, mobile: false });
   if (process.env.JOURNEY) {
     await startChapter();
-    const proof = await play3DJourney({ snapshot, until, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide }, process.env.JOURNEY);
+    const proof = await play3DJourney({ snapshot, until, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide, runTransfer:()=>runTransfer({snapshot,input}) }, process.env.JOURNEY);
     const saved = await read("JSON.parse(localStorage.getItem('last-light-3d-v1'))");
     assert.equal(saved.finished, true);
     await send('Page.reload', { ignoreCache: true });
@@ -322,6 +326,93 @@ try {
     await until(async () => (await snapshot())?.ending === proof.ending, 'returned from classic to the same 3D ending');
     assert.deepEqual(await read("JSON.parse(localStorage.getItem('last-light-3d-v1'))"), saved);
     console.log(JSON.stringify({ ...proof, saved: true, reopenedEnding: reopened.ending, journalCount, returnedFromClassic: true }));
+  } else if (process.env.TRANSFER_RECOVERY) {
+    await startChapter(1,true);
+    const waiting = await snapshot();
+    assert.equal(waiting.chase.started,false);
+    if (process.env.TRANSFER_PROFILE) {
+      const prompt=await read("document.querySelector('#interaction').textContent");
+      assert.match(prompt,/按住 W 奔跑.*空格跳跃.*X 切换长桥/);
+      assert.equal(await read("document.querySelector('#room-title').textContent"),'后室 · 中转层');
+    }
+    const stills = process.env.TRANSFER_STILLS;
+    const screenshots = [];
+    async function capture(name) {
+      const shot = await send('Page.captureScreenshot',{format:'jpeg',quality:88});
+      await writeFile(join(stills,name+'.jpg'),Buffer.from(shot.data,'base64'));
+    }
+    if (stills) {
+      await mkdir(stills,{recursive:true});
+      const observer = await send('Runtime.evaluate',{awaitPromise:true,expression:`import('./visual.js').then(({Visual})=>{
+        const draw=Visual.prototype.render;
+        Visual.prototype.render=function(...args){
+          window.transferView=this;
+          window.transferDoor=args[0].door;
+          return draw.apply(this,args);
+        };
+      })`});
+      assert.equal(observer.exceptionDetails,undefined);
+      await until(()=>read("Boolean(window.transferView?.backroomsSet && window.transferView.ghosts.get('transfer-pursuer')?.group.userData.authoredCreature && window.transferView.janitorHands.group.children.length)"),'authored pursuer and first-person hands drawn',15000);
+      const art=await send('Runtime.evaluate',{awaitPromise:true,returnByValue:true,expression:"window.transferView.backroomsSet.ready"});
+      assert.equal(art.result.value,true,'Blender stage props mounted');
+      await capture('transfer-entrance-day');
+    }
+    await hold(['KeyW'],()=>whenPlaying(s=>s.chase.distance>.5,'depart the transfer lift'));
+    const hit = await until(async()=>{const s=await snapshot();return s.life==='dying'&&s;},'pursuer catches a stationary runner',5000);
+    if (stills) {
+      await delay(200);
+      await capture('transfer-pursuer-capture');
+    }
+    assert.equal(hit.hp,0);
+    assert.ok(Math.hypot(hit.x-hit.chase.pursuer.x,hit.z-hit.chase.pursuer.z)<.7);
+    await until(async()=>{const s=await snapshot();return s.life==='respawning'&&s;},'choke animation finishes',4000);
+    const retry = await until(async()=>{const s=await snapshot();return s.life==='alive'&&s;},'revival at original threshold',4000);
+    assert.equal(retry.chase.started,false);
+    assert.equal(retry.deaths,1);
+    assert.deepEqual(retry.work,waiting.work);
+    const falls=[];
+    if (process.env.TRANSFER_MISSES) {
+      for (const kind of ['gap','bridge']) {
+        const miss=BACKROOMS_TRACK.obstacles.find(part=>part.kind===kind);
+        falls.push(await runTransfer({snapshot,input,miss}));
+        const respawn=await until(async()=>{const s=await snapshot();return s.life==='alive'&&!s.chase.started&&s;},'revive after missed '+kind,4000);
+        assert.deepEqual(respawn.work,waiting.work);
+      }
+    }
+    const profile = Boolean(process.env.TRANSFER_PROFILE);
+    if (profile) {
+      const probe=await send('Runtime.evaluate',{awaitPromise:true,expression:`import('./visual.js').then(({Visual})=>{
+        window.transferFrames=[];
+        const render=Visual.prototype.render;
+        Visual.prototype.render=function(state,dt,elapsed){
+          if(!window.transferGPU) {
+            const gl=this.renderer.getContext(), ext=gl.getExtension('WEBGL_debug_renderer_info');
+            window.transferGPU=ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+          }
+          if (state.life==='alive' && state.chase?.started && !state.departing) {
+            window.transferFrames.push(elapsed*1000);
+            window.transferSize=[this.frameTarget.width,this.frameTarget.height];
+          }
+          return render.call(this,state,dt,elapsed);
+        };
+      })`});
+      assert.equal(probe.exceptionDetails,undefined);
+    }
+    const run = await runTransfer({snapshot,input,testSideWall:Boolean(process.env.TRANSFER_SIDE_WALL),onCrossing:part=>{
+      if (stills && ['transfer-4','transfer-11','transfer-18'].includes(part.id)) screenshots.push(capture(part.id));
+    }});
+    await Promise.all(screenshots);
+    if (stills) {
+      await until(()=>read('window.transferDoor>.46 && window.transferDoor<1'),'fire door swings open');
+      await capture('transfer-fire-door-opening');
+    }
+    await whenPlaying(s=>s.chapter===2 && !s.chase,'escape transfers to the roof');
+    const frames=profile ? await read(`(() => {
+      const frames=window.transferFrames.sort((a,b)=>a-b);
+      return {gpu:window.transferGPU,size:window.transferSize, frames:frames.length, median:frames[Math.floor(frames.length*.5)], p95:frames[Math.floor(frames.length*.95)],
+        p99:frames[Math.floor(frames.length*.99)], max:frames.at(-1), over50ms:frames.filter(v=>v>50.1).length};
+    })()`) : null;
+    console.log(JSON.stringify({retry:retry.deaths,captureDistance:hit.chase.distance,falls,run,frames}));
   } else if (process.env.GHOST_RECOVERY) await playGhostRecoveries();
   else await playShortcuts();
   assert.deepEqual(exceptions, []);

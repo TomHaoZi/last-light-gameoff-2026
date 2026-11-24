@@ -14,3 +14,5 @@ The game bundles resized PBR textures inside each GLB and simplifies the compres
 The folding steel service lift is an original LAST LIGHT model. Rebuild its landing, inspection gates, cab and deadbolts using Blender 4.5 and `art/blender/build_service_lift.py`.
 
 The pressure gauge, punch clock and rooftop flow meter are original Blender models. Rebuild the three moving instruments with `art/blender/build_workstation_models.py`.
+
+The Records Annex and its fixtures are original LAST LIGHT assets, authored in Blender 4.5. Open the sixteen assemblies in `art/blender/backrooms-annex.blend` or rebuild them with `art/blender/build_backrooms.py`. The annex uses one instanced kit. The boiler steam trap, outgoing ticket case and roof rainwater hopper each have a separate GLB. The classic edition uses orthographic Cycles views of these models. Wallpaper, carpet and ceiling finish each have original colour, roughness and normal maps.

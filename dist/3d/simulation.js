@@ -1,3 +1,4 @@
+import { BACKROOMS_LEVEL, BACKROOMS_TRACK, advancePursuit, beginPursuit, chaseBlocked, chaseFloor, runDistance } from './backrooms-track.js';
 import { LEVELS, TILE, decodeLevel } from './levels.js';
 
 export const SAVE_KEY = 'last-light-3d-v1';
@@ -33,6 +34,8 @@ function readProgress(data, levels) {
   }
   const knownEvidence = new Set(levels.flatMap((level, i) => decodeLevel(level).clues.map(t => i + '/' + key(t))));
   safe.evidence = [...new Set((Array.isArray(data.evidence) ? data.evidence : []).filter(id => knownEvidence.has(id)))];
+  safe.backrooms = data.backrooms === true && levels[safe.chapter]?.id === 'office' &&
+    safe.work[safe.chapter].length === decodeLevel(levels[safe.chapter]).stations.length;
   safe.powered = data.powered === true;
   safe.finished = data.finished === true && levels.every((level, i) => safe.work[i].length === decodeLevel(level).stations.length);
   safe.deaths = Number.isSafeInteger(data.deaths) ? clamp(data.deaths, 0, 999999) : 0;
@@ -50,7 +53,7 @@ export class Simulation3D {
     this.mode = this.progress.finished ? 'won' : 'menu';
     this.quality = 'high';
     this.reduceMotion = false;
-    this.load(this.progress.chapter);
+    this.load(this.progress.chapter, this.progress.backrooms);
   }
 
   emit(type, detail = {}) { this.events.push({ type, ...detail }); }
@@ -65,10 +68,12 @@ export class Simulation3D {
     this.emit('save');
   }
 
-  load(index) {
+  load(index, backrooms = false) {
     this.levelIndex = index;
     this.progress.chapter = index;
-    this.level = this.levels[index];
+    this.progress.backrooms = backrooms;
+    this.chase = null;
+    this.level = backrooms ? BACKROOMS_LEVEL : this.levels[index];
     this.map = decodeLevel(this.level);
     this.interactionTargets = [
       ...this.map.stations.map(tile => ({ type: 'station', tile })),
@@ -87,7 +92,7 @@ export class Simulation3D {
     this.checkpoint = this.map.lamps.find(lamp => this.tileKey(lamp) === this.progress.checkpoint) ?? this.map.spawn;
     this.visited = new Set();
     this.spawnPlayer();
-    this.emit('chapter', { index });
+    this.emit(backrooms ? 'backrooms' : 'chapter', { index });
   }
 
   spawnPlayer() {
@@ -103,6 +108,7 @@ export class Simulation3D {
       phase: tile.phase ?? (tile.kind === 'G' ? 'day' : tile.kind === 'H' ? 'night' : null),
       alert: 0, active: false, target: null, refresh: 0, roam: i
     }));
+    if (this.level === BACKROOMS_LEVEL) beginPursuit(this);
     this.syncGhosts();
   }
 
@@ -184,6 +190,7 @@ export class Simulation3D {
   }
 
   blocks(x, z, radius = PLAYER_RADIUS) {
+    if (this.chase) return chaseBlocked(x, z, this.y, radius);
     for (const [dx, dz] of [[-radius, -radius], [radius, -radius], [-radius, radius], [radius, radius]]) {
       if (this.map.at(x + dx, z + dz)?.kind === '#') return true;
     }
@@ -200,7 +207,7 @@ export class Simulation3D {
   }
 
   getInteraction() {
-    if (this.life !== 'alive' || this.departing || this.y > .6) return null;
+    if (this.chase || this.life !== 'alive' || this.departing || this.y > .6) return null;
     let best = null;
     for (const target of this.interactionTargets) {
       const { tile } = target;
@@ -332,10 +339,11 @@ export class Simulation3D {
     const length = Math.hypot(forward, side);
     this.moving = length > .08;
     this.quiet = Boolean(input.quiet);
-    this.sprint = !!input.sprint && this.moving && !this.quiet && this.stamina > .09;
-    this.stamina = clamp(this.stamina + dt * (this.sprint ? -.24 : .32), 0, 1);
+    this.sprint = this.chase ? this.moving && !this.quiet :
+      !!input.sprint && this.moving && !this.quiet && this.stamina > .09;
+    this.stamina = this.chase ? 1 : clamp(this.stamina + dt * (this.sprint ? -.24 : .32), 0, 1);
     if (this.moving) {
-      const speed = this.quiet ? 1.75 : this.sprint ? 6.1 : 3.55;
+      const speed = this.quiet ? 1.75 : this.sprint ? BACKROOMS_TRACK.speed : 3.55;
       const amount = dt * speed / Math.max(1, length);
       const dx = (Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side) * amount;
       const dz = (-Math.cos(this.yaw) * forward + Math.sin(this.yaw) * side) * amount;
@@ -350,7 +358,7 @@ export class Simulation3D {
       this.stepDistance = 0;
     }
     const tile = this.map.at(this.x, this.z);
-    const supported = floorActive(tile, this.night);
+    const supported = this.chase ? chaseFloor(runDistance(this.z),this.night) : floorActive(tile, this.night);
     if (tile && tile.kind !== '#') this.visited.add(this.tileKey(tile));
     if (this.grounded && supported) this.coyote = .098;
     else this.coyote = Math.max(0, this.coyote - dt);
@@ -372,7 +380,7 @@ export class Simulation3D {
       if (this.vy < -4) this.emit('sound', { name: 'land' });
       this.y = 0;
       this.vy = 0;
-    } else if (supported && this.y < 0 && this.y >= -.22 && !this.map.at(this.x, this.z)?.kind?.match(/^[dn]$/)) {
+    } else if (!this.chase && supported && this.y < 0 && this.y >= -.22 && !this.map.at(this.x, this.z)?.kind?.match(/^[dn]$/)) {
       this.y = 0;
       this.vy = 0;
       this.grounded = true;
@@ -402,7 +410,8 @@ export class Simulation3D {
           this.emit('save');
         } else {
           this.progress.checkpoint = null;
-          this.load(this.levelIndex + 1);
+          if (this.level.id === 'office' && this.levels[this.levelIndex+1].id === 'roof') this.load(this.levelIndex,true);
+          else this.load(this.levelIndex + 1);
           this.emit('save');
         }
       }
@@ -412,6 +421,14 @@ export class Simulation3D {
     if (input.interact) this.interact();
     if (this.departing) return;
     this.movement(input, dt);
-    if (this.life === 'alive') this.updateGhosts(dt);
+    if (this.life !== 'alive') return;
+    if (this.chase) {
+      advancePursuit(this,dt);
+      if (this.life === 'alive' && this.chase.distance >= BACKROOMS_TRACK.length) {
+        this.departing = true;
+        this.moving = this.sprint = false;
+        this.emit('sound', { name:'door', position:this.map.exit });
+      }
+    } else this.updateGhosts(dt);
   }
 }

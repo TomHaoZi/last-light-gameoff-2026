@@ -1,3 +1,4 @@
+import {annexScore,replayAnnex,cancelAnnexReplay} from './backrooms.js';
 import {Art} from './art.js';
 import {Sound} from './audio.js';
 import {Simulation,FIXED_DT} from './simulation.js';
@@ -22,12 +23,13 @@ function persist(){
 }
 function syncPhase(){sound.setPhase(state.night);labels();}
 function notify(message,seconds=5){state.message=message;state.messageTimer=seconds;$('status').textContent=message;}
-function labels(){const t=text();document.documentElement.lang=state.lang;document.title=t.title;state.short=t.short[state.floor];state.shortZh=STORY.zh.short[state.floor];$('floor-label').textContent=`0${state.floor+1} / ${t.floors[state.floor]}${state.expanded?' · '+(state.sector+1)+'/6':''}`;$('phase-label').textContent=state.lang==='zh'?(state.night?'夜 · 事故后 18:00':'日 · 事故前 17:59'):(state.night?'NIGHT · AFTER 18:00':'DAY · BEFORE 17:59');$('language').textContent=state.lang==='en'?'中文':'EN';$('play-3d').textContent=state.lang==='zh'?'玩 3D 版':'Play 3D';$('tagline').innerHTML=state.lang==='en'?'The shift never ended.<br>Leave a door for the last person.':'大楼没有下班。<br>给最后一个人留门。';$('under-title').textContent=state.lang==='zh'?'不是杀光所有鬼，是让所有人离开。':'Not every shadow is your enemy.';$('under-copy').textContent=t.hint;const routeHint=$('aside-copy');routeHint.innerHTML=state.expanded?t.relayHelp:(state.lang==='zh'?'日：17:59 的记忆。夜：18:00 的废墟。':'Day: a memory. Night: what remained.');$('sound').textContent=sound.muted?'SOUND OFF':'SOUND ON';$('sound').setAttribute('aria-pressed',String(sound.muted));}
+function labels(){const t=text();document.documentElement.lang=state.lang;document.title=t.title;state.short=t.short[state.floor];state.shortZh=STORY.zh.short[state.floor];$('floor-label').textContent=`0${state.floor+1} / ${t.floors[state.floor]}${state.expanded?' · '+(state.sector+1)+'/6':''}`;if(state.backrooms)$('floor-label').textContent=state.lang==='zh'?'档案附楼 / 后室':'RECORDS ANNEX / THE BACKROOMS';$('phase-label').textContent=state.lang==='zh'?(state.night?'夜 · 事故后 18:00':'日 · 事故前 17:59'):(state.night?'NIGHT · AFTER 18:00':'DAY · BEFORE 17:59');$('language').textContent=state.lang==='en'?'中文':'EN';$('play-3d').textContent=state.lang==='zh'?'玩 3D 版':'Play 3D';$('tagline').innerHTML=state.lang==='en'?'The shift never ended.<br>Leave a door for the last person.':'大楼没有下班。<br>给最后一个人留门。';$('under-title').textContent=state.lang==='zh'?'不是杀光所有鬼，是让所有人离开。':'Not every shadow is your enemy.';$('under-copy').textContent=t.hint;const routeHint=$('aside-copy');routeHint.innerHTML=state.expanded?t.relayHelp:(state.lang==='zh'?'日：17:59 的记忆。夜：18:00 的废墟。':'Day: a memory. Night: what remained.');$('sound').textContent=sound.muted?'SOUND OFF':'SOUND ON';$('sound').setAttribute('aria-pressed',String(sound.muted));}
 function card(title,body,button,hint=''){ $('overlay').classList.remove('hidden');$('card-title').innerHTML=title;$('card-copy').innerHTML=body;$('start').textContent=button;$('start-hint').textContent=hint;}
 function showCard(){const t=text();if(state.mode==='menu')card(t.introTitle,t.introCopy,state.progress.checkpointId?t.resume:t.start,t.hint);else if(state.mode==='paused')card(t.pause,t.pauseCopy,t.resume);else if(state.mode==='between')card(t.floors[state.floor],t.between,t.next);else if(state.mode==='won')card(state.ending==='complete'?t.completeTitle:t.normalTitle,state.ending==='complete'?t.completeCopy:t.normalCopy,t.replay);}
 function drain(){for(const event of state.drain()){
  if(event.type==='sound'){if(event.position!=null)sound.effectAt(event.name,event.position,state.player.x,event.amount??1,event.surface??'concrete');else sound.effect(event.name,event.amount??1,event.surface??'concrete');}
  else if(event.type==='save')persist();
+ else if(event.type==='annex-entry'||event.type==='annex-escape')syncPhase();
  else if(event.type==='clear-input')clearInput();
  else if(event.type==='shift'){syncPhase();sound.effect('shift');}
  else if(event.type==='respawn')syncPhase();
@@ -81,8 +83,10 @@ $('restart').onclick=()=>{
 $('shift-button').onclick=()=>{if(state.mode==='playing')edges.shift=true;canvas.focus({preventScroll:true});};
 function journal(){pause();const t=text();$('journal-title').textContent=t.journal;const list=$('journal-entries');list.replaceChildren();for(const id of state.progress.evidence){const p=document.createElement('p');p.textContent=t.evidence[id]||id;list.append(p);}for(const event of state.progress.events.filter(x=>x==='record-corrected')){const p=document.createElement('p');p.textContent=t.task[1][1];list.append(p);}for(let f=0;f<3;f++)for(let i=0;i<3;i++)if(state.progress.chapterProgress[f]?.[i]){const p=document.createElement('p');p.textContent=`${t.floors[f]} · ${f===2?t.roofTasks[i]:t.task[f][i]}`;list.append(p);}if(!list.childNodes.length)list.textContent=t.noEntries;$('journal-dialog').showModal();}
 $('journal').onclick=journal;$('journal-close').onclick=()=>{$('journal-dialog').close();};
-function visitSection(floor,sector){
+function visitSection(floor,sector,annex=false){
+ cancelAnnexReplay(state);
  if(sector==null)state.loadFloor(floor);else state.loadSector(floor,sector);
+ if(annex)replayAnnex(state);
  state.mode='playing';
  $('visit-dialog').close();
  $('overlay').classList.add('hidden');
@@ -97,10 +101,10 @@ function showVisits(){
  const list=$('visit-entries');
  list.replaceChildren();
  const unlocked=Math.max(state.floor,state.events.includes('chapter-1-complete')?2:state.events.includes('chapter-0-complete')?1:0);
- function add(label,floor,sector){
+ function add(label,floor,sector,annex=false){
   const button=document.createElement('button');
   button.textContent=label;
-  button.onclick=()=>visitSection(floor,sector);
+  button.onclick=()=>visitSection(floor,sector,annex);
   list.append(button);
  }
  for(let floor=0;floor<3;floor++){
@@ -110,6 +114,8 @@ function showVisits(){
    if(state.progress.visitedSectors.includes(`${floor}/${spec.id}`))add(`↳ ${sector+1} · ${state.lang==='zh'?spec.zh:spec.en}`,floor,sector);
   }
  }
+ const pastAnnex=state.floor===2||state.expanded&&(state.floor===1&&state.sector>2||state.progress.visitedSectors.includes('1/pantry'));
+ if(pastAnnex||state.progress.finished||state.events.includes('backrooms-escaped')||state.events.includes('chapter-1-complete'))add(state.lang==='zh'?'↳ 后室 · 档案附楼':'↳ The Backrooms · Records Annex',1,state.expanded?2:undefined,true);
  $('visit-dialog').showModal();
 }
 $('chapters').onclick=()=>{pause();showVisits();};$('visit-close').onclick=()=>{$('visit-dialog').close();};
@@ -130,6 +136,7 @@ for(const b of document.querySelectorAll('[data-key]')){const up=e=>{e.preventDe
 window.addEventListener('blur',()=>{pause();sound.setFocus(false);lastTime=null;accumulator=0;});window.addEventListener('focus',()=>sound.setFocus(!document.hidden));document.addEventListener('visibilitychange',()=>{sound.setFocus(!document.hidden);if(document.hidden)pause();lastTime=null;accumulator=0;});
 function frame(timestamp){const elapsed=lastTime==null?0:Math.min(.1,(timestamp-lastTime)/1000);lastTime=timestamp;
  if(state.mode==='playing'){accumulator+=elapsed;let ticks=0;while(accumulator>=FIXED_DT&&ticks++<12){const input={left:keys.has('ArrowLeft')||keys.has('KeyA'),right:keys.has('ArrowRight')||keys.has('KeyD'),walk:keys.has('KeyC'),...edges};edges={};state.step(input);drain();accumulator-=FIXED_DT;}}else accumulator=0;
+ sound.setChase?.(annexScore(state));
  sound.setNarrative?.({sector:state.sector||0,scene:state.scene?.id||'',pursuit:!!state.pursuit?.active,resolution:state.scene?.id==='ending-complete'||state.mode==='won'&&state.ending==='complete'});sound.setTension(state.pursuit?.active||state.ghosts.some(g=>g.state==='chase')?1:0);art.render(state,elapsed);requestAnimationFrame(frame);
 }
 labels();showCard();requestAnimationFrame(frame);

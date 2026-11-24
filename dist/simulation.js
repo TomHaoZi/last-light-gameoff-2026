@@ -1,3 +1,4 @@
+import {needsAnnex,restoreAnnex,enterAnnex,stepAnnex,annexSnapshot} from './backrooms.js';
 import {level,worldWidth,exitX,createPlayer,stepPlayer,intersects,updateMovingPlatforms} from './core.js';
 import {FLOOR_ITEMS,FLOOR_HAZARDS,FLOOR_GHOSTS,CHECKPOINTS,EVIDENCE,inspectionAlcove} from './level-data.js';
 import {createGhost,updateGhost} from './enemies.js';
@@ -19,6 +20,7 @@ export class Simulation{
  emit(type,data={}){const e={tick:Math.round(this.time/FIXED_DT),type,...data};this.pending.push(e);this.log.push(e);if(this.log.length>100)this.log.shift();}
  drain(){return this.pending.splice(0);}
  loadFloor(floor,restore=false){
+  this.backrooms=null;
   if(this.expanded){this.loadSector(floor,restore?this.progress.sector:0,restore);return;}
   this.floor=floor;this.progress.floor=floor;const alcove=inspectionAlcove(floor);
   this.platforms=[...level(floor),...alcove.platforms];this.walls=alcove.walls;this.doors=alcove.doors.map(createDoor);for(const d of this.doors)if(this.progress.openedDoors.includes(d.id)){d.phase='open';d.openness=1;}
@@ -27,8 +29,10 @@ export class Simulation{
   const cp=this.checkpoints.find(c=>c.id===this.checkpointId);this.player=createPlayer(cp.x);this.player.y=cp.y;this.player.prevY=cp.y;if(restore)this.player.hp=this.progress.hp;
   this.evidence=EVIDENCE[floor].map(e=>({...e,got:this.progress.evidence.includes(e.id)}));
   this.events=this.progress.events;this.camera=Math.max(0,cp.x-180);this.cameraY=Math.max(-220,Math.min(0,cp.y-145));this.night=false;this.phaseMix=0;this.shiftFx=0;this.shiftRejected=0;this.shiftCooldown=0;this.particles=[];this.death=null;this.revive=0;this.flash=0;this.redFlash=0;this.transition=0;this.exitX=exitX(floor);this.worldWidth=worldWidth(floor);this.door={phase:'closed',progress:0};this.completionTimer=0;this.interaction=null;this.footDistance=0;this.room=`chapter-${floor+1}`;this.noiseTime=0;this.noiseLevel=0;this.lampCooldown=0;
+  if(restore)restoreAnnex(this);
  }
  loadSector(floor,sector,restore=false,atExit=false){
+  this.backrooms=null;
   this.floor=floor;this.sector=sector;this.progress.floor=floor;this.progress.sector=sector;
   const data=buildSector(floor,sector,this.progress.mechanisms);this.sectorData=data;this.platforms=data.platforms;this.walls=data.walls;this.hazards=data.hazards;this.props=data.props;this.station=data.station;
   this.checkpoints=data.checkpoints;this.checkpointId=restore&&this.checkpoints.some(c=>c.id===this.progress.checkpointId)?this.progress.checkpointId:this.checkpoints[0].id;
@@ -41,6 +45,7 @@ export class Simulation{
   this.room=data.id;this.night=false;this.phaseMix=0;this.shiftFx=0;this.shiftRejected=0;this.shiftCooldown=0;this.particles=[];this.death=null;this.revive=0;this.flash=0;this.redFlash=0;this.transition=0;this.door={phase:'closed',progress:0};this.completionTimer=0;this.interaction=null;this.scene=null;this.footDistance=0;this.noiseTime=0;this.noiseLevel=0;this.lampCooldown=0;this.pursuit=null;
   this.echoes=[{x:1220,y:450,kind:'paper',phase:'day'},{x:715,y:1260,kind:'waiting',phase:'night'}];
   this.collisionIndex=new CollisionIndex(this.platforms);if(!this.progress.visitedSectors.includes(data.id))this.progress.visitedSectors.push(data.id);
+  if(restore)restoreAnnex(this);
  }
  finishScene(scene){
   if(scene.purpose==='ending'){this.mode='won';this.progress.finished=true;this.emit('ending',{ending:this.ending});this.emit('save');return;}
@@ -77,8 +82,9 @@ export class Simulation{
   if(this.mode!=='playing')return;
   this.time+=dt;for(const key of ['flash','redFlash','soundFlash','messageTimer','shiftFx','shiftRejected','shiftCooldown','revive','noiseTime','lampCooldown'])this[key]=Math.max(0,this[key]-dt*(key==='redFlash'?3:key==='flash'?4:1));
   this.phaseMix+=(Number(this.night)-this.phaseMix)*Math.min(1,dt*20);
+  if(this.backrooms){stepAnnex(this,input,dt);return;}
   if(this.scene){const scene=this.scene;if(updateScene(this,input,dt))this.finishScene(scene);return;}
-  if(this.completionTimer>0){this.completionTimer-=dt;this.transition=1-this.completionTimer/.65;if(this.completionTimer<=0){this.transition=0;if(this.expanded&&['next','back'].includes(this.door.target)){const back=this.door.target==='back';this.loadSector(this.floor,this.sector+(back?-1:1),false,back);this.emit('sector');this.emit('save');return;}
+  if(this.completionTimer>0){this.completionTimer-=dt;this.transition=1-this.completionTimer/.65;if(this.completionTimer<=0){this.transition=0;if(needsAnnex(this)&&(!this.expanded||this.door.target==='next')){enterAnnex(this);return;}if(this.expanded&&['next','back'].includes(this.door.target)){const back=this.door.target==='back';this.loadSector(this.floor,this.sector+(back?-1:1),false,back);this.emit('sector');this.emit('save');return;}
    if(this.expanded&&this.floor===2){this.ending=this.progress.evidence.length===6&&this.events.includes('record-corrected')&&this.events.includes('emergency-light')?'complete':'normal';beginScene(this,`ending-${this.ending}`,'ending');return;}
    if(this.floor===2){this.mode='won';this.ending=this.progress.evidence.length===6&&this.events.includes('record-corrected')&&this.events.includes('emergency-light')?'complete':'normal';this.progress.finished=true;this.emit('ending',{ending:this.ending});}else{this.mode='between';if(!this.events.includes(`chapter-${this.floor}-complete`))this.events.push(`chapter-${this.floor}-complete`);this.emit('between');}this.emit('save');}return;}
   if(this.door.phase!=='closed'){this.updateLift(dt);return;}
@@ -120,5 +126,5 @@ export class Simulation{
   this.emit('checkpoint',{id:nearest.id});this.emit('save');
  }
  updateLift(dt){const d=this.door;d.progress+=dt;if(d.phase==='opening'&&d.progress>=.4){d.phase='entering';d.progress=0;}else if(d.phase==='entering'){this.player.x+=((this.door.target==='back'?8:this.exitX)+7-this.player.x)*Math.min(1,dt*7);if(d.progress>=.45){d.phase='closing';d.progress=0;this.emit('sound',{name:'door'});}}else if(d.phase==='closing'&&d.progress>=.4){d.phase='done';this.completionTimer=.65;}}
- snapshot(){return {time:this.time,worldRevision:this.expanded?2:1,sector:this.sector,world:{width:this.worldWidth,height:this.worldHeight||270},station:this.station?{...this.station}:null,mechanisms:this.progress.mechanisms?.slice(),scene:this.scene?{...this.scene,text:sceneText(this)}:null,pursuit:this.pursuit?{...this.pursuit}:null,floor:this.floor,phase:this.night?'night':'day',mode:this.mode,player:{...this.player},items:this.items.map(i=>({...i})),ghosts:this.ghosts.map(g=>({id:g.id,kind:g.kind,state:g.state,x:g.xNow,y:g.yNow,phase:g.phase,spawned:g.spawned,facing:g.facing,stateTime:g.stateTime,pathIndex:g.pathIndex,cooldown:g.cooldown,target:g.target?{...g.target}:null,collisionShape:{...g.collisionShape}})),doors:this.doors.map(d=>({...d})),lift:{...this.door},camera:{x:this.camera,y:this.cameraY},checkpoint:this.checkpointId,room:this.room,evidence:this.progress.evidence.slice(),events:this.events.slice(),deaths:this.deaths,shifts:this.shifts,death:this.death?{...this.death}:null,ending:this.ending,log:this.log.slice(-20)};}
+ snapshot(){return {time:this.time,backrooms:annexSnapshot(this),worldRevision:this.expanded?2:1,sector:this.sector,world:{width:this.worldWidth,height:this.worldHeight||270},station:this.station?{...this.station}:null,mechanisms:this.progress.mechanisms?.slice(),scene:this.scene?{...this.scene,text:sceneText(this)}:null,pursuit:this.pursuit?{...this.pursuit}:null,floor:this.floor,phase:this.night?'night':'day',mode:this.mode,player:{...this.player},items:this.items.map(i=>({...i})),ghosts:this.ghosts.map(g=>({id:g.id,kind:g.kind,state:g.state,x:g.xNow,y:g.yNow,phase:g.phase,spawned:g.spawned,facing:g.facing,stateTime:g.stateTime,pathIndex:g.pathIndex,cooldown:g.cooldown,target:g.target?{...g.target}:null,collisionShape:{...g.collisionShape}})),doors:this.doors.map(d=>({...d})),lift:{...this.door},camera:{x:this.camera,y:this.cameraY},checkpoint:this.checkpointId,room:this.room,evidence:this.progress.evidence.slice(),events:this.events.slice(),deaths:this.deaths,shifts:this.shifts,death:this.death?{...this.death}:null,ending:this.ending,log:this.log.slice(-20)};}
 }

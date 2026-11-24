@@ -9,6 +9,8 @@ import { createCreature, isSharedCreatureGeometry, preloadCreatureAsset, schedul
 import { makeOfficeProgramWarmup } from './office-phase-programs.js';
 import { waitForRenderIdle } from './render-idle.js';
 import { JanitorHands } from './janitor-hands.js';
+import { mountBackroomsSet, preloadBackroomsSet } from './backrooms-set.js';
+import { BACKROOMS_TRACK } from './backrooms-track.js';
 import { AirEffects } from './air-effects.js';
 import { mountServiceLift, poseServiceLift } from './service-lift.js';
 import { mountStationTrace } from './station-traces.js';
@@ -439,6 +441,7 @@ export class Visual {
     this.overlayFrame = null;
     this.phasePrograms = null;
     this.decoded = decoded;
+    this.preloadTransfer = level.id === 'office';
     this.theme = ['boiler', 'office', 'roof'].indexOf(level.theme || level.id);
     if (this.theme < 0) this.theme = /roof|garden|antenna/i.test(level.id) ? 2 : /office|archive/i.test(level.id) ? 1 : 0;
     this.palette = [BOILER, OFFICE, ROOF][this.theme];
@@ -475,6 +478,21 @@ export class Visual {
     this.batches = {
       neutral: new Batch(this.groups.neutral), day: new Batch(this.groups.day), night: new Batch(this.groups.night)
     };
+
+    if (level.id === 'backrooms') {
+      this.fogWarm.set('#686344');
+      this.fogCold.set('#384c50');
+      this.air = new AirEffects(this.stage);
+      this.liftLeaves = this.door = this.doorMount = this.doorLight = null;
+      this.backroomsSet = mountBackroomsSet(this, BACKROOMS_TRACK);
+      Object.values(this.batches).forEach(batch => batch.build());
+      this.addCreature('transfer-pursuer', 0);
+      this.workstationsReady = this.surfacesReady = Promise.resolve();
+      this.environmentReady = this.backroomsSet.ready;
+      const stage = this.stage;
+      this.environmentReady.then(() => { if (this.stage === stage) this.overlayFrame = null; });
+      return;
+    }
 
     for (const wall of decoded.walls) this.makeWall(wall);
     for (const floor of decoded.floors) this.makeFloor(floor);
@@ -558,6 +576,8 @@ export class Visual {
   }
 
   clearStage() {
+    this.backroomsSet?.dispose();
+    this.backroomsSet = null;
     const transientGeometries = new Set();
     const materials = new Set();
     const skeletons = new Set();
@@ -1312,8 +1332,8 @@ export class Visual {
   updateLights(state, time, night, exposure) {
     const roof = this.theme === 2;
     const office = this.theme === 1;
-    this.fill.color.set(office ? '#e9decb' : '#dce3ed').lerp(COLD, night * .8);
-    this.fill.intensity = roof ? 1.50 - night * .39 : office ? 1.02 - night * .25 : .94 - night * .22;
+    this.fill.color.set(state.chase ? '#fff1ae' : office ? '#e9decb' : '#dce3ed').lerp(COLD, night * .8);
+    this.fill.intensity = state.chase ? 1.3 - night * .3 : roof ? 1.50 - night * .39 : office ? 1.02 - night * .25 : .94 - night * .22;
     if (office) this.materials.frosted.emissiveIntensity = .13 + night * .16;
     this.scene.environmentIntensity = roof ? .63 - night * .31 : .57 - night * .19;
     this.rim.color.copy(WARM).lerp(COLD, night);
@@ -1397,6 +1417,13 @@ export class Visual {
       this.overlayFrame = { mode: state.mode, quality, reduced };
       dt = 0;
     } else this.overlayFrame = null;
+    // Give the archives' first shift and its own surfaces priority. Once a
+    // station is finished, the transfer set can load during a later idle frame.
+    if (this.preloadTransfer && state.completed?.size > 0) {
+      this.preloadTransfer = false;
+      const stage = this.stage;
+      void waitForRenderIdle().then(() => { if (this.stage === stage) void preloadBackroomsSet(); });
+    }
     const time = state.time || 0;
     const lifeTime = state.lifeTimer ?? state.lifeTime ?? 0;
     const dying = ['dying', 'dead'].includes(state.life);
@@ -1410,7 +1437,7 @@ export class Visual {
     this.groups.night.visible = Boolean(state.night);
     this.scene.background.copy(this.fogWarm).lerp(this.fogCold, night);
     this.scene.fog.color.copy(this.scene.background);
-    this.scene.fog.density = (this.theme === 2 ? .019 : .037) + night * (this.theme === 2 ? .004 : .024);
+    this.scene.fog.density = state.chase ? .032 + night * .012 : (this.theme === 2 ? .019 : .037) + night * (this.theme === 2 ? .004 : .024);
 
     const distance = this.last ? Math.hypot(state.x - this.last.x, state.z - this.last.z) : 0;
     this.last = { x: state.x, z: state.z };
@@ -1467,10 +1494,13 @@ export class Visual {
     const slide = door * door * (3 - 2 * door);
     if (this.liftLeaves) poseServiceLift(this.liftLeaves, door);
     this.air.update(state, this.doorMount, reduced);
-    this.door.position.y = slide * 2.28;
-    this.door.scale.y = 1 - slide * .91;
-    this.door.visible = door < .99;
-    this.doorLight.scale.setScalar(.78 + slide * .12);
+    if (this.door) {
+      this.door.position.y = slide * 2.28;
+      this.door.scale.y = 1 - slide * .91;
+      this.door.visible = door < .99;
+      this.doorLight.scale.setScalar(.78 + slide * .12);
+    }
+    this.backroomsSet?.update(state, dt);
     this.updateProps(state, time);
     if (this.sky) {
       this.sky.position.copy(this.camera.position);

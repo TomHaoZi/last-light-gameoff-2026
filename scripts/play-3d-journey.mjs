@@ -28,7 +28,7 @@ const centre = tile => (tile + .5) * TILE;
 
 // This circuit stays on the regular corridors. It shares the trusted-input
 // browser session with the separate shortcut and recovery checks.
-async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide }, ending, chapter, route) {
+async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide, runTransfer }, ending, chapter, route) {
   const start = await snapshot();
   assert.equal(start.chapter, chapter);
   assert.ok(Math.abs(start.yaw) < .01);
@@ -58,6 +58,10 @@ async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, readHud, 
         if ('ABC'.includes(marker)) assert.ok(state.work.includes(marker), 'Station worked');
         if ('12'.includes(marker)) assert.ok(state.evidence.includes(chapter + '/' + marker), 'Record found');
         if (marker === 'E') {
+          if (chapter === 1) {
+            await whenPlaying(progress => progress.chase && !progress.chase.started, 'archive lift opens onto the transfer floor');
+            proof.transfer = await runTransfer();
+          }
           if (chapter < journeys.length - 1) {
             await whenPlaying(progress => progress.chapter === chapter + 1, 'exit to next chapter');
           } else await whenPlaying(progress => progress.mode === 'won', 'exit to ending');

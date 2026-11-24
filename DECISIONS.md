@@ -1,5 +1,11 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.16 · The Records Annex
+
+The records transfer is part of each edition's existing story route. Its exit distance and the player's maximum forward speed give a clear run at least forty seconds without a countdown or a locked exit. Each physical obstacle, floor opening and phase bridge uses the same dimensions for simulation and rendering. The 2D midpoint lamp retains old save compatibility. First-person steering remains voluntary, with a pursuer that closes lost ground and an entrance checkpoint for retries.
+
+Model original mechanical, office and roof fittings as separate editable Blender assemblies. Bake classic sprites from the same models. Instance the 3D corridor within view distance, switch off both geometry and shadows on inactive bridges, and swing the fire door independently of its jamb. Paper fibres catch the nearest real ceiling light. Route the pursuit score and directional calls through the existing edition-specific sound controls.
+
 ## 3.0.0-rc.15 · Gameplay and save recovery
 
 A 2D checkpoint remains active while its trigger overlaps another lamp. Work and exit cues point to the current task while the player chooses a route. The 3D lift reports the remaining records on its floor before departure. The journal, completed ending and edition switch remain accessible to returning players. Both games preserve unreadable or newer-format saves until a deliberate restart can back up their original bytes.

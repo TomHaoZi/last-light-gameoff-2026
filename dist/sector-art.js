@@ -1,3 +1,4 @@
+import {drawChaseProp} from './chase-props.js';
 import {RAMPS} from './art.js';
 import {phaseActive} from './phase.js';
 import {sceneText} from './cinema.js';
@@ -318,6 +319,12 @@ export function sectorDecor(a, s) {
     a.ambientColors = ambientColors[+s.night];
     const painter = [boilerRoom, officeRoom, roofRoom][s.floor];
     painter(a, s, p, x, y + 45);
+    if (p.kind === 'O') {
+      const [name, width, height, bottom] = [
+        ['steamtrap', 44, 33, 39], ['ticketcase', 36, 43, -4], ['rainhead', 36, 46, 36]
+      ][s.floor];
+      drawChaseProp(c, name, x + 72, y + bottom, width, height, s.night);
+    }
     if (p.kind === 'O') plate(a, x - 140, y - 105, `${s.sector + 1} / ${s.sectorData.spec.en.toUpperCase()}`, accent);
     a.ambientColors = null;
     c.restore();

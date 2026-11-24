@@ -91,15 +91,18 @@ export class JanitorHands {
     // Screen-edge placement scales down on tall/narrow mobile viewports.
     const side = Math.min(1, this.camera.aspect / 1.4);
     const lift = reduced ? .38 : 1;
+    const running = state.chase?.started && state.sprint && state.life === 'alive' && !reduced;
+    const pump = running ? Math.sin(walk * .65) * sway : 0;
+    const swing = running ? Math.cos(walk * .65) * sway : 0;
     const drop = fallen ? smoothstep(state.lifeTimer, .18, .86) * .21 : 0;
     group.position.set(
-      .223*side - reach*.055 - protect*.087 + Math.sin(walk*.53)*sway*.006,
-      -.230 - drop + (breath*.002 + this.air*.022 + shift*.065 + reach*.106 + protect*.127)*lift +
+      .223*side - reach*.055 - protect*.087 - swing*.014 + Math.sin(walk*.53)*sway*.006,
+      -.230 - drop + pump*.016 + (breath*.002 + this.air*.022 + shift*.065 + reach*.106 + protect*.127)*lift +
         Math.sin(walk)*sway*.005,
-      -.423 - reach*.062 + protect*.058 + Math.cos(walk)*sway*.003
+      -.423 - reach*.062 + protect*.058 - swing*.024 + Math.cos(walk)*sway*.003
     );
     group.rotation.set(
-      .38 + (shift*.27 + reach*.20 + protect*.48 - this.air*.09)*lift,
+      .38 + pump*.07 + (shift*.27 + reach*.20 + protect*.48 - this.air*.09)*lift,
       .40 + (reach*.09 + protect*.16)*lift,
       -.04 - this.roll*.15 - (shift*.32 - reach*.22 - protect*.45)*lift
     );

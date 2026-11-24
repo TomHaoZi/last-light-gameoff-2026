@@ -2,6 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Simulation3D, STEP } from "../dist/3d/simulation.js";
 
+import { transferControls } from '../scripts/play-3d-transfer.mjs';
+import { BACKROOMS_TRACK, chaseBlocked, chaseFloor } from '../dist/3d/backrooms-track.js';
+
+function runTransfer(sim) {
+  let jumping = false;
+  for (let i = 0; i < 60 / STEP && !sim.departing; i++) {
+    const input = transferControls(sim);
+    sim.step({...input, jump:input.jump && !jumping, release:jumping && !input.jump});
+    jumping=input.jump;
+    assert.equal(sim.life,'alive',JSON.stringify(sim.chase));
+  }
+  assert.ok(sim.departing && sim.chase.elapsed >= 40 && sim.chase.elapsed < 52);
+}
+
 const directions = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
 
 function start(levels) {
@@ -195,6 +209,11 @@ test("an authored route clears all three chapters and reaches the complete endin
     assert.equal(sim.progress.evidence.length, (chapter + 1) * 2);
     assert.equal(sim.departing, true);
     advance(sim, 1.3);
+    if (chapter === 1) {
+      assert.equal(sim.level.id, 'backrooms');
+      runTransfer(sim);
+      advance(sim, 1.3);
+    }
   }
   assert.equal(sim.mode, "won");
   assert.equal(sim.progress.powered, true);
@@ -203,4 +222,49 @@ test("an authored route clears all three chapters and reaches the complete endin
   const restored = new Simulation3D({ progress: sim.saveData() });
   assert.equal(restored.mode, "won");
   assert.equal(restored.ending, "complete");
+});
+
+test('the archive pursuit preserves work across captures and refresh, then releases the roof', () => {
+  const saved = {schema:1,chapter:1,work:{1:['A','B','C']},evidence:['1/1'],backrooms:true};
+  const sim = new Simulation3D({progress:saved});
+  sim.mode = 'playing';
+  advance(sim,5);
+  assert.equal(sim.chase.started,false);
+  sim.step({forward:1});
+  advance(sim,2);
+  assert.equal(sim.life,'dying');
+  assert.equal(sim.deathCause,'ghost');
+  assert.ok(sim.ghosts[0].z > sim.z);
+  advance(sim,2);
+  assert.equal(sim.life,'alive');
+  assert.equal(sim.chase.started,false);
+  assert.equal(sim.progress.deaths,1);
+  for(let i=0;i<60;i++) sim.step({forward:1});
+  const restored = new Simulation3D({progress:sim.saveData()});
+  assert.equal(restored.chase.started,false);
+  assert.deepEqual([...restored.completed].sort(),['A','B','C']);
+  restored.mode='playing';
+  runTransfer(restored);
+  advance(restored,1.3);
+  assert.equal(restored.level.id,'roof');
+  assert.equal(restored.saveData().backrooms,false);
+  assert.equal(new Simulation3D({progress:{schema:1,chapter:2}}).chase,null);
+});
+
+test('long phase bridges cannot be jumped or walked in the wrong phase', () => {
+  for (const part of BACKROOMS_TRACK.obstacles.filter(p=>p.kind==='bridge')) {
+    const night=part.phase==='night';
+    for (const at of [part.at+.01,part.at+part.length/2,part.at+part.length-.01]) {
+      assert.equal(chaseFloor(at,night),true);
+      assert.equal(chaseFloor(at,!night),false);
+    }
+    assert.ok(part.length>5);
+  }
+  assert.ok(BACKROOMS_TRACK.length/BACKROOMS_TRACK.speed > 40);
+});
+
+test('the far wall stops runners beside the physical exit frame', () => {
+  const { centerX, endZ } = BACKROOMS_TRACK;
+  for (const side of [-1, 1]) assert.equal(chaseBlocked(centerX + side * 2, endZ - .01, 0, .23), true);
+  assert.equal(chaseBlocked(centerX, endZ - .01, 0, .23), false);
 });

@@ -476,3 +476,8 @@
 .cast-credits { margin: 1rem 0; font-size: .83rem; color: var(--muted); }
 .cast-credits summary { color: var(--ink); cursor: pointer; }
 .cast-credits p { margin: .5rem 0; }
+
+/* Keep the runway and its approaching edges clear of navigation prompts. */
+@media (pointer: fine) {
+  .pursuit .interaction { top: auto; bottom: max(78px, 12vh); }
+}
