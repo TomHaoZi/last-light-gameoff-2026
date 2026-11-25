@@ -1,5 +1,11 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.17 · Chase pacing and interiors
+
+Raise chase speeds in both editions and extend the route to retain roughly 45 seconds of uninterrupted running. Classic uses linked runs of jumps, steps and drops, while the first-person route alternates rack openings and follows them with paired jumps. Keep the old checkpoint identifiers and the phase switch as the single source of collision and platform visibility.
+
+Build the utility gallery, microfilm stores and fire stair as different interiors. Modeled pit walls and markings belong to the stable edges. The renderer and collision share each obstacle's position. Fit a unique warning and a faster late arrangement into the existing chase mixer and duck the score briefly around the pursuer.
+
 ## 3.0.0-rc.16 · The Records Annex
 
 The records transfer is part of each edition's existing story route. Its exit distance and the player's maximum forward speed give a clear run at least forty seconds without a countdown or a locked exit. Each physical obstacle, floor opening and phase bridge uses the same dimensions for simulation and rendering. The 2D midpoint lamp retains old save compatibility. First-person steering remains voluntary, with a pursuer that closes lost ground and an entrance checkpoint for retries.

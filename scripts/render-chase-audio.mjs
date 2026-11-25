@@ -6,12 +6,13 @@ import path from 'node:path';
 import { OfflineAudioContext } from 'node-web-audio-api';
 import { Sound } from '../dist/audio.js';
 import { HorrorAudio } from '../dist/3d/audio.js';
-import { CHASE_DOOR, CHASE_START, CHASE_OBSTACLES } from '../dist/backrooms.js';
+import { CHASE_DOOR, CHASE_START, CHASE_SPEED, CHASE_OBSTACLES } from '../dist/backrooms.js';
 import { BACKROOMS_TRACK as TRACK } from '../dist/3d/backrooms-track.js';
 
 const target = process.argv[2];
 if (!target) throw new Error('Pass a directory for the review WAV files');
 await mkdir(target, { recursive: true });
+const maxVolume = process.argv.includes('--max-volume');
 const rate = 48000, duration = 48, leadIn = .55;
 
 function writeStereo(buffer) {
@@ -21,21 +22,22 @@ function writeStereo(buffer) {
   pcm.writeUInt32LE(16, 16); pcm.writeUInt16LE(1, 20); pcm.writeUInt16LE(2, 22);
   pcm.writeUInt32LE(rate, 24); pcm.writeUInt32LE(rate * 4, 28); pcm.writeUInt16LE(4, 32);
   pcm.writeUInt16LE(16, 34); pcm.write('data', 36); pcm.writeUInt32LE(pcm.length - 44, 40);
-  let peak = 0, squares = 0, difference = 0, clips = 0;
+  let peak = 0, peakTime = 0, squares = 0, difference = 0, clips = 0;
   const periods = Array(6).fill(0);
   for (let i = 0; i < buffer.length; ++i) {
     difference += Math.abs(channels[0][i] - channels[1][i]);
     for (let ch = 0; ch < 2; ++ch) {
       const v = channels[ch][i];
       if (!Number.isFinite(v)) throw new Error('Invalid PCM at frame ' + i);
-      peak = Math.max(peak, Math.abs(v)); squares += v * v;
+      if (Math.abs(v) > peak) { peak = Math.abs(v); peakTime = i / rate; }
+      squares += v * v;
       periods[Math.floor(i / (8 * rate))] += v * v;
       if (Math.abs(v) >= 1) clips++;
       pcm.writeInt16LE(Math.round(Math.max(-1, Math.min(1, v)) * 32767), 44 + (i * 2 + ch) * 2);
     }
   }
   const db = ratio => +(10 * Math.log10(ratio)).toFixed(2);
-  return { pcm, metrics: { duration, rate, peakDb: db(peak * peak), rmsDb: db(squares / (2 * buffer.length)),
+  return { pcm, metrics: { duration, rate, peakTime: +peakTime.toFixed(3), peakDb: db(peak * peak), rmsDb: db(squares / (2 * buffer.length)),
     clips, stereoDifference: +(difference / buffer.length).toFixed(5),
     eightSecondRmsDb: periods.map(sum => db(sum / (16 * rate))) } };
 }
@@ -66,8 +68,12 @@ for (const edition of ['classic', 'spatial']) {
     await engine.start(); clearInterval(engine.timer);
     engine.setFloor(1); engine.menu = false;
   }
+  if (maxVolume) {
+    if (spatial) engine.setVolume(1);
+    else engine.setVolumes({ master: 1, music: 1, sfx: 1 });
+  }
   const length = spatial ? TRACK.length : CHASE_DOOR - CHASE_START;
-  const runTime = spatial ? 45.01 : length / 112;
+  const runTime = spatial ? 45.01 : length / CHASE_SPEED;
   const obstacles = spatial ? TRACK.obstacles : CHASE_OBSTACLES;
   const position = o => spatial ? o.at : o.x - CHASE_START;
   const counts = { calls: 0, warnings: 0, maxConcurrentSources: 0 };
@@ -86,13 +92,17 @@ for (const edition of ['classic', 'spatial']) {
     const ahead = obstacles.find(o => position(o) >= distance);
     const lead = 10.5 - 3 * Math.sin(Math.max(0, progress) * 3.1);
     const z = TRACK.startZ - distance, x = TRACK.centerX + Math.sin(elapsed * .55);
-    const obstacle = ahead && (position(ahead) - distance)/length*runTime < 1 ? ahead.id : null;
-    const chase = elapsed >= 0 && progress < 1 ? { elapsed, progress, obstacle, danger: (12-lead)/11, threat: { x: x-.7, z: z+lead } } : null;
+    const obstacle = ahead && (position(ahead) - distance) / length * runTime < 1 ? ahead : null;
+    const chase = elapsed >= 0 && progress < 1 ? {
+      elapsed, progress, obstacle: obstacle?.id,
+      obstacleType: spatial ? obstacle?.kind : obstacle?.obstacleType,
+      danger: (12 - lead) / 11, threat: { x: x - .7, z: z + lead }
+    } : null;
     if (spatial) engine.update({ x, z, yaw: Math.sin(elapsed * .39) * .27, level: 1, night, chase });
     else { engine.setChase(chase); engine.schedule(); }
     if (score.live) counts.maxConcurrentSources = Math.max(counts.maxConcurrentSources, score.live.sources.size);
     if (chase && obstacle && obstacle !== lastObstacle) { counts.warnings++; lastObstacle = obstacle; }
-    const step = Math.floor(elapsed / .32);
+    const step = Math.floor(elapsed / (spatial ? 1.12 / TRACK.speed : 17 / CHASE_SPEED));
     if (chase && step !== lastStep) { effect('step'); lastStep = step; }
     if (chase && ahead && !fired.has(ahead.id) && (position(ahead) - distance)/length*runTime < .26) {
       if (ahead.phase) {
@@ -107,11 +117,11 @@ for (const edition of ['classic', 'spatial']) {
   }));
   const [rendered] = await Promise.all([context.startRendering(), ...updates]);
   const { pcm, metrics } = writeStereo(rendered);
-  assert.equal(metrics.clips, 0);
+  assert.equal(metrics.clips, 0, edition + " overload: " + JSON.stringify(metrics));
   assert.ok(metrics.peakDb > -20 && metrics.peakDb < -.1);
   assert.ok(metrics.stereoDifference > .00015);
   assert.equal(counts.warnings, obstacles.length);
-  assert.ok(counts.calls >= 8 && counts.calls <= 13);
+  assert.ok(counts.calls >= 10 && counts.calls <= 15);
   assert.ok(counts.maxConcurrentSources < 72, 'Audio voices must remain bounded throughout the chase');
   assert.equal(score.live, null);
   await writeFile(path.join(target, edition + '.wav'), pcm);

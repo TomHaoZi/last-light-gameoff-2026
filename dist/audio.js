@@ -1,4 +1,4 @@
-import { ChaseScore } from './3d/chase-score.js';
+import { ChaseScore, softPeakCeiling } from './3d/chase-score.js';
 
 // All sound is synthesized locally. No samples, external media, or recorded voices.
 export const SFX_GAIN = Object.freeze({
@@ -17,8 +17,10 @@ export class Sound {
     this.ctx=new C();const c=this.ctx;
     this.master=c.createGain();this.master.gain.value=.72;
     const compressor=c.createDynamicsCompressor();compressor.threshold.value=-20;compressor.knee.value=12;compressor.ratio.value=3;compressor.attack.value=.005;compressor.release.value=.18;
-    const limiter=c.createDynamicsCompressor();limiter.threshold.value=-3;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=.001;limiter.release.value=.06;
-    this.master.connect(compressor).connect(limiter).connect(c.destination);
+    const limiter=c.createDynamicsCompressor();limiter.threshold.value=-5;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=.001;limiter.release.value=.06;
+    const output = c.createGain();
+    output.gain.value = .80; // Retain the same attack and makeup headroom as the first-person mixer.
+    this.master.connect(compressor).connect(limiter).connect(output).connect(softPeakCeiling(c)).connect(c.destination);
     this.sfxVolume=c.createGain();this.sfxVolume.connect(this.master);this.sfx=c.createGain();this.sfx.connect(this.sfxVolume);
     this.musicVolume=c.createGain();this.storyVolume=c.createGain();this.musicVolume.connect(this.storyVolume).connect(this.master);this.music=c.createGain();this.roomMusicGate=c.createGain();this.music.connect(this.roomMusicGate).connect(this.musicVolume);this.day=c.createGain();this.nite=c.createGain();this.day.connect(this.music);this.nite.connect(this.music);
     this.ambDay=c.createGain();this.ambNight=c.createGain();this.ambDay.connect(this.master);this.ambNight.connect(this.master);

@@ -2,7 +2,7 @@ import { TILE } from './levels.js';
 
 // Both the renderer and collision simulation use these edges, measured from
 // the lift threshold towards the fire door. Forward travel decreases world Z.
-const spawnRow = 115;
+const spawnRow = 142;
 const exitRow = 3;
 const centerX = 2.5 * TILE;
 const width = 7.2;
@@ -12,28 +12,40 @@ const endZ = (exitRow + .5) * TILE;
 const fullWidth = { left: -halfWidth, right: halfWidth };
 const hurdle = (at, height = .47) => ({ kind: 'hurdle', at, length: .39, ...fullWidth, height });
 const gap = (at, length = 1.85) => ({ kind: 'gap', at, length, ...fullWidth, height: 0 });
-const bridge = (at, phase) => ({ kind: 'bridge', at, length: 6.4, ...fullWidth, height: 0, phase });
-const rack = (at, opening) => ({
-  kind: 'rack', at, length: 1.7, opening, height: 2.05,
-  left: opening === 'left' ? -1.05 : -halfWidth,
-  right: opening === 'right' ? 1.05 : halfWidth
+const bridge = (at, phase, length) => ({ kind: 'bridge', at, length, ...fullWidth, height: 0, phase });
+const rack = (at, opening, openingWidth = 2.45, length = 1.7) => ({
+  kind: 'rack', at, length, opening, height: 2.05,
+  left: opening === 'left' ? openingWidth - halfWidth : -halfWidth,
+  right: opening === 'right' ? halfWidth - openingWidth : halfWidth
 });
 
+export function rackLane(part) {
+  return centerX + (part.opening === 'left' ? (part.left - halfWidth) / 2 : (part.right + halfWidth) / 2);
+}
+
 export const BACKROOMS_TRACK = Object.freeze({
-  centerX, width, startZ, endZ, length: startZ - endZ, speed: 6.1,
+  centerX, width, startZ, endZ, length: startZ - endZ, speed: 7.7,
   obstacles: [
-    hurdle(13, .42), rack(28, 'left'), gap(44), bridge(54, 'night'),
-    rack(72, 'right'), hurdle(86), gap(99, 1.95), bridge(113, 'day'),
-    hurdle(131, .5), rack(145, 'left'), gap(158), hurdle(168, .44),
-    bridge(181, 'night'), rack(198, 'right'), hurdle(212, .5),
-    gap(223, 2), bridge(235, 'day'), hurdle(251, .48)
+    // Intake. Introduce two consecutive jumps and then the first offset aisles.
+    hurdle(13, .38), gap(22, 1.95), bridge(33, 'night', 6.4),
+    rack(48, 'left', 2.65), rack(57.8, 'right', 2.55, 2.16),
+    // Copy room. A low hurdle and the break beyond it lead into the next phase span.
+    hurdle(69, .43), gap(77, 2.3), bridge(88, 'day', 5.5), rack(105, 'left'),
+    gap(116, 2.2), hurdle(125, .49), bridge(137, 'night', 6.0),
+    // Microfilm. Steer through opposite tracks before the double jump.
+    rack(153, 'right', 2.35, 2.22), rack(164, 'left', 2.45),
+    hurdle(176, .40), gap(184, 2.45), bridge(196, 'day', 7.25),
+    rack(210, 'right', 2.6), hurdle(222, .51), gap(230, 2.5), bridge(243, 'night', 6.5),
+    // Dispatch. Cross the records aisles, jump twice and switch once more before the exit.
+    rack(258, 'left', 2.35), rack(269, 'right', 2.45, 2.05), hurdle(279, .46), gap(287, 2.45),
+    bridge(298, 'day', 7.5), rack(310, 'left', 2.5), hurdle(319, .42)
   ].map((part, index) => Object.freeze({ ...part, id: 'transfer-' + (index + 1) }))
 });
 
-const rows = Array.from({ length: 123 }, (_, row) => row === 0 || row === 122 ? '#####' : '#...#');
+const rows = Array.from({ length: spawnRow + 8 }, (_, row) => row === 0 || row === spawnRow + 7 ? '#####' : '#...#');
 rows[spawnRow] = '#.S.#';
 rows[exitRow] = '#.E.#';
-rows[119] = '#.J.#';
+rows[spawnRow + 4] = '#.J.#';
 
 export const BACKROOMS_LEVEL = {
   id: 'backrooms', theme: 'office', title: 'THE TRANSFER FLOOR', zh: '后室 · 中转层',
@@ -88,7 +100,8 @@ export function advancePursuit(sim, dt) {
 
   const ghost = sim.ghosts[0];
   // A clean runner can regain ground; the pursuer stays within earshot.
-  const speed = Math.min(6.95, 5.62 + Math.max(0, ghost.z - sim.z - 7.1) * .31);
+  const runSpeed = BACKROOMS_TRACK.speed;
+  const speed = Math.min(runSpeed + .61, runSpeed - .48 + Math.max(0, ghost.z - sim.z - 7.1) * .35);
   ghost.z = Math.max(sim.z + .13, ghost.z - speed * dt);
   const lead = ghost.z - sim.z;
   const ghostDistance = runDistance(ghost.z);
@@ -97,8 +110,8 @@ export function advancePursuit(sim, dt) {
   // When viewed over the shoulder it takes the shelving opening and vaults gaps.
   let targetX = sim.x;
   ghost.y = 0;
-  if (ahead?.kind === 'rack' && ghostDistance > ahead.at - 6 && lead >= 1.2) {
-    targetX = centerX + (ahead.opening === 'left' ? -2.1 : 2.1);
+  if (ahead?.kind === 'rack' && ghostDistance > ahead.at - 9 && lead >= 1.2) {
+    targetX = rackLane(ahead);
   } else if (ahead?.kind === 'gap' || ahead?.kind === 'hurdle') {
     const arc = (ghostDistance - ahead.at + 1.1) / (ahead.length + 2.4);
     if (arc > 0 && arc < 1) ghost.y = Math.sin(Math.PI * arc) * .86;

@@ -447,7 +447,9 @@ function soundState() {
   return {
     x: state.x, z: state.z, yaw: state.yaw, night: state.night,
     chase: active ? { progress: Math.min(1, run.distance / BACKROOMS_TRACK.length), elapsed: run.elapsed,
-      danger: run.danger, threat: state.ghosts[0], obstacle: part && part.at >= run.distance && part.at - run.distance <= 6.1 ? part.id : null } : null,
+      danger: run.danger, threat: state.ghosts[0],
+      obstacle: part && part.at >= run.distance && part.at - run.distance <= BACKROOMS_TRACK.speed ? part.id : null,
+      obstacleType: part?.kind ?? null } : null,
     level: state.levelIndex, tension: state.tension, ghosts: state.ghosts,
     paused: state.mode === 'paused' || state.mode === 'menu' || document.hidden || Boolean(error)
   };

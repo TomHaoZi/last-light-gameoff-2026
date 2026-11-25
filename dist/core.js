@@ -24,7 +24,7 @@ export function stepPlayer(p,input,platforms,night,dt,options={}){
  const support=platforms.find(q=>q.id&&q.id===p.supportId&&active(q,night));
  if(p.grounded&&support){p.x+=support.dx||0;p.y+=support.dy||0;}
  p.land=Math.max(0,p.land-dt);p.buffer=Math.max(0,p.buffer-dt);p.coyote=p.grounded?.1:Math.max(0,p.coyote-dt);p.invulnerable=Math.max(0,(p.invulnerable||0)-dt);if(input.jump)p.buffer=.13;
- const target=(Number(!!input.right)-Number(!!input.left))*SPEED*(input.walk?.48:1);p.prevVx+=(p.vx-p.prevVx)*Math.min(1,dt*10);p.vx+=(target-p.vx)*Math.min(1,dt*(p.grounded?20:12));if(Math.abs(p.vx)>5)p.dir=p.vx>0?1:-1;
+ const target=(Number(!!input.right)-Number(!!input.left))*(options.speed??SPEED)*(input.walk?.48:1);p.prevVx+=(p.vx-p.prevVx)*Math.min(1,dt*10);p.vx+=(target-p.vx)*Math.min(1,dt*(p.grounded?20:12));if(Math.abs(p.vx)>5)p.dir=p.vx>0?1:-1;
  if(p.buffer>0&&p.coyote>0){p.vy=JUMP;p.buffer=0;p.coyote=0;p.grounded=false;p.supportId=null;out.jump=true;p.fallStart=p.y;}
  if(input.release&&p.vy<-85)p.vy=-85;
  const solids=[...platforms.filter(q=>q.solid),...(options.solids||[])].filter(q=>active(q,night));

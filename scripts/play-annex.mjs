@@ -19,7 +19,7 @@ export async function playAnnex({snapshot,key,tap,stop,sleep}, {capture, failFir
     if(!captured||state.deaths!==initialDeaths+1||state.player.hp!==3)throw Error('Chase capture/lamplight retry failed');
   }
   const atStart=await snapshot(), initialDeaths=atStart.deaths, start=atStart.player.x;
-  let airborne=false, jumped=null, flipped=null, maxElapsed=0, firstTick=null, lastX=start;
+  let jumped=null, flipped=null, maxElapsed=0, firstTick=null, lastX=start;
   const jumps=[],switches=[];
   const wallStart=Date.now();
   await key('ArrowRight',true);
@@ -36,16 +36,14 @@ export async function playAnnex({snapshot,key,tap,stop,sleep}, {capture, failFir
       if(firstTick===null&&state.backrooms.active)firstTick=state.time-state.backrooms.elapsed;
       maxElapsed=state.backrooms.elapsed;lastX=state.player.x;
       const o=state.backrooms.nextObstacle,p=state.player;
-      if(o && o.id!==jumped && p.grounded && o.x-p.x<=(o.h?37:24) && o.x-p.x>-3){
-        await key('Space',true);jumped=o.id;jumps.push(o.id);airborne=false;
+      // Release after the apex, so a landing immediately followed by another
+      // launch still sends a distinct key edge through Chrome.
+      if(!p.grounded&&p.vy>=0)await key('Space',false);
+      if(o && o.id!==jumped && p.grounded && o.x-p.x<=o.launch && o.x-p.x>-3){
+        await key('Space',true);jumped=o.id;jumps.push(o.id);
       }
-      if(!p.grounded){
-        airborne=true;
-        if(o?.phase&&jumped===o.id&&flipped!==o.id&&state.phase!==o.phase&&p.y<166){
-          await tap('KeyX');flipped=o.id;switches.push(o.id);
-        }
-      }else if(airborne){
-        await key('Space',false);airborne=false;
+      if(!p.grounded&&o?.phase&&jumped===o.id&&flipped!==o.id&&state.phase!==o.phase&&p.y+38<o.y){
+        await tap('KeyX');flipped=o.id;switches.push(o.id);
       }
       if(capture)await capture(state);
       await sleep(15);

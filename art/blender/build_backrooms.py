@@ -104,7 +104,7 @@ def surface(name, kind):
         scale = [1, 0.93, 0.8]
         height = 0.5 + 0.16 * rib + 0.07 * cross
         rough = 0.83 + rib * 0.09
-    else:
+    elif kind == 2:
         pits = rng.random((N, N))
         pores = np.minimum(pits, np.roll(pits, 1, axis=1)) < 0.011
         value = 3 * np.sin(2 * tau * (u + v)) + rng.normal(0, 4, (N, N)) - pores * 58
@@ -112,6 +112,19 @@ def surface(name, kind):
         scale = [1, 0.96, 0.86]
         height = 0.58 - pores * 0.28
         rough = 0.92 - np.zeros_like(x)
+    else:
+        spotting = (
+            6 * np.sin(tau * (u + 2 * v))
+            + 3 * np.cos(tau * (3 * u - v))
+            + 4 * np.cos(7 * tau * u) * np.sin(4 * tau * v)
+        )
+        grains = rng.normal(0, 4.8, (N, N))
+        runs = 4 * np.cos(6 * tau * u) + 1.3 * np.cos(17 * tau * u)
+        value = spotting + grains + runs
+        base = [113, 120, 112]
+        scale = [0.84, 1, 0.93]
+        height = 0.53 + 0.023 * grains + 0.012 * runs
+        rough = np.clip(0.81 + grains * 0.006 + runs * 0.02, 0.66, 0.92)
     rgb = np.clip(np.array(base)[None, None, :] + value[:, :, None] * scale, 0, 255)
 
     def packed(label, array, noncolor=False):
@@ -584,18 +597,18 @@ plate("Dispatch name", "OUTGOING", (0, -0.125, 1.055), 0.54, 0.112, ivory, ink, 
 model("rainhead")
 # The hopper hangs from a roof-plant curb. A scupper empties the shallow
 # coping above its basket so that both the brackets and drain have a source.
-box("Plant curb", (0, .48, .98), (1.73, .48, 1.96), wood, .014)
-box("Galvanized coping", (0, .46, 1.975), (1.81, .59, .067), steel, .009)
-box("Raised plinth", (0, .48, .08), (1.80, .56, .16), ink)
-for x in (-.81, -.41, 0, .41, .81):
-    box("Standing seam", (x, .233, 1.05), (.031, .035, 1.76), brass, .004)
-for x in (-.61, .61):
-    for z in (.31, 1.41):
-        box("Mounting tab", (x, .215, z), (.24, .083, .069), steel)
-box("Scupper sole", (0, .055, 1.77), (.39, .42, .029), steel)
-for x in (-.187, .187):
-    box("Folded scupper lip", (x, .055, 1.819), (.023, .42, .111), steel)
-box("Scupper mouth", (0, .217, 1.838), (.34, .018, .113), ink)
+box("Plant curb", (0, 0.48, 0.98), (1.73, 0.48, 1.96), wood, 0.014)
+box("Galvanized coping", (0, 0.46, 1.975), (1.81, 0.59, 0.067), steel, 0.009)
+box("Raised plinth", (0, 0.48, 0.08), (1.80, 0.56, 0.16), ink)
+for x in (-0.81, -0.41, 0, 0.41, 0.81):
+    box("Standing seam", (x, 0.233, 1.05), (0.031, 0.035, 1.76), brass, 0.004)
+for x in (-0.61, 0.61):
+    for z in (0.31, 1.41):
+        box("Mounting tab", (x, 0.215, z), (0.24, 0.083, 0.069), steel)
+box("Scupper sole", (0, 0.055, 1.77), (0.39, 0.42, 0.029), steel)
+for x in (-0.187, 0.187):
+    box("Folded scupper lip", (x, 0.055, 1.819), (0.023, 0.42, 0.111), steel)
+box("Scupper mouth", (0, 0.217, 1.838), (0.34, 0.018, 0.113), ink)
 for x in (-0.54, 0.54):
     box("Riveted mounting strap", (x, 0.18, 0.88), (0.072, 0.073, 1.45), ink)
     for z in (0.31, 1.41):
@@ -645,11 +658,117 @@ plate(
     "Inspection tag", "R  /  03", (-0.28, -0.265, 1.47), 0.24, 0.08, ivory, ink, 0.042
 )
 
+# Full-height modular architecture for the return-air and stair galleries.
+cement = surface("Cast concrete with shutter marks", 3)
+ceramic = mat("Glazed blue-green service tile", "546c6b", 0.36, 0.05)
+ceramic_light = mat("Glazed pale service tile", "768783", 0.36, 0.05)
+iron_red = mat("Red oxide fireproofing", "6d3d31", 0.58, 0.18)
+amber = mat("Amber bulkhead lens", "ffc387", 0.31, 0, 1.45)
+
+model("tiledwall")
+box("Behind the ceramic", (0, 0.05, 1.65), (4.8, 0.10, 3.3), cement, 0.003)
+for row in range(4):
+    for col in range(12):
+        material = ceramic_light if (col * 7 + row * 3) % 11 in (0, 6, 9) else ceramic
+        box(
+            "Bullnose block",
+            (-2.2 + 0.4 * col, -0.009, 0.27 + 0.37 * row),
+            (0.39, 0.035, 0.36),
+            material,
+            0.006,
+        )
+for height in (0.075, 1.59, 3.22):
+    box("Oxide-painted wall rail", (0, -0.035, height), (4.8, 0.07, 0.11), iron_red)
+for x in (-1.6, 1.6):
+    box("Concrete expansion seam", (x, -0.006, 2.42), (0.021, 0.016, 1.46), ink, 0.001)
+
+model("concretewall")
+box("Shuttered fire stair core", (0, 0.066, 1.65), (4.8, 0.13, 3.30), cement, 0.006)
+for x in (-2.36, 0, 2.36):
+    box("Vertical pour break", (x, -0.01, 1.65), (0.048, 0.045, 3.30), ink)
+for x in (-1.78, -0.58, 0.58, 1.78):
+    for z in (0.59, 1.64, 2.66):
+        tube("Recessed formwork tie", (x, 0.005, z), (x, -0.009, z), 0.032, ink, 10)
+box("Rubbed kick plate", (0, -0.031, 0.19), (4.8, 0.059, 0.38), ink)
+box("Muted red painted datum", (0, -0.008, 1.46), (4.8, 0.014, 0.097), iron_red)
+
+model("cementfloor")
+box("Trowelled concrete slab", (0, 0, -0.043), (2.4, 2.4, 0.086), cement, 0.003)
+
+model("transferbeam")
+for y in (-0.25, 0.25):
+    box(
+        "Rolled top and bottom plates",
+        (0, y, 0.23),
+        (7.75, 0.075, 0.10),
+        iron_red,
+        0.009,
+    )
+box("Wide flange web", (0, 0, 0.23), (7.75, 0.47, 0.09), iron_red, 0.009)
+for x in (-3.42, -2.7, -1.35, 0, 1.35, 2.7, 3.42):
+    box("Field welded rib", (x, 0, 0.23), (0.063, 0.53, 0.47), ink)
+    for y in (-0.18, 0.18):
+        bolt("Flush bolt", x - 0.083, y, 0.23, 0.024)
+
+model("ventilator")
+box("Fan housing", (0, 0.10, 0), (1.86, 0.26, 1.80), ink, 0.056)
+tube("Pressed fan duct", (0, -0.044, 0), (0, 0.002, 0), 0.814, steel, 40)
+tube("Duct throat", (0, -0.052, 0), (0, -0.03, 0), 0.742, black, 40)
+tube("Motor hub", (0, -0.13, 0), (0, -0.06, 0), 0.16, steel, 20)
+for i in range(7):
+    a = i * math.tau / 7
+
+    def radial(r, theta, depth):
+        return (r * math.cos(theta), depth, r * math.sin(theta))
+
+    blade = [
+        radial(r, a + offset, -0.082)
+        for r, offset in [(0.132, -0.25), (0.68, 0.19), (0.71, 0.43), (0.188, 0.69)]
+    ]
+    mesh("Curved blade", blade, [(0, 1, 2, 3), (3, 2, 1, 0)], iron_red)
+for x in np.linspace(-0.67, 0.67, 12):
+    z = math.sqrt(0.72**2 - x**2)
+    tube("Finger guard", (x, -0.16, -z), (x, -0.16, z), 0.014, steel, 8)
+for x in (-0.822, 0.822):
+    for z in (-0.795, 0.795):
+        bolt("Housing bolt", x, -0.045, z, 0.04)
+
+model("bulkheadlamp")
+box("Porcelain backplate", (0, 0.03, 0), (0.59, 0.16, 0.48), ink, 0.045)
+box("Reeded amber lens", (0, -0.071, 0), (0.49, 0.12, 0.36), amber, 0.038)
+for x in np.linspace(-0.21, 0.21, 6):
+    box("Roll cage", (x, -0.141, 0), (0.029, 0.027, 0.39), iron_red)
+for z in (-0.186, 0.186):
+    box("Roll cage rim", (0, -0.136, z), (0.54, 0.043, 0.036), iron_red)
+
+model("dangerlip")
+box("Painted rescue edge", (0, 0, -0.009), (2.4, 0.156, 0.018), edge, 0.001)
+for x in np.linspace(-1.08, 1.08, 11):
+    mesh(
+        "Diagonal black edge paint",
+        [
+            (x - 0.041, -0.076, 0.0005),
+            (x + 0.017, -0.076, 0.0005),
+            (x + 0.082, 0.076, 0.0005),
+            (x + 0.024, 0.076, 0.0005),
+        ],
+        [(0, 1, 2, 3)],
+        ink,
+    )
+
+
 # Export welded draw meshes while retaining the separately editable source parts.
 bpy.context.view_layer.update()
 dg = bpy.context.evaluated_depsgraph_get()
 exports = []
 export_parts = {name: list(group.objects) for name, group in models.items()}
+fan_parts = export_parts["ventilator"]
+export_parts["ventrotor"] = [
+    part for part in fan_parts if part.name.startswith(("Motor hub", "Curved blade"))
+]
+export_parts["ventilator"] = [
+    part for part in fan_parts if part not in export_parts["ventrotor"]
+]
 door_parts = export_parts["door"]
 export_parts["doorframe"] = [
     part for part in door_parts if part.name.startswith(("Rolled steel jamb", "Lintel"))

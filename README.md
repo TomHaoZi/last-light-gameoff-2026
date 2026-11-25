@@ -1,9 +1,9 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.16
+## 2D and 3D browser release · 3.0.0-rc.17
 
-[后室追逐实测 / Records Annex playtest](docs/backrooms-rc16.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
+[后室追逐实测 / Records Annex playtest](docs/backrooms-rc17.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -28,6 +28,8 @@ python3 scripts/package-3d.py
 ### The Records Annex
 
 A transfer slip sends the janitor into a stretch of lit corridors between the archives and the next safe room. A worker follows through both phases. In **2D**, hold Right or D, jump the carts and gaps with Space, and switch in the air with X. The emergency lamp halfway through records your progress. Players with a finished save can enter the annex from Chapters. In **3D**, hold W facing the fire door, steer around tall shelving with A/D, jump the barriers with Space and use X when a phase bridge is missing. The transfer floor gives forward movement full running speed. The cry behind you changes direction as you turn your head.
+
+The expanded route runs through several distinct interiors. In 2D, the boiler annex and mail-handling rooms add changes in floor height, transfer carts, unlit bridges and tighter jump sequences. In 3D, the tiled return-air room and high microfilm stacks lead to an amber-lit concrete stairwell. Alternating passages through the shelving, deeper shafts and six phase bridges keep the runner moving. The new score gains pace through the run, while the worker's steps and cries track the distance behind you.
 
 The steam trap downstairs, outgoing slip case in the offices, roof drainage hopper and modular annex are original [Blender assemblies](art/blender/backrooms-annex.blend). The 3D game loads their meshes. The pixel edition uses orthographic Cycles renders of the same props. [Desktop gameplay captures](media/backrooms-rc16.jpg).
 

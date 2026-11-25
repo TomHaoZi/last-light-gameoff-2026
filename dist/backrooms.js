@@ -1,40 +1,73 @@
-import {createPlayer, stepPlayer, SPEED} from './core.js';
+import {createPlayer, stepPlayer} from './core.js';
 import {commitShift} from './phase.js';
 import {updateLife} from './player-state.js';
 
-// The distance is physical. At the normal top speed (112 px/s), the full run
-// takes over 44 seconds even when every obstacle is cleared at speed.
+// Movement uses the normal fixed-step physics. The new track still takes
+// about forty-five seconds to clear even at the faster chase pace.
 export const CARPET_Y = 204;
+export const CHASE_SPEED = 140;
 export const CHASE_START = 55;
-export const CHASE_DOOR = 5040;
-export const CHASE_LAMP = 2520;
+export const CHASE_DOOR = 6355;
+export const CHASE_LAMP = 3205;
 const ENTERED = 'backrooms-entered', LAMP = 'backrooms-relit', ESCAPED = 'backrooms-escaped';
 const REPLAY = 'backrooms-replay';
 const entryLamp = 'annex/service-entry', halfwayLamp = 'annex/emergency-circuit';
-const layout = [
-  [292,'barrier',24,17], [540,'hole',48], [782,'cart',32,27],
-  [1020,'night',139], [1230,'hole',54], [1418,'barrier',30,19],
-  [1644,'day',144], [1870,'cart',38,26], [2024,'hole',53],
-  [2258,'barrier',34,20], [2460,'hole',45],
-  [2702,'cart',30,28], [2908,'night',140], [3110,'hole',56],
-  [3322,'barrier',32,19], [3484,'cart',32,27], [3708,'day',143],
-  [3922,'hole',60], [4080,'barrier',26,20], [4276,'night',132],
-  [4484,'cart',36,25], [4642,'hole',56], [4828,'barrier',30,19]
+
+export const ANNEX_WINGS = [
+  { start: 0, en: 'INTAKE OFFICES', zh: '档案收件处', name: 'intake' },
+  { start: 1540, en: 'PUMP GALLERY', zh: '泵房长廊', name: 'pump' },
+  { start: 2480, en: 'HIGH STACKS', zh: '高架档案库', name: 'stacks' },
+  { start: 4300, en: 'MAIL SORTING', zh: '邮件分拣区', name: 'mail' },
+  { start: 5540, en: 'FIRE STAIR', zh: '消防楼梯间', name: 'stair' }
 ];
-export const CHASE_OBSTACLES = layout.map(([x,kind,w,h=0],index)=>({
-  id:'annex-'+(index+1), x, kind, w, h,
-  phase:kind==='day'||kind==='night'?kind:null
-}));
+
+export const annexWingAt = x => ANNEX_WINGS.findLast(wing => wing.start <= x) ?? ANNEX_WINGS[0];
+
+// x, obstacle, width, object height, change in landing elevation
+const layout = [
+  [228, 'barrier', 29, 17], [355, 'cart', 36, 24], [492, 'hole', 52],
+  [650, 'rise', 60, 0, -22], [819, 'night', 141], [1034, 'rack', 41, 29],
+  [1162, 'hole', 58], [1317, 'day', 144],
+  [1552, 'drop', 61, 0, 24], [1703, 'barrier', 24, 20], [1830, 'cart', 36, 25],
+  [1970, 'hole', 59], [2140, 'night', 148], [2360, 'cart', 34, 25],
+  [2503, 'rise', 59, 0, -25], [2668, 'rack', 42, 30], [2812, 'day', 142],
+  [3052, 'hole', 57], [3331, 'night', 142], [3551, 'drop', 59, 0, 19],
+  [3700, 'cart', 36, 26], [3830, 'rack', 38, 30], [3964, 'hole', 60],
+  [4110, 'day', 143], [4342, 'barrier', 35, 22], [4468, 'hole', 55],
+  [4604, 'rise', 58, 0, -22], [4760, 'night', 139], [4974, 'rack', 42, 29],
+  [5100, 'cart', 30, 26], [5227, 'hole', 56], [5370, 'day', 142],
+  [5562, 'drop', 58, 0, 26], [5712, 'cart', 36, 25], [5840, 'hole', 53],
+  [5975, 'barrier', 32, 19], [6107, 'night', 133]
+];
+
 const platforms = [];
 let lastEnd = 0;
-for (const o of CHASE_OBSTACLES.filter(o=>o.kind==='hole'||o.phase)) {
-  platforms.push({id:'carpet-'+o.x,x:lastEnd,y:CARPET_Y,w:o.x-lastEnd,surface:'carpet'});
-  if(o.phase)platforms.push({id:o.id,x:o.x,y:CARPET_Y,w:o.w,phase:o.phase,surface:'grate'});
-  lastEnd=o.x+o.w;
-}
-platforms.push({id:'carpet-exit',x:lastEnd,y:CARPET_Y,w:CHASE_DOOR+220-lastEnd,surface:'carpet'});
-for(const o of CHASE_OBSTACLES.filter(o=>o.h)){
-  platforms.push({id:o.id,x:o.x,y:CARPET_Y-o.h,w:o.w,h:o.h,solid:true,surface:'grate'});
+let floorHeight = CARPET_Y;
+export const CHASE_OBSTACLES = layout.map(([x,kind,w,h=0,elevation=0],index)=>{
+  const id = 'annex-'+(index+1);
+  const phase = kind === 'day' || kind === 'night' ? kind : null;
+  const y = floorHeight;
+  const landingY = y + elevation;
+  if (h) {
+    platforms.push({id,x,y:y-h,w,h,solid:true,surface:'grate'});
+  } else {
+    platforms.push({id:'annex-floor-'+x,x:lastEnd,y,w:x-lastEnd,surface:'carpet'});
+    if (phase) platforms.push({id,x,y,w,phase,surface:'grate'});
+    floorHeight = landingY;
+    lastEnd = x + w;
+  }
+  return {id,x,kind,w,h,y,landingY,phase,launch: h ? 42 : 25,
+    obstacleType:phase ? 'bridge' : !h ? 'gap' : kind === 'rack' ? 'rack' : 'hurdle'};
+});
+platforms.push({id:'annex-floor-exit',x:lastEnd,y:floorHeight,w:CHASE_DOOR+220-lastEnd,surface:'carpet'});
+
+export function annexFloorAt(x) {
+  let y = CARPET_Y;
+  for (const obstacle of CHASE_OBSTACLES) {
+    if (x < obstacle.x + obstacle.w) break;
+    y = obstacle.landingY;
+  }
+  return y;
 }
 
 export function needsAnnex(world) {
@@ -62,7 +95,9 @@ function armRun(world) {
   chase.active=false;
   chase.elapsed=0;
   chase.ghostX=world.player.x-99;
+  chase.ghostY=annexFloorAt(world.player.x);
   chase.danger=0;
+  chase.latched=false;
   chase.next=CHASE_OBSTACLES.findIndex(o=>o.x+o.w>world.player.x);
   if(chase.next<0)chase.next=CHASE_OBSTACLES.length;
   // Both lamps sit on neutral carpet. The phase after a retry is always day.
@@ -77,11 +112,11 @@ export function enterAnnex(world,fromEntry=false) {
   world.backrooms={};
   world.platforms=platforms;world.checkpoints=[
     {id:entryLamp,x:CHASE_START,y:CARPET_Y-28},
-    {id:halfwayLamp,x:CHASE_LAMP,y:CARPET_Y-28}
+    {id:halfwayLamp,x:CHASE_LAMP,y:annexFloorAt(CHASE_LAMP)-28}
   ];
   const spawn=world.checkpoints[Number(halfway)];
   world.checkpointId=spawn.id;
-  world.player=createPlayer(spawn.x);world.player.y=spawn.y;world.player.prevY=spawn.y;
+  world.player=createPlayer(spawn.x);world.player.y=spawn.y;world.player.prevY=spawn.y;world.player.fallStart=spawn.y;
   world.worldWidth=CHASE_DOOR+220;world.worldHeight=270;
   world.walls=[];world.doors=[];world.ghosts=[];world.hazards=[];
   world.pursuit=null;world.particles=[];world.scene=null;world.messageTimer=0;
@@ -125,7 +160,7 @@ export function stepAnnex(world,input,dt) {
     world.emit(result.ok?'shift':'shift-rejected',{reason:result.reason});
   }
   const p=world.player;
-  const movement=stepPlayer(p,input,platforms,world.night,dt,{width:world.worldWidth});
+  const movement=stepPlayer(p,input,platforms,world.night,dt,{width:world.worldWidth,speed:CHASE_SPEED});
   if(movement.jump)world.emit('sound',{name:'jump'});
   if(movement.land)world.emit('sound',{name:'land',amount:movement.fall});
   if(p.grounded){
@@ -134,14 +169,19 @@ export function stepAnnex(world,input,dt) {
   }
   // It never teleports to catch a runner. At full stride the player builds a
   // small lead, then the pursuer matches their pace between the office bays.
-  const stride=p.x-chase.ghostX>122?SPEED*1.025:SPEED*.91;
+  const stride=CHASE_SPEED*(p.x-chase.ghostX>114?1.025:.93);
   chase.ghostX+=stride*dt;
+  chase.ghostY+=(annexFloorAt(chase.ghostX)-chase.ghostY)*Math.min(1,dt*9);
   chase.danger=Math.max(0,Math.min(1,1-(p.x-chase.ghostX-12)/125));
   while(chase.next<CHASE_OBSTACLES.length&&p.x>CHASE_OBSTACLES[chase.next].x+CHASE_OBSTACLES[chase.next].w)chase.next++;
   world.camera=Math.max(0,Math.min(world.worldWidth-480,p.x-142));
   if(p.y>249)world.beginDeath('fall');
   else if(chase.ghostX+12>=p.x)world.beginDeath('ghost',{xNow:chase.ghostX+9,yNow:p.y+14});
   else if(p.x>=CHASE_DOOR){escapeAnnex(world);return;}
+  else if(p.x>=CHASE_DOOR-60&&!chase.latched){
+    chase.latched=true;
+    world.emit('sound',{name:'handle'});
+  }
   else if(p.x>=CHASE_LAMP&&world.checkpointId!==halfwayLamp){
     if(!world.events.includes(LAMP))world.events.push(LAMP);
     world.checkpointId=halfwayLamp;
@@ -160,6 +200,7 @@ export function annexScore(world) {
   const c=world.backrooms;
   if(!c?.active||world.mode!=='playing'||world.player.lifeState!=='alive')return null;
   const next=CHASE_OBSTACLES[c.next];
+  const imminent=next&&next.x-world.player.x<CHASE_SPEED ? next : null;
   return {progress:Math.max(0,(world.player.x-CHASE_START)/(CHASE_DOOR-CHASE_START)),
-    danger:c.danger,elapsed:c.elapsed,obstacle:next&&next.x-world.player.x<112?next.id:null};
+    danger:c.danger,elapsed:c.elapsed,obstacle:imminent?.id??null,obstacleType:imminent?.obstacleType??null};
 }

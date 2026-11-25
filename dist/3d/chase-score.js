@@ -1,10 +1,30 @@
-// A closed-corridor cue in D Phrygian. Sixteenths stay locked to the run clock;
-// orchestration follows distance, so a near escape and a clean run phrase differently.
-const STEP = 60 / 158 / 4;
+// The same D Phrygian motif accelerates on complete bar lines. The clock runs
+// from the chase timer, while instrumentation and the pursuer react to distance.
+const SECTION_PULSES = 8 * 16;
+let sectionTime = 0;
+const TEMPO = [168, 178, 190, 204].map((bpm, index) => {
+  const step = 60 / bpm / 4;
+  const section = { time: sectionTime, index: index * SECTION_PULSES, step };
+  sectionTime += step * SECTION_PULSES;
+  return section;
+});
+const pulseAt = (section, elapsed) => section.index + (elapsed - section.time) / section.step;
+const nextPulse = elapsed => Math.ceil(pulseAt(TEMPO.findLast(section => elapsed >= section.time), elapsed));
+const timeAt = index => {
+  const section = TEMPO[Math.min(TEMPO.length - 1, Math.floor(index / SECTION_PULSES))];
+  return section.time + (index - section.index) * section.step;
+};
 const ROOTS = [38, 38, 39, 36, 38, 43, 39, 33];
 const CELLO = [0, null, 0, 7, null, 1, 0, null, 0, 7, null, 3, 1, null, 7, null];
 const ANSWER = [12, null, null, 13, null, 7, null, null, 10, null, 8, null, 7, null, null, null];
-const CALLS = ['howl', 'snarl', 'snarl', 'scream', 'howl', 'snarl', 'scream'];
+const CALLS = ['howl', 'snarl', 'scream', 'snarl', 'howl', 'scream', 'snarl'];
+const CALL_SPACING = [4.4, 4.05, 5, 4.35];
+const WARNINGS = {
+  hurdle: [690, 880, 0.066],
+  rack: [785, 650, 0.066],
+  gap: [740, 485, 0.078],
+  bridge: [826, 1150, 0.084],
+};
 const SAMPLES = { howl: 'creature-howl', snarl: 'creature-growl', scream: 'creature-alert' };
 const PITCH = n => 440 * 2 ** ((n - 69) / 12);
 const clamp = n => Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
@@ -21,6 +41,20 @@ function envelope(node, at, peak, attack, duration) {
 
 function periodic(context, harmonics) {
   return context.createPeriodicWave(new Float32Array(harmonics.length), Float32Array.from(harmonics));
+}
+
+// The dynamics compressors leave short attack transients and add makeup gain.
+// This last, symmetric stage is linear until the remaining headroom is used.
+const ceilingCurve = Float32Array.from({ length: 2049 }, (_, i) => {
+  const x = i / 1024 - 1;
+  const abs = Math.abs(x);
+  return abs < .84 ? x : Math.sign(x) * (.84 - .11 * Math.expm1(-((abs - .84) / .11)));
+});
+
+export function softPeakCeiling(context) {
+  const ceiling = context.createWaveShaper();
+  ceiling.curve = ceilingCurve;
+  return ceiling;
 }
 
 export class ChaseScore {
@@ -69,8 +103,10 @@ export class ChaseScore {
     level(score, now, 1, .1);
     const section = { score, lowStrings, violas, rims, fx, voice, colour, emitter, earBalance, sources: new Set(),
       nodes: [score, lowStrings, violas, rims, fx, voice, colour, emitter, echo, echoGain].concat(earBalance ?? []),
-      next: Math.ceil(elapsed / STEP), lastElapsed: elapsed, lastPosition: -Infinity,
-      nextCall: elapsed + .53, callIndex: Math.floor(elapsed / 5), obstacle: null };
+      next: nextPulse(elapsed), lastElapsed: elapsed, lastPosition: -Infinity,
+      nextCall: elapsed + .43, callIndex: Math.floor(elapsed / 5),
+      nextStep: elapsed + .21, stepIndex: 0, obstacle: null,
+      duckUntil: -Infinity, duckDepth: 1 };
     this.live = section;
     return section;
   }
@@ -131,12 +167,14 @@ export class ChaseScore {
     const { score, lowStrings, violas, rims } = this.live;
     const bar = Math.floor(index / 16), pulse = index % 16;
     const root = ROOTS[bar % ROOTS.length];
-    const rise = progress > .23, high = progress > .51, final = progress > .77;
+    const rise = progress > .21, high = progress > .49, final = progress > .76;
     const breath = bar % 8 === 7 && pulse >= 12 && !final;
-    // A low drum and an iron rim answer each other in a 3+3+2 figure.
+    // Stable low accents introduce the run. Tighter rim rolls and broken
+    // drum patterns take over as the corridor starts demanding combinations.
+    const roll = final && bar % 2 === 1;
     if (pulse === 0 || pulse === 6 || (pulse === 10 && rise) || (pulse === 14 && final)) {
-      this.note(at, 119, 38, .22, pulse === 0 ? .27 : .18, score);
-      this.scrape(at + .003, .07, .115, 1850, 420, score, index * .07);
+      this.note(at, 125, 38, .18, pulse === 0 ? .27 : .16, score);
+      this.scrape(at + .003, .062, .104, 1850, 420, score, index * .07);
     }
     if (pulse === 8 || (high && pulse === 14 && !breath)) {
       this.scrape(at, .20, .17, 2400, 590, rims, index * .13);
@@ -145,43 +183,55 @@ export class ChaseScore {
     const bowNote = CELLO[pulse];
     if (bowNote !== null && !breath && (rise || pulse % 2 === 0 || pulse === 3)) {
       const pitch = PITCH(root + bowNote);
-      this.note(at + .006, pitch * .986, pitch, .22, pulse % 4 ? .083 : .12, lowStrings, this.bow, .019);
+      this.note(at + .006, pitch * .986, pitch, final ? .17 : .21, pulse % 4 ? .077 : .115, lowStrings, this.bow, .016);
       if (high && pulse % 4 === 0) this.note(at + .012, pitch * 1.995, pitch * 2.003, .21, .046, violas, this.reed, .032);
     }
     if (pulse === 0) {
       this.note(at, PITCH(root - 12), PITCH(root - 12), .78, .14, score, 'sine', .065);
       if (rise && bar % 2 === 0) {
         const note = PITCH(root + (bar % 4 ? 19 : 13));
-        this.note(at, note, note * .993, STEP * 23, .084, violas, this.bow, .31);
-        this.note(at + .023, note * 1.009, note * 1.002, STEP * 21, .050, lowStrings, 'triangle', .4);
+        this.note(at, note, note * .993, 1.83, .078, violas, this.bow, .29);
+        this.note(at + .023, note * 1.009, note * 1.002, 1.67, .049, lowStrings, 'triangle', .34);
       }
     }
-    if (high && (pulse % 4 === 2 || final && pulse % 2 === 1) && !breath) {
-      this.scrape(at, .055 + danger * .035, .052, 4800 + (pulse % 3) * 430, 2100, rims, index * .17);
+    if (high && (pulse % 4 === 2 || final && pulse % 2 === 1 || roll && pulse > 11) && !breath) {
+      this.scrape(at, .045 + danger * .027, roll ? .042 : .05, 4800 + (pulse % 3) * 430, 2100, rims, index * .17);
     }
     const answer = ANSWER[pulse];
     if ((final || high && bar % 2 === 1) && answer !== null) {
       const pitch = PITCH(root + 12 + answer);
-      this.note(at, pitch * 1.013, pitch, .32, .061, violas, this.reed, .023);
-      this.note(at + .085, pitch * 1.503, pitch * 1.496, .22, .023, lowStrings, 'triangle');
+      this.note(at, pitch * 1.013, pitch, .26, .058, violas, this.reed, .021);
+      this.note(at + .071, pitch * 1.503, pitch * 1.496, .18, .025, lowStrings, 'triangle');
+    } else if (roll && (pulse === 7 || pulse === 13)) {
+      const pitch = PITCH(root + (pulse === 7 ? 24 : 25));
+      this.note(at, pitch * .98, pitch, .19, .042, violas, this.bow, .012);
     }
   }
 
   duck(at, depth, duration) {
-    const gain = this.live.score.gain;
+    const group = this.live;
+    const gain = group.score.gain;
+    // An overlapping obstacle tick must not cancel a stronger cry's duck.
+    const until = at + duration;
+    if (at < group.duckUntil) {
+      depth = Math.min(depth, group.duckDepth);
+      duration = Math.max(until, group.duckUntil) - at;
+    }
+    group.duckDepth = depth;
+    group.duckUntil = at + duration;
     gain.cancelScheduledValues(at);
-    gain.setTargetAtTime(depth, at, .019);
-    gain.setTargetAtTime(1, at + duration, .083);
+    gain.setTargetAtTime(depth, at, .015);
+    gain.setTargetAtTime(1, group.duckUntil, .067);
   }
 
   finalPhrase(at) {
     const { lowStrings, violas, rims } = this.live;
     // The green fire door comes into view. The top voice finally gives the
     // ostinato its tonic, answered a fifth below by the lower strings.
-    for (const [beat, note, length] of [[0,77,.34],[1,76,.29],[2,75,.35],[3,74,1.04]]) {
+    for (const [offset, note, length] of [[0,77,.30],[.22,76,.26],[.44,75,.30],[.66,74,.91]]) {
       const pitch = PITCH(note);
-      this.note(at + beat * STEP * 3, pitch * .995, pitch, length, .088, violas, this.bow, .046);
-      this.note(at + beat * STEP * 3 + .037, pitch * .667, pitch * .668, length, .054, lowStrings, this.reed, .055);
+      this.note(at + offset, pitch * .995, pitch, length, .086, violas, this.bow, .042);
+      this.note(at + offset + .037, pitch * .667, pitch * .668, length, .052, lowStrings, this.reed, .051);
     }
     this.scrape(at, .88, .1, 510, 3850, rims);
   }
@@ -190,7 +240,7 @@ export class ChaseScore {
     const { emitter, voice, colour, earBalance } = this.live;
     const near = clamp(state.danger);
     colour.frequency.setTargetAtTime(1050 + 5900 * near, now, .055);
-    level(voice, now, .53 + .55 * near, .11);
+    level(voice, now, .54 + .53 * near, .086);
     if (!this.spatial) {
       // In the side view the escape is east; the runner hears the creature on the left.
       emitter.pan.setTargetAtTime(-.76 + .32 * near, now, .04);
@@ -205,6 +255,23 @@ export class ChaseScore {
       emitter.positionY.setTargetAtTime(.17, now, .035);
       emitter.positionZ.setTargetAtTime(-dx * sn + dz * cs, now, .035);
     }
+  }
+
+  stepBehind(at, index, danger) {
+    const { voice } = this.live;
+    // Long and short strides alternate. Only the creature bus sends the footfall
+    // through rear panning and distance coloration, apart from the player's feet.
+    this.note(at, index % 2 ? 93 : 112, 42, .087, .024 + danger * .047, voice, 'triangle');
+    this.scrape(at + .015, .088, .052 + danger * .036, 790, 370, voice, .21 * index);
+  }
+
+  warn(at, type) {
+    const { fx } = this.live;
+    const [first, second, volume] = WARNINGS[type] ?? WARNINGS.hurdle;
+    this.duck(at, .79, .15);
+    this.note(at, first, first * .84, .097, volume, fx, this.reed);
+    this.note(at + .052, second, second * .92, .106, volume * .9, fx, 'triangle');
+    this.scrape(at + .045, .045, volume * .77, 2520, 1540, fx);
   }
 
   roar(at, kind, proximity) {
@@ -225,7 +292,7 @@ export class ChaseScore {
     }
     // False-fold excitation splits into three shifting mouth resonances. The
     // rasp and breath are independent, leaving an intake before the voiced cry.
-    this.duck(at, .75, .41);
+    this.duck(at, kind === 'scream' ? .61 : .71, .46);
     this.scrape(at, .31, .29, 1560, 650, voice);
     const onset = at + .115;
     const throat = c.createOscillator(), vocal = c.createGain();
@@ -268,11 +335,10 @@ export class ChaseScore {
       this.position(state, listener, now);
       group.lastPosition = now;
     }
-    const beat = elapsed / STEP;
-    // A long frame, browser suspension, or restored run cannot queue a backlog.
-    group.next = Math.max(group.next, Math.floor(beat));
-    while (group.next * STEP < elapsed + .115) {
-      this.beat(group.next, now + .009 + Math.max(0, group.next * STEP - elapsed), progress, danger);
+    // A slow frame, browser suspension or restored run never queues a backlog.
+    group.next = Math.max(group.next, nextPulse(Math.max(0, elapsed - .02)));
+    while (timeAt(group.next) < elapsed + .115) {
+      this.beat(group.next, now + .009 + Math.max(0, timeAt(group.next) - elapsed), progress, danger);
       group.next++;
     }
     if (progress >= .95 && !group.cadence) { this.finalPhrase(now + .025); group.cadence = true; }
@@ -280,17 +346,17 @@ export class ChaseScore {
       const kind = CALLS[group.callIndex % CALLS.length];
       this.roar(now + .012, kind, danger);
       group.callIndex++;
-      group.nextCall = elapsed + [5.3, 4.55, 6.2, 4.9][group.callIndex % 4] - danger * 1.25;
+      group.nextCall = elapsed + CALL_SPACING[group.callIndex % CALL_SPACING.length] - progress * .66 - danger * .73;
+    }
+    if (elapsed >= group.nextStep) {
+      this.stepBehind(now + .012, group.stepIndex, danger);
+      group.stepIndex++;
+      group.nextStep = elapsed + .347 - progress * .041 - danger * .034 + (group.stepIndex % 2 ? .018 : -.018);
     }
     if (state.obstacle != null && group.obstacle !== state.obstacle) {
       group.obstacle = state.obstacle;
-      // A pair of dry relay clicks in front separates the obstacle cue from
-      // the longer rear cries and the metallic subdivisions in the score.
-      const at = now + .02;
-      this.duck(at, .78, .16);
-      this.note(at, 805, 665, .13, .11, group.fx, this.reed);
-      this.note(at + .077, 1013, 924, .16, .105, group.fx, 'triangle');
-      this.scrape(at + .08, .06, .078, 2430, 1590, group.fx);
+      // The cue bus is centered ahead; the creature remains separately spatialized.
+      this.warn(now + .02, state.obstacleType);
     }
   }
 }

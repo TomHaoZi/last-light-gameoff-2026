@@ -1,3 +1,4 @@
+import { CHASE_DOOR, CHASE_LAMP, CHASE_OBSTACLES } from '../dist/backrooms.js';
 import {playAnnex} from './play-annex.mjs';
 import {freshSave} from '../dist/save.js';
 import {join,resolve,dirname} from 'node:path';
@@ -88,7 +89,9 @@ try{
   if(s.backrooms){
    if(checkAnnex)await screenshot('start');
    const capture=checkAnnex?async state=>{
-    const frames=[['pursuit',370],['bridge-in-air',1030],['night',1090],['lamp',2530],['exit',4980],['door-moving',5018],['door-open',5036]];
+    const firstBridge=CHASE_OBSTACLES.find(obstacle=>obstacle.phase);
+    const frames=[['pursuit',370],['bridge-in-air',firstBridge.x+8],['night',firstBridge.x+66],['lamp',CHASE_LAMP+10],
+      ['exit',CHASE_DOOR-200],['door-moving',CHASE_DOOR-38],['door-open',CHASE_DOOR-10]];
     if(state.death?.kind==='ghost'&&state.death.time>.25)frames.push(['captured',-1]);
     if(state.player.lifeState==='respawning')frames.push(['revived',-1]);
     for(const [name,x] of frames){
@@ -102,7 +105,7 @@ try{
    const receipt=await playAnnex({snapshot,key,tap,stop,sleep},{capture,failFirst:checkAnnex});
    log.push({event:'backrooms-complete',receipt});console.log('Backrooms clear',receipt.seconds.toFixed(2),'s');
    if(checkAnnex){
-    if(receipt.jumps.length!==23||receipt.switches.length!==5||!receipt.checkpoint||!receipt.failedAndRetried||errors.length)throw Error('Chase input/console check failed');
+    if(receipt.jumps.length!==CHASE_OBSTACLES.length||receipt.switches.length!==CHASE_OBSTACLES.filter(obstacle=>obstacle.phase).length||!receipt.checkpoint||!receipt.failedAndRetried||errors.length)throw Error('Chase input/console check failed');
     const after=await snapshot();if(after.sector!==3||after.floor!==1)throw Error('Chase exit did not lead to pantry');
     if(replayAnnex&&(after.ending!=='complete'||!after.evidence.includes('night-letter')))throw Error('Chapter replay lost prior ending or evidence');
     passed=true;break;
@@ -161,7 +164,9 @@ try{
    if(Math.abs(p.x+7-goal.x)<(goal.exit?15:23)){await stop();await tap('KeyE');await sleep(goal.exit?180:60);continue;}
    const dir=p.x+7<goal.x?1:-1;await key('ArrowLeft',dir<0);await key('ArrowRight',dir>0);await sleep(25);continue;
   }
-  if(!p.grounded){await sleep(25);continue;}
+  // A sector transition places the janitor before the next physics tick
+  // identifies the support. Wait for that tick before planning the route.
+  if(!p.grounded||p.supportId==null){await sleep(25);continue;}
   const unsafe=new Set();for(const g of s.ghosts)if(g.spawned&&(g.phase==null||g.phase===s.phase))for(const q of [...data.platforms,...data.walls])if(q.id!==goalPlatform.id&&Math.abs(q.y-14-g.y)<45&&q.x<g.x+60&&q.x+q.w>g.x-60)unsafe.add(q.id);
   const mask=[...unsafe].sort().join('|');if(!navigation||navigation.base!==graph.edges||navigation.mask!==mask)navigation={base:graph.edges,mask,edges:graph.edges.filter(e=>!unsafe.has(e.to))};
   let navEdges=navigation.edges,support=p.supportId,path=shortest(navEdges,support,goalPlatform.id);if(!path){navEdges=graph.edges;path=shortest(navEdges,support,goalPlatform.id);}

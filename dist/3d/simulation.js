@@ -343,7 +343,8 @@ export class Simulation3D {
       !!input.sprint && this.moving && !this.quiet && this.stamina > .09;
     this.stamina = this.chase ? 1 : clamp(this.stamina + dt * (this.sprint ? -.24 : .32), 0, 1);
     if (this.moving) {
-      const speed = this.quiet ? 1.75 : this.sprint ? BACKROOMS_TRACK.speed : 3.55;
+      const sprintSpeed = this.chase ? BACKROOMS_TRACK.speed : 6.1;
+      const speed = this.quiet ? 1.75 : this.sprint ? sprintSpeed : 3.55;
       const amount = dt * speed / Math.max(1, length);
       const dx = (Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side) * amount;
       const dz = (-Math.cos(this.yaw) * forward + Math.sin(this.yaw) * side) * amount;

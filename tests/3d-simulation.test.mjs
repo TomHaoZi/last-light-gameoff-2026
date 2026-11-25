@@ -6,14 +6,32 @@ import { transferControls } from '../scripts/play-3d-transfer.mjs';
 import { BACKROOMS_TRACK, chaseBlocked, chaseFloor } from '../dist/3d/backrooms-track.js';
 
 function runTransfer(sim) {
-  let jumping = false;
+  let jumping = false, shifts = 0;
+  const heights = new Map();
+  const bypasses = new Map();
   for (let i = 0; i < 60 / STEP && !sim.departing; i++) {
     const input = transferControls(sim);
+    const wasNight = sim.night;
+    const wasAt = sim.chase.distance;
     sim.step({...input, jump:input.jump && !jumping, release:jumping && !input.jump});
-    jumping=input.jump;
-    assert.equal(sim.life,'alive',JSON.stringify(sim.chase));
+    jumping = input.jump;
+    assert.equal(sim.life, 'alive', JSON.stringify(sim.chase));
+    if (wasNight !== sim.night) {
+      assert.ok(sim.y > .25, 'phase changes with feet off the floor');
+      shifts++;
+    }
+    for (const part of BACKROOMS_TRACK.obstacles) {
+      if (wasAt >= part.at || sim.chase.distance < part.at) continue;
+      if (part.kind === 'gap' || part.kind === 'hurdle') heights.set(part.id, sim.y);
+      if (part.kind === 'rack') bypasses.set(part.id, Math.sign(sim.x - BACKROOMS_TRACK.centerX));
+    }
   }
   assert.ok(sim.departing && sim.chase.elapsed >= 40 && sim.chase.elapsed < 52);
+  assert.equal(shifts, BACKROOMS_TRACK.obstacles.filter(part => part.kind === 'bridge').length);
+  for (const part of BACKROOMS_TRACK.obstacles) {
+    if (part.kind === 'gap' || part.kind === 'hurdle') assert.ok(heights.get(part.id) > .35, part.id);
+    if (part.kind === 'rack') assert.equal(bypasses.get(part.id), part.opening === 'left' ? -1 : 1, part.id);
+  }
 }
 
 const directions = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };

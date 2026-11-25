@@ -92,3 +92,38 @@ test('rear roar tracks listener yaw and decays to silence when the chase ends', 
   assert.ok(energy(0,.68,.83) > energy(1,.68,.83) * 1.2, 'turning should move the same cry to the left');
   assert.ok(energy(0,1.15,2) + energy(1,1.15,2) < 1e-16, 'only numerical residue may remain after teardown');
 });
+
+test('chase tempo climbs on bar boundaries without duplicating pulses or warning IDs', () => {
+  const rate = 24_000;
+  const context = new OfflineAudioContext(2, rate, rate);
+  const music = context.createGain(), effects = context.createGain();
+  const noise = context.createBuffer(1, rate, rate);
+  let clock = 0;
+  const clocked = new Proxy(context, { get(target, key) {
+    if (key === 'currentTime') return clock;
+    const value = Reflect.get(target, key, target);
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+  const score = new ChaseScore(clocked, { music, effects, noise });
+  const pulses = [], warnings = [], calls = [];
+  score.beat = (index, at) => pulses.push({ index, at });
+  score.warn = (_at, type) => warnings.push(type);
+  score.roar = (_at, type) => calls.push(type);
+  score.stepBehind = () => {};
+  score.finalPhrase = () => {};
+  for (let i = 0; i <= 45 * 120; i++) {
+    clock = i / 120;
+    const obstacle = i < 120 ? { obstacle: 'hole', obstacleType: 'gap' } : i < 240 ?
+      { obstacle: 'span', obstacleType: 'bridge' } : { obstacle: null };
+    score.update({ ...base, elapsed: clock, progress: clock / 45, ...obstacle });
+  }
+  assert.deepEqual(pulses.map(({ index }) => index), Array.from({ length: pulses.length }, (_, i) => i));
+  const tempoIn = start => 16 * 60 / (pulses[start + 64].at - pulses[start].at);
+  assert.ok(Math.abs(tempoIn(0) - 168) < .0001);
+  assert.ok(Math.abs(tempoIn(128) - 178) < .0001);
+  assert.ok(Math.abs(tempoIn(256) - 190) < .0001);
+  assert.ok(Math.abs(tempoIn(384) - 204) < .0001);
+  assert.deepEqual(warnings, ['gap', 'bridge']);
+  assert.ok(calls.filter(call => call === 'scream').length >= 3);
+  score.update(null);
+});

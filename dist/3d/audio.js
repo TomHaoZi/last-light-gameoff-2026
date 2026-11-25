@@ -1,4 +1,4 @@
-import { ChaseScore } from './chase-score.js';
+import { ChaseScore, softPeakCeiling } from './chase-score.js';
 import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
 
 const SILENCE = 0.0001;
@@ -167,7 +167,7 @@ export class HorrorAudio {
     limiter.release.value = 0.09;
     const output = context.createGain();
     output.gain.value = .80; // Preserve peak headroom after the limiter's makeup gain.
-    this.master.connect(compressor).connect(limiter).connect(output).connect(context.destination);
+    this.master.connect(compressor).connect(limiter).connect(output).connect(softPeakCeiling(context)).connect(context.destination);
 
     this.closeBus = context.createGain();
     this.worldBus = context.createGain();

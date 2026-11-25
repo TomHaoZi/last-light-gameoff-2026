@@ -398,8 +398,12 @@ try {
       })`});
       assert.equal(probe.exceptionDetails,undefined);
     }
+    const { obstacles } = BACKROOMS_TRACK;
+    const firstPhase = obstacles.find(part => part.kind === 'bridge');
+    const midGap = obstacles.find(part => part.kind === 'gap' && part.at > BACKROOMS_TRACK.length * .5);
+    const highlights = new Set([firstPhase, midGap, obstacles.at(-1)]);
     const run = await runTransfer({snapshot,input,testSideWall:Boolean(process.env.TRANSFER_SIDE_WALL),onCrossing:part=>{
-      if (stills && ['transfer-4','transfer-11','transfer-18'].includes(part.id)) screenshots.push(capture(part.id));
+      if (stills && highlights.has(part)) screenshots.push(capture(part.id));
     }});
     await Promise.all(screenshots);
     if (stills) {

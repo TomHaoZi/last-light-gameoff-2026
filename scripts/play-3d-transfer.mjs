@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { BACKROOMS_TRACK, nextChaseObstacle } from '../dist/3d/backrooms-track.js';
+import { BACKROOMS_TRACK, nextChaseObstacle, rackLane } from '../dist/3d/backrooms-track.js';
 
 // Real controls only. Keep W held through the entire pursuit, including every jump and switch.
 export function transferControls(state) {
@@ -9,18 +9,19 @@ export function transferControls(state) {
   const ahead = part ? part.at - distance : Infinity;
   let side = 0;
   if (part?.kind === 'rack' && ahead < 10) {
-    const target = BACKROOMS_TRACK.centerX + (part.opening === 'left' ? -2.2 : 2.2);
+    const target = rackLane(part);
     if (Math.abs(target-state.x) > .23) side = Math.sign(target-state.x);
   }
   if (!part && Math.abs(BACKROOMS_TRACK.centerX - state.x) > .10) {
     side = Math.sign(BACKROOMS_TRACK.centerX - state.x);
   }
-  const launch = part && (part.kind === 'gap' || part.kind === 'hurdle');
-  return { forward:1, side, sprint:true, jump: Boolean(launch && ahead <= 1.35 && ahead > -1.5),
-    shift: part?.kind === 'bridge' && ahead <= 3.2 && (part.phase === 'night') !== state.night };
+  const ordinaryJump = part && (part.kind === 'gap' || part.kind === 'hurdle') && ahead <= 1.75 && ahead > -1.65;
+  const bridgeJump = part?.kind === 'bridge' && ahead <= 4.45 && ahead > -.6;
+  return { forward:1, side, sprint:true, jump: Boolean(ordinaryJump || bridgeJump),
+    shift: part?.kind === 'bridge' && ahead <= 3.25 && (part.phase === 'night') !== state.night };
 }
 
-export async function runTransfer({snapshot,input,onCrossing,miss,testSideWall=false}) {
+export async function runTransfer({snapshot,input,onCrossing,onShift,miss,testSideWall=false}) {
   const held = new Set();
   async function set(key, on) {
     if (held.has(key) === on) return;
@@ -61,12 +62,16 @@ export async function runTransfer({snapshot,input,onCrossing,miss,testSideWall=f
       await set('KeyA',controls.side < 0);
       await set('KeyD',controls.side > 0);
       await set('Space',controls.jump);
+      if (controls.shift && !held.has('KeyX')) {
+        assert.ok(state.y > .25, 'Phase-switch input was airborne');
+        onShift?.(state);
+      }
       await set('KeyX',controls.shift);
       if (state.chase.started) minimumLead = Math.min(minimumLead,state.chase.headStart);
       for (const part of BACKROOMS_TRACK.obstacles) {
         if (!passed.has(part.id) && state.chase.distance >= part.at) {
           passed.set(part.id,{id:part.id,kind:part.kind,phase:state.phase,y:state.y,x:state.x,elapsed:state.chase.elapsed});
-          onCrossing?.(part);
+          onCrossing?.(part,state);
           if (part.id === miss?.id) continue;
           if (part.kind === 'hurdle' || part.kind === 'gap') assert.ok(state.y > .25, JSON.stringify({part,state}));
           if (part.kind === 'bridge') assert.equal(state.phase,part.phase);

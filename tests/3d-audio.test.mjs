@@ -48,8 +48,7 @@ test('three room transitions, threats and overlapping effects produce bounded st
       return context.resume();
     })
   ));
-  const buffer = await context.startRendering();
-  await Promise.all(updates);
+  const [buffer] = await Promise.all([context.startRendering(), ...updates]);
   const left = buffer.getChannelData(0);
   const right = buffer.getChannelData(1);
   let peak = 0;
@@ -100,8 +99,7 @@ test('a live howl follows the listener and stays silent after the ghost changes 
     apply();
     return context.resume();
   }));
-  const rendered = await context.startRendering();
-  await Promise.all(updates);
+  const [rendered] = await Promise.all([context.startRendering(), ...updates]);
 
   function energy(channel, start, end) {
     const samples = rendered.getChannelData(channel);
@@ -154,8 +152,7 @@ test('packaged recordings decode and play in place of procedural effects on the 
     action();
     return context.resume();
   }));
-  const rendered = await context.startRendering();
-  await Promise.all(updates);
+  const [rendered] = await Promise.all([context.startRendering(), ...updates]);
   assert.equal(sound.vocalBuffers.size, 0, 'recorded monster cues fell through to synthesis');
   let peak = 0;
   for (let channel = 0; channel < 2; channel++) {
@@ -191,8 +188,7 @@ test('room audio ducks under speech and recovers when the line is interrupted', 
     action();
     return context.resume();
   }));
-  const rendered = await context.startRendering();
-  await Promise.all(updates);
+  const [rendered] = await Promise.all([context.startRendering(), ...updates]);
   const samples = rendered.getChannelData(0);
   const rms = (start, end) => {
     const section = samples.subarray(Math.round(start * rate), Math.round(end * rate));
