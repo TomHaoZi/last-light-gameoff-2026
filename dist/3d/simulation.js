@@ -1,6 +1,7 @@
 import { BACKROOMS_LEVEL, BACKROOMS_TRACK, advancePursuit, beginPursuit, chaseBlocked, chaseFloor, runDistance } from './backrooms-track.js';
 import { LEVELS, TILE, decodeLevel } from './levels.js';
 import { updateMourningClerks } from './mourning-gaze.js';
+import { difficultyRules } from '../player-settings.js';
 
 export const SAVE_KEY = 'last-light-3d-v1';
 export const STEP = 1 / 120;
@@ -109,7 +110,7 @@ export class Simulation3D {
     });
     this.ghosts = this.map.ghosts.map((tile, i) => ({
       x: tile.x, z: tile.z, home: tile, key: this.tileKey(tile), index: i,
-      ...(tile.creature === 'mourning' ? { kind: 'mourning', gaze: 0, watching: false, nextCry: this.time } : {}),
+      ...(tile.creature === 'mourning' ? { kind: 'mourning', gaze: 0, watching: false, charging: false, lockTime: 0, nextCry: this.time } : {}),
       phase: tile.phase ?? (tile.kind === 'G' ? 'day' : tile.kind === 'H' ? 'night' : null),
       alert: 0, active: false, target: null, refresh: 0, roam: i
     }));
@@ -167,7 +168,7 @@ export class Simulation3D {
   hurt() {
     if (this.life !== 'alive' || this.shield > 0) return;
     if (--this.hp <= 0) return this.startDeath('machinery');
-    this.shield = 1;
+    this.shield = difficultyRules(this.difficulty).hazardRecovery;
     this.emit('sound', { name: 'hit' });
     this.emit('hurt');
   }
@@ -293,25 +294,32 @@ export class Simulation3D {
     return null;
   }
 
+  ghostSanctuary(x, z) {
+    return this.map.lamps.some(tile => Math.hypot(tile.x - x, tile.z - z) < 1.32) ||
+      Math.hypot(this.map.spawn.x - x, this.map.spawn.z - z) < 1.35;
+  }
+
   updateGhosts(dt) {
     this.tension = 0;
-    const sanctuary = this.map.lamps.some(tile => distance(tile, this) < 1.32) || distance(this.map.spawn, this) < 1.35;
+    const sanctuary = this.ghostSanctuary(this.x, this.z);
+    const rules = difficultyRules(this.difficulty);
     if (this.level.mourning) {
       this.gaze = 0;
       this.watching = false;
-      updateMourningClerks(this, dt, TILE, sanctuary);
+      updateMourningClerks(this, dt, TILE, sanctuary, rules,
+        (x, z) => floorActive(this.map.at(x, z), this.night));
       return;
     }
     const here = this.map.at(this.x, this.z);
-    const difficulty = this.levelIndex;
+    const chapter = this.levelIndex;
     for (const ghost of this.ghosts) {
       if (!ghost.active) { ghost.alert = 0; ghost.target = null; continue; }
       const range = distance(ghost, this);
-      const hear = this.sprint ? 9.6 : this.quiet ? 0 : this.moving ? 3.5 : 0;
-      const confront = !sanctuary && range < (.65 + (this.quiet ? 4.55 : 6.3) + difficulty * .72) && this.canSee(ghost, this);
+      const hear = (this.sprint ? 9.6 : this.quiet ? 0 : this.moving ? 3.5 : 0) * rules.ghostAlert;
+      const confront = !sanctuary && range < (.65 + (this.quiet ? 4.55 : 6.3) + chapter * .72) * rules.ghostAlert && this.canSee(ghost, this);
       const detects = !sanctuary && (confront || (range < hear && (range < 2.5 || this.canSee(ghost, this))));
       const alertBefore = ghost.alert;
-      ghost.alert = clamp(ghost.alert + dt * (detects ? 2.25 : sanctuary ? -2.1 : -.45), 0, 1);
+      ghost.alert = clamp(ghost.alert + dt * (detects ? 2.25 * rules.ghostAlert : sanctuary ? -2.1 : -.45), 0, 1);
       if (alertBefore < .45 && ghost.alert >= .45 && range < 8 && ghost.refresh < .25) {
         this.emit('warning', { ghost });
       }
@@ -337,7 +345,7 @@ export class Simulation3D {
         const dx = ghost.target.x - ghost.x;
         const dz = ghost.target.z - ghost.z;
         const len = Math.hypot(dx, dz);
-        const speed = (ghost.alert > .64 ? 3.45 + difficulty * .32 : 1.08 + difficulty * .1);
+        const speed = (ghost.alert > .64 ? 3.45 + chapter * .32 : 1.08 + chapter * .1) * rules.ghostSpeed;
         const move = Math.min(len, speed * dt);
         if (len > .002 && !this.blocks(ghost.x + dx / len * move, ghost.z + dz / len * move, GHOST_RADIUS)) {
           ghost.x += dx / len * move;

@@ -4,6 +4,8 @@ import { HorrorAudio } from './audio.js';
 import { Dialogue } from './dialogue.js';
 import { Simulation3D, SAVE_KEY, STEP } from './simulation.js';
 import { loadRun, storeRun, restartRun } from './save.js';
+import { createPlayerSettings } from '../player-settings.js';
+import { mountPlayerSettings } from '../settings-panel.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -26,26 +28,27 @@ const strings = {
     tip: 'Headphones recommended · Flashing lights and horror themes',
     controlsTitle: 'Controls', phaseControl: 'Switch day / night', toDay: 'Switch to day', toNight: 'Switch to night',
     move: 'Move', look: 'Look around', use: 'Interact', jump: 'Jump', mouse: 'Move the mouse',
-    drag: 'Drag the scene', onScreen: 'On-screen buttons', tapDayNight: 'Day / Night button', space: 'Space',
+    drag: 'Drag the scene', onScreen: 'On-screen buttons', tapDayNight: 'Day / Night button',
     firstSteps: 'Save at the emergency lamp. Switch to night for the first bridge.',
     exitReady: 'Take the lift beside the fire interlock.',
     archiveExit: 'Take the lift beyond Gary’s wing.',
     mourningArrival: 'Someone is crying. There’s a gramophone by the lift.',
     mourningNote: 'Play the gramophone',
-    mourningRule: 'The Mourning Clerk attacks if you stare. Look down or turn away, and give it space.',
+    mourningRule: 'Look directly at the Mourning Clerk and she rushes you. Look down or turn away to break her charge, then keep your distance.',
     mourningLook: 'LOOK AWAY',
-    mourningBreak: 'KEEP LOOKING AWAY',
+    mourningCharge: 'LOOK AWAY · SHE’S COMING',
+    mourningBreak: 'KEEP LOOKING AWAY', mourningAggression: 'Mourning Clerk aggression',
     mourningContact: 'YOU GOT TOO CLOSE',
     gaze: 'IT CAUGHT YOUR EYE',
     mourningRevival: 'Use the sound to find it. Keep your eyes low.',
     roofExit: 'The roof exit is open. Leave when you’re ready.',
     roofCircuit: 'The exit is open. Its independent light is still off.',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
-    shortcutKeys: 'Hold Shift, jump with Space, switch midair with X.',
+    shortcutKeys: (sprint, jump, shift) => `Hold ${sprint}, jump with ${jump}, switch midair with ${shift}.`,
     shortcutTouch: 'Hold Sprint, tap Jump, then tap Day / Night in the air.',
-    legend: 'WASD Move · Mouse Look · E Interact', capturedLegend: 'WASD Move · Mouse Look · E Interact · Esc Pause and release mouse',
+    legend: (move, use) => `${move} Move · Mouse Look · ${use} Interact`, pauseLegend: key => `${key} Pause and release mouse`,
     capture: 'Capture mouse', captureFailed: 'Move the mouse within the scene to look around. Click the scene to retry capture.',
-    controls: 'X switches between day and night. WASD moves. Move the mouse to look around. The game captures it when you start or resume. Esc pauses and releases the mouse. Space jumps, E interacts, Shift sprints, C walks quietly, J opens the journal and M mutes. On touch screens, drag the scene and use the on-screen buttons.',
+    controls: 'Move the mouse to look around. The game captures it when you start or resume. On touch screens, drag the scene and use the on-screen buttons.',
     volume: 'Master volume', mouseSensitivity: 'Mouse sensitivity', quality: 'Graphics', high: 'High', medium: 'Balanced', low: 'Performance', adaptive: 'Adaptive resolution', fpsMonitor: 'Show frame rate', reduced: 'Reduce visual effects',
     restart: 'Restart 3D shift', restartConfirm: 'Confirm 3D restart', lift: 'Open exit', lampAction: 'Rest at emergency lamp', powerAction: 'Power the exit light', work: 'Operate station', clue: 'Read evidence',
     workDone: 'Handover logged.', clueFound: 'Evidence recorded.', lamp: 'Checkpoint saved. Integrity restored.',
@@ -72,26 +75,27 @@ const strings = {
     tip: '推荐戴耳机 · 含闪光与恐怖元素',
     controlsTitle: '操作指南', phaseControl: '切换白天 / 黑夜', toDay: '切到白天', toNight: '切到黑夜',
     move: '移动', look: '转动视角', use: '互动', jump: '跳跃', mouse: '直接移动鼠标',
-    drag: '拖动画面', onScreen: '屏幕按钮', tapDayNight: '「昼夜」按钮', space: '空格',
+    drag: '拖动画面', onScreen: '屏幕按钮', tapDayNight: '「昼夜」按钮',
     firstSteps: '在应急灯处存档。切到黑夜，就能看见第一座桥。',
     exitReady: '去消防联锁旁搭电梯。',
     archiveExit: '穿过 Gary 的办公区，去尽头搭电梯。',
     mourningArrival: '有人在哭。电梯旁放着一台留声机。',
     mourningNote: '播放留声机录音',
-    mourningRule: '默哀档案员受直视刺激。低头或转开视线，绕行时留一点距离。',
+    mourningRule: '直视默哀档案员，她会冲过来。低头或转开视线能让她停下，绕行时记得保持距离。',
     mourningLook: '移开视线',
-    mourningBreak: '继续避开视线',
+    mourningCharge: '快移开视线 · 她在靠近',
+    mourningBreak: '继续避开视线', mourningAggression: '默哀档案员的攻击性',
     mourningContact: '你离它太近了',
     gaze: '它抓住了你的视线',
     mourningRevival: '听哭声辨位。把视线放低。',
     roofExit: '屋顶出口已打开。准备好就可以离开。',
     roofCircuit: '屋顶出口已打开，门边的独立应急灯还没通电。',
     lampSteps: '切到黑夜，让前方的桥出现。',
-    shortcutKeys: '按住 Shift 冲刺，用空格跳跃，在空中按 X 切换。',
+    shortcutKeys: (sprint, jump, shift) => `按住 ${sprint} 冲刺，用 ${jump} 跳跃，在空中按 ${shift} 切换。`,
     shortcutTouch: '按住「冲刺」，点「跳跃」，再在半空点「昼夜」。',
-    legend: 'WASD 移动 · 鼠标转视角 · E 互动', capturedLegend: 'WASD 移动 · 鼠标转视角 · E 互动 · Esc 暂停并释放鼠标',
+    legend: (move, use) => `${move} 移动 · 鼠标转视角 · ${use} 互动`, pauseLegend: key => `${key} 暂停并释放鼠标`,
     capture: '捕获鼠标', captureFailed: '在画面内移动鼠标来转动视角。点击画面可重试捕获。',
-    controls: 'X 切换白天和黑夜，WASD 移动。移动鼠标即可转动视角。进入或继续值班时自动捕获鼠标，按 Esc 暂停并释放。空格跳跃，E 互动，Shift 冲刺，C 轻声走，J 打开日志，M 静音。触屏可拖动画面并使用屏幕按钮。',
+    controls: '移动鼠标即可转动视角。进入或继续值班时会自动捕获鼠标。触屏可拖动画面并使用屏幕按钮。',
     volume: '总音量', mouseSensitivity: '鼠标灵敏度', quality: '画质', high: '高', medium: '均衡', low: '性能', adaptive: '自适应分辨率', fpsMonitor: '显示帧率', reduced: '减弱视觉特效', restart: '重开 3D 值班', restartConfirm: '确认重开 3D 版',
     lift: '打开出口', lampAction: '在应急灯休息', powerAction: '给出口灯通电', work: '操作设备', clue: '查看线索', workDone: '交班已记录。', clueFound: '线索已记下。',
     lamp: '检查点已保存，生命恢复。', power: '你离开后，应急灯也会继续亮着。', locked: '先完成本区的三项交接工作。',
@@ -119,8 +123,10 @@ let volume = Number.isFinite(prefs.volume) ? Math.max(0, Math.min(1, prefs.volum
 let mouseSensitivity = Number.isFinite(prefs.mouseSensitivity) ? Math.max(.5, Math.min(2, prefs.mouseSensitivity)) : 1;
 let storage;
 try { storage = window.localStorage; } catch {}
+const preferences = createPlayerSettings('3d', storage);
 let storedRun = loadRun(storage);
 const state = new Simulation3D({ progress: storedRun.progress });
+state.difficulty = preferences.difficulty;
 state.quality = ['high', 'medium', 'low'].includes(prefs.quality) ? prefs.quality : (coarsePointer.matches ? 'medium' : 'high');
 state.autoResolution = prefs.adaptive !== false;
 let showFps = prefs.showFps === true;
@@ -128,13 +134,22 @@ state.reduceMotion = typeof prefs.reduced === 'boolean' ? prefs.reduced : matchM
 const sound = new HorrorAudio();
 const dialogue = new Dialogue(sound, $('dialogue'));
 dialogue.preload();
-const keys = new Set();
+const keys = new Map();
 const touchKeys = new Map();
 let edges = {}, noticeUntil = 0, lastChapter = -1, lastFrame = 0, accumulator = 0;
 let previouslyLocked = false, freeMouse = null, dragging = null, previousHUD = '', previousStamina = -1, visual = null, error = null;
 let overlayMode = '';
 const t = () => strings[lang];
 const screenText = (id, value) => { $(id).textContent = value; };
+const primaryBindings = new Map();
+const binding = action => primaryBindings.get(action);
+const bindings = action => preferences.label(action, lang);
+const movementKeys = () => ['forward', 'left', 'back', 'right'].map(binding).join(' · ');
+const controls = mountPlayerSettings($('gameplay-settings'), preferences, { onChange: () => {
+  clearInput();
+  state.difficulty = preferences.difficulty;
+  labels();
+} });
 
 function savePrefs() {
   write(settingsKey, { lang, muted, volume, mouseSensitivity, quality: state.quality, adaptive: state.autoResolution, showFps, reduced: state.reduceMotion });
@@ -219,8 +234,10 @@ function updateScreen(force = false) {
 
 function labels() {
   const copy = t();
+  for (const { id } of preferences.actions) primaryBindings.set(id, preferences.label(id, lang, true));
   document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
   dialogue.setLanguage(lang);
+  controls.update(lang);
   [
     ['language', lang === 'en' ? '中文' : 'EN'], ['mute', muted ? copy.off : copy.on], ['pause', copy.pause],
     ['settings-button', copy.settings], ['classic-link', copy.play2D], ['controls-copy', copy.controls],
@@ -229,23 +246,29 @@ function labels() {
     ['voice-credits', lang === 'zh' ? '配音演员与录音来源' : 'Voice cast and recording credits'], ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
     ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse],
     ['guide-title', copy.controlsTitle], ['guide-phase', copy.phaseControl], ['primer-action', copy.phaseControl], ['guide-move', copy.move], ['guide-look', copy.look],
-    ['guide-use', copy.use], ['guide-jump', copy.jump], ['mouse-look', copy.capture]
+    ['guide-use', copy.use], ['guide-jump', copy.jump], ['mouse-look', copy.capture],
+    ['panel-edition', lang === 'zh' ? '第一人称版' : 'First-person edition'],
+    ['system-settings-title', lang === 'zh' ? '画面、音频与鼠标' : 'Display, audio and mouse']
   ].forEach(([id, value]) => screenText(id, value));
   const touch = coarsePointer.matches;
   const keyCap = key => Object.assign(document.createElement('kbd'), { textContent: key });
-  $('guide-phase-key').replaceChildren(touch ? copy.tapDayNight : keyCap('X'));
-  $('primer-key').replaceChildren(touch ? copy.tapDayNight : keyCap('X'));
-  $('guide-move-key').replaceChildren(touch ? copy.onScreen : keyCap('WASD'));
+  $('guide-phase-key').replaceChildren(touch ? copy.tapDayNight : keyCap(bindings('shift')));
+  $('primer-key').replaceChildren(touch ? copy.tapDayNight : keyCap(binding('shift')));
+  $('guide-move-key').replaceChildren(touch ? copy.onScreen : keyCap(movementKeys()));
   $('guide-look-key').replaceChildren(touch ? copy.drag : copy.mouse);
-  $('guide-use-key').replaceChildren(touch ? copy.onScreen : keyCap('E'));
-  $('guide-jump-key').replaceChildren(touch ? copy.onScreen : keyCap(copy.space));
+  $('guide-use-key').replaceChildren(touch ? copy.onScreen : keyCap(bindings('interact')));
+  $('guide-jump-key').replaceChildren(touch ? copy.onScreen : keyCap(bindings('jump')));
+  screenText('phase-key', binding('shift'));
+  $('gaze-meter').setAttribute('aria-label', copy.mourningAggression);
   document.querySelectorAll('.pad button').forEach((button, index) => button.setAttribute('aria-label', copy.directions[index]));
-  $('journal').replaceChildren(copy.journal, Object.assign(document.createElement('kbd'), { textContent: 'J' }));
+  $('journal').replaceChildren(copy.journal, keyCap(binding('journal')));
+  $('journal').title = `${copy.journal} (${binding('journal')})`;
   $('quality').options[0].text = copy.high;
   $('quality').options[1].text = copy.medium;
   $('quality').options[2].text = copy.low;
   $('mute').setAttribute('aria-pressed', String(muted));
-  $('mute').setAttribute('aria-label', muted ? 'Unmute audio' : 'Mute audio');
+  $('mute').setAttribute('aria-label', lang === 'zh' ? (muted ? '打开声音' : '静音') : (muted ? 'Unmute audio' : 'Mute audio'));
+  $('close-panel').setAttribute('aria-label', lang === 'zh' ? '关闭' : 'Close');
   previousHUD = '';
   updateScreen(true);
 }
@@ -261,7 +284,7 @@ function loadChapter() {
 
 function interactionPrompt({ type, id }) {
   const copy = t();
-  const use = coarsePointer.matches ? '' : '[E] ';
+  const use = promptKey('interact');
   if (type === 'station') {
     if (state.completed.has(id)) return copy.workDone;
     const phase = state.requiredPhase(id);
@@ -282,11 +305,17 @@ function interactionPrompt({ type, id }) {
   return text;
 }
 
+function promptKey(action) {
+  return coarsePointer.matches ? '' : `[${binding(action)}] `;
+}
+
 function pursuitPrompt() {
   const zh = lang === 'zh', touch = coarsePointer.matches;
   if (!state.chase.started) {
     if (touch) return zh ? '按住前进奔跑 · 跳过断口 · 左右绕架 · 切换长桥' : 'Hold forward to run · Jump gaps · Dodge shelving · Switch bridges';
-    return zh ? '按住 W 奔跑 · 空格跳跃 · A / D 绕架 · X 切换长桥' : 'Hold W to run · Space to jump · A / D to dodge · X to switch bridges';
+    const [forward, jump, left, right, shift] = ['forward', 'jump', 'left', 'right', 'shift'].map(binding);
+    return zh ? `按住 ${forward} 奔跑 · ${jump} 跳跃 · ${left} / ${right} 绕架 · ${shift} 切换长桥`
+      : `Hold ${forward} to run · ${jump} to jump · ${left} / ${right} to dodge · ${shift} to switch bridges`;
   }
   const part = nextChaseObstacle(state.chase.distance);
   if (!part) return zh ? '靠向走廊正中，穿过绿灯门' : 'Aim for the centre of the green fire door';
@@ -294,10 +323,9 @@ function pursuitPrompt() {
   if (part.kind === 'rack') return part.opening === 'left' ? (zh ? '← 左侧通过' : '← Pass on the left') : (zh ? '右侧通过 →' : 'Pass on the right →');
   if (part.kind === 'bridge') {
     if (part.phase === (state.night ? 'night' : 'day')) return zh ? '过桥，保持奔跑' : 'Bridge connected · Keep running';
-    const prefix = touch ? '' : '[X] ';
-    return prefix + (part.phase === 'night' ? (zh ? '切到黑夜接桥' : 'Switch to night for the bridge') : (zh ? '切到白天接桥' : 'Switch to day for the bridge'));
+    return promptKey('shift') + (part.phase === 'night' ? (zh ? '切到黑夜接桥' : 'Switch to night for the bridge') : (zh ? '切到白天接桥' : 'Switch to day for the bridge'));
   }
-  return (touch ? '' : '[Space] ') + (part.kind === 'gap' ? (zh ? '跳过断口' : 'Jump the gap') : (zh ? '跨过矮栏' : 'Jump the barrier'));
+  return promptKey('jump') + (part.kind === 'gap' ? (zh ? '跳过断口' : 'Jump the gap') : (zh ? '跨过矮栏' : 'Jump the barrier'));
 }
 
 function updateHUD() {
@@ -332,14 +360,14 @@ function updateHUD() {
   const atShortcut = state.mode === 'playing' && state.life === 'alive' && shortcut &&
     state.map.at(state.x, state.z) === shortcut.pads[0];
   const prompt = state.chase && state.life === 'alive' && !state.departing && state.mode === 'playing' ? pursuitPrompt() : target ? interactionPrompt(target) :
-    atShortcut ? shortcut.title[Number(lang === 'zh')] + ' · ' +
-      t()[coarsePointer.matches ? 'shortcutTouch' : 'shortcutKeys'] : '';
+    atShortcut ? shortcut.title[Number(lang === 'zh')] + ' · ' + (coarsePointer.matches ? t().shortcutTouch :
+      t().shortcutKeys(binding('sprint'), binding('jump'), binding('shift'))) : '';
   if ($('interaction').textContent !== prompt) screenText('interaction', prompt);
   $('interaction').hidden = !prompt;
   const gazeWarning = $('gaze-warning');
   gazeWarning.hidden = state.mode !== 'playing' || state.life !== 'alive' || state.gaze < .08;
   if (!gazeWarning.hidden) {
-    const command = state.watching ? t().mourningLook : t().mourningBreak;
+    const command = state.watching ? (state.ghosts.some(ghost => ghost.charging) ? t().mourningCharge : t().mourningLook) : t().mourningBreak;
     if ($('gaze-command').textContent !== command) screenText('gaze-command', command);
     gazeWarning.dataset.breaking = String(!state.watching);
     $('gaze-fill').style.transform = 'scaleX(' + state.gaze + ')';
@@ -397,7 +425,8 @@ function updateMouseLook() {
   const locked = document.pointerLockElement === canvas;
   $('mouse-sensitivity-row').hidden = !finePointer.matches;
   $('mouse-look').hidden = Boolean(error) || state.mode !== 'playing' || !finePointer.matches || !canvas.requestPointerLock || locked;
-  screenText('key-legend', locked ? t().capturedLegend : t().legend);
+  const showPause = locked ? ` · ${t().pauseLegend(binding('pause'))}` : '';
+  screenText('key-legend', t().legend(movementKeys(), binding('interact')) + showPause);
 }
 
 function requestMouseLook() {
@@ -452,7 +481,11 @@ function transitionToMenuWhenUnfocused() {
 
 function showPanel(view) {
   if (state.mode === 'playing') pause();
+  clearInput();
+  controls.cancelCapture();
   const isJournal = view === 'journal';
+  $('panel').dataset.view = view;
+  $('panel-edition').hidden = isJournal;
   $('settings').hidden = isJournal;
   $('journal-view').hidden = !isJournal;
   $('restart').hidden = !storedRun.progress && storedRun.issue !== 'protectedSave' && state.mode !== 'won';
@@ -500,6 +533,7 @@ $('start').onclick = start;
 $('settings-button').onclick = () => showPanel('settings');
 $('journal').onclick = () => showPanel('journal');
 $('close-panel').onclick = () => $('panel').close();
+$('panel').addEventListener('close', () => { controls.cancelCapture(); clearInput(); });
 $('pause').onclick = pause;
 $('mouse-look').onclick = () => { focusScene(); requestMouseLook(); };
 $('phase-badge').onclick = () => { edges.shift = true; focusScene(); };
@@ -544,6 +578,7 @@ $('confirm-restart').onclick = () => {
   }
   storedRun = loadRun(storage);
   state.reset();
+  state.difficulty = preferences.difficulty;
   dialogue.reset();
   lastChapter = -1;
   loadChapter();
@@ -575,61 +610,76 @@ document.addEventListener('mousemove', event => {
 });
 canvas.addEventListener('pointerleave', () => { freeMouse = null; });
 
-const actions = { Space: 'jump', KeyX: 'shift', KeyE: 'interact' };
-const playKeys = new Set(['KeyW','KeyA','KeyS','KeyD','KeyC','ShiftLeft','ShiftRight','Space','KeyX','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
-function held(code) { return keys.has(code) || touchKeys.has(code); }
-function down(code, repeat = false) {
-  if (!repeat && !held(code) && actions[code]) edges[actions[code]] = true;
-  keys.add(code);
+const edgeActions = new Set(['jump', 'shift', 'interact']);
+function held(action) {
+  if (touchKeys.has(action)) return true;
+  for (const pressed of keys.values()) if (pressed === action) return true;
+  return false;
 }
-function releaseJump(code) {
-  if (code === 'Space' && !held(code)) edges.release = true;
+function releaseJump(action) {
+  if (action === 'jump' && !held(action)) edges.release = true;
 }
 window.addEventListener('keydown', event => {
-  if ($('panel').open || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || event.target.closest?.('input,select')) return;
-  const { code, repeat } = event;
-  if (code === 'KeyM' && !repeat) return toggleSound();
-  if (code === 'KeyJ' && !repeat) return showPanel('journal');
-  if (code === 'Escape' && !repeat && state.mode === 'playing') return pause();
-  if (event.key === 'Enter' && !repeat && state.mode === 'paused' && (event.target === canvas || event.target === document.body)) {
+  const { code, repeat, target } = event;
+  if (event.defaultPrevented || $('panel').open || event.isComposing || event.metaKey || event.altKey ||
+    (event.ctrlKey && code !== 'ControlLeft' && code !== 'ControlRight') ||
+    target.closest?.('input,select,textarea,[contenteditable]')) return;
+  if ((code === 'Space' || code === 'Enter' || code === 'NumpadEnter') && target.closest?.('button,a,summary')) return;
+  const action = preferences.actionFor(code);
+  if (action === 'mute' || action === 'journal') {
+    event.preventDefault();
+    if (!repeat) {
+      if (action === 'mute') toggleSound();
+      else showPanel('journal');
+    }
+    return;
+  }
+  if (action === 'pause' && (state.mode === 'playing' || state.mode === 'paused')) {
+    event.preventDefault();
+    if (!repeat) (state.mode === 'playing' ? pause : start)();
+    return;
+  }
+  if (!action && event.key === 'Enter' && !repeat && state.mode === 'paused' && (target === canvas || target === document.body)) {
     event.preventDefault();
     start();
     return;
   }
-  if (state.mode !== 'playing' || !playKeys.has(code)) return;
-  if (code === 'Space' && event.target.closest?.('button,a')) return;
+  if (state.mode !== 'playing' || !action) return;
   event.preventDefault();
-  down(code, repeat);
+  if (repeat || keys.has(code)) return;
+  if (!held(action) && edgeActions.has(action)) edges[action] = true;
+  keys.set(code, action);
 });
 window.addEventListener('keyup', event => {
-  if (keys.delete(event.code)) releaseJump(event.code);
+  const action = keys.get(event.code);
+  if (keys.delete(event.code)) releaseJump(action);
 });
 window.addEventListener('blur', transitionToMenuWhenUnfocused);
 document.addEventListener('visibilitychange', () => { if (document.hidden) transitionToMenuWhenUnfocused(); });
 
 for (const button of document.querySelectorAll('[data-touch]')) {
-  const code = button.dataset.touch;
+  const action = button.dataset.touch;
   button.addEventListener('pointerdown', event => {
     if (state.mode !== 'playing' || state.life !== 'alive' || event.button !== 0) return;
     event.preventDefault();
     button.setPointerCapture(event.pointerId);
-    if (!held(code) && actions[code]) edges[actions[code]] = true;
-    if (!touchKeys.has(code)) touchKeys.set(code, { button, pointers: new Set() });
-    touchKeys.get(code).pointers.add(event.pointerId);
+    if (!held(action) && edgeActions.has(action)) edges[action] = true;
+    if (!touchKeys.has(action)) touchKeys.set(action, { button, pointers: new Set() });
+    touchKeys.get(action).pointers.add(event.pointerId);
     button.setAttribute('data-held', '');
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     button.addEventListener(type, event => {
-      const control = touchKeys.get(code);
+      const control = touchKeys.get(action);
       if (!control?.pointers.delete(event.pointerId) || control.pointers.size) return;
-      touchKeys.delete(code);
+      touchKeys.delete(action);
       button.removeAttribute('data-held');
-      releaseJump(code);
+      releaseJump(action);
     });
   }
   button.addEventListener('click', event => {
-    if (state.mode === 'playing' && state.life === 'alive' && event.detail === 0 && actions[code]) {
-      edges[actions[code]] = true;
+    if (state.mode === 'playing' && state.life === 'alive' && event.detail === 0 && edgeActions.has(action)) {
+      edges[action] = true;
     }
   });
 }
@@ -662,12 +712,12 @@ for (const type of ['pointerup','pointercancel','lostpointercapture']) {
 }
 
 function keyboardInput() {
-  state.look((Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'))) * STEP * 1.92,
-    (Number(keys.has('ArrowUp')) - Number(keys.has('ArrowDown'))) * STEP * 1.2);
+  state.look((Number(held('lookRight')) - Number(held('lookLeft'))) * STEP * 1.92,
+    (Number(held('lookUp')) - Number(held('lookDown'))) * STEP * 1.2);
   const input = {
-    forward: Number(held('KeyW')) - Number(held('KeyS')),
-    side: Number(held('KeyD')) - Number(held('KeyA')),
-    sprint: held('ShiftLeft') || held('ShiftRight'), quiet: held('KeyC'), ...edges
+    forward: Number(held('forward')) - Number(held('back')),
+    side: Number(held('right')) - Number(held('left')),
+    sprint: held('sprint'), quiet: held('walk'), ...edges
   };
   edges = {};
   return input;
@@ -704,7 +754,7 @@ requestAnimationFrame(frame);
 // Read-only smoke-test and accessibility diagnostics.
 window.lastLight3D = Object.freeze({
   snapshot: () => ({
-    chapter: state.levelIndex, mode: state.mode, phase: state.night ? 'night' : 'day',
+    chapter: state.levelIndex, mode: state.mode, phase: state.night ? 'night' : 'day', difficulty: state.difficulty,
     x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch,
     mouseLocked: document.pointerLockElement === canvas, hp: state.hp, deaths: state.progress.deaths,
     work: [...state.completed], evidence: [...state.progress.evidence], life: state.life, deathCause: state.life === 'dying' ? state.deathCause : null,
@@ -712,7 +762,7 @@ window.lastLight3D = Object.freeze({
       pursuer: { x: state.ghosts[0].x, z: state.ghosts[0].z } } : null,
     gaze: state.level.mourning ? {
       amount: state.gaze, direct: state.watching, noteRead: state.mourningNoteRead,
-      figures: state.ghosts.map(({ key, x, z, active, watching }) => ({ key, x, z, active, watching }))
+      figures: state.ghosts.map(({ key, x, z, active, watching, charging }) => ({ key, x, z, active, watching, charging }))
     } : null,
     dialogue: { id: dialogue.active?.id ?? null, playing: Boolean(dialogue.active?.source) },
     fps: visual?.frameBudget.fps ?? null, resolutionScale: visual?.frameBudget.scale ?? 1,

@@ -352,7 +352,7 @@ export function sectorActors(a,s){
  else if(station.scene==='phone'){a.box(x-13,y-3,26,11,RAMPS.iron);a.rect(x-15,y-9,30,5,RAMPS.rust[station.done?2:0]);}
  else if(['archive','handover'].includes(station.kind)){a.box(x-10,y-8,20,23,RAMPS.cloth);a.label(station.done?'OK':'?',x-4,y+6,RAMPS.cloth[3],7);}
  else a.valve(x,y,10);
- a.label(station.done?'DONE':'[E]',x-10,y-18,station.done?'#adc7a7':'#f2d397',6);
+ a.label(station.done?'DONE':`[${s.controlKeys?.interact??'E'}]`,x-10,y-18,station.done?'#adc7a7':'#f2d397',6);
  for(const p of s.echoes||[])if(phaseActive(p,s.night)&&Math.abs(p.y-s.player.y)<280)memoryPerson(a,{...p,shade:'echo',pose:'waiting'});
  if(s.pursuit?.active)a.ghost({xNow:s.pursuit.x,yNow:s.pursuit.y,spawned:true,kind:'watcher',state:'chase',seed:0,facing:1},true);
  if(s.scene){for(const p of s.scene.actors)memoryPerson(a,p);const k=Math.min(1,s.scene.time/2);

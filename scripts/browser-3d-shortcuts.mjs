@@ -213,6 +213,11 @@ async function pauseAndReadGuide() {
 
 async function playMourning() {
   await startChapter(1);
+  const model = await until(() => read(`(() => {
+    const asset = performance.getEntriesByType('resource').find(entry =>
+      entry.name.endsWith('/mourning-clerk-human.glb') && entry.decodedBodySize > 0);
+    return asset && { bytes: asset.decodedBodySize, loadMs: Math.round(asset.duration) };
+  })()`), 'the new Clerk mesh loaded');
   await moveTo('x', tileCentre(9) - .38);
   await moveTo('z', tileCentre(14) + 1.52);
   assert.match(await readHud().then(hud => hud.prompt), /play the gramophone/i);
@@ -249,10 +254,11 @@ async function playMourning() {
   const mouse = await whenPlaying(state => Math.abs(state.yaw - beforeMouse.yaw) > .18, 'mouse rotates the gaze');
   await aim('pitch', 0);
   await aim('yaw', facing);
-  const glimpse = await whenPlaying(state => state.gaze.direct && state.gaze.amount >= .19,
-    'direct stare produces a warning');
+  const position = state => state.gaze.figures.find(figure => figure.key === dayFigure.key);
+  const glimpse = await whenPlaying(state => state.gaze.direct && state.life === 'alive' &&
+    position(state)?.x < dayFigure.x - .24, 'direct stare starts a physical charge');
   assert.equal(await read("document.querySelector('#gaze-warning').hidden"), false);
-  assert.equal(await read("document.querySelector('#gaze-command').textContent"), 'LOOK AWAY');
+  assert.match(await read("document.querySelector('#gaze-command').textContent"), /^LOOK AWAY/);
 
   // Start the screenshot and look-away input together so the camera captures
   // the warning at its onset, before the runner breaks eye contact.
@@ -262,7 +268,9 @@ async function playMourning() {
   const safe = await whenPlaying(state => !state.gaze.direct && state.gaze.amount === 0,
     'looking down clears the eye contact meter');
   await delay(900);
-  assert.equal((await snapshot()).deaths, side.deaths);
+  const stayedSafe = await snapshot();
+  assert.equal(stayedSafe.deaths, side.deaths);
+  assert.deepEqual(position(stayedSafe), position(safe), 'looking away stops the charge in place');
   await capture('mourning-look-down');
 
   await aim('pitch', 0);
@@ -278,6 +286,8 @@ async function playMourning() {
   }, 'sustained eye contact triggers capture', 2200);
   assert.equal(hit.deathCause, 'gaze');
   assert.equal(hit.deaths, side.deaths + 1);
+  const attacker = position(hit);
+  assert.ok(Math.hypot(attacker.x - hit.x, attacker.z - hit.z) < .63, 'death happens at physical contact');
   assert.equal(await read("document.querySelector('#death-copy').textContent"), 'IT CAUGHT YOUR EYE');
   await delay(220);
   await capture('mourning-capture');
@@ -287,8 +297,8 @@ async function playMourning() {
   }, 'checkpoint revived after stare', 2800);
   assert.ok(at(revival, 10, 13));
   assert.equal(revival.gaze.amount, 0);
-  console.log(JSON.stringify({ mouseLook: mouse.yaw - beforeMouse.yaw, warning: glimpse.gaze.amount, recoveryPitch: safe.pitch,
-    phaseRecovery: shifted.phase, death: hit.deathCause, checkpoint: [10, 13], note: revival.gaze.noteRead }));
+  console.log(JSON.stringify({ model, mouseLook: mouse.yaw - beforeMouse.yaw, warning: glimpse.gaze.amount, recoveryPitch: safe.pitch,
+    charge: { from: dayFigure.x, averted: position(safe).x }, phaseRecovery: shifted.phase, death: hit.deathCause, checkpoint: [10, 13], note: revival.gaze.noteRead }));
 }
 
 async function playGhostRecoveries() {

@@ -7,6 +7,7 @@
   <meta name="description" content="A first-person horror game about a shift that never ended.">
   <title>LAST LIGHT — One More Shift | 3D</title>
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="../player-settings.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
 <body>
@@ -58,10 +59,10 @@
           <p class="objective"><span id="station-progress"></span><span id="objective"></span></p>
         </div>
         <div class="phase-status">
-          <button class="phase-badge" id="phase-badge" aria-keyshortcuts="X">
+          <button class="phase-badge" id="phase-badge">
             <span id="phase-time">17:59</span>
             <span id="phase-label">DAY · BEFORE THE FIRE</span>
-            <span class="phase-action"><kbd>X</kbd><span id="phase-action">Switch to night</span></span>
+            <span class="phase-action"><kbd id="phase-key">X</kbd><span id="phase-action">Switch to night</span></span>
           </button>
           <span class="fps-readout" id="fps-readout" aria-hidden="true" hidden></span>
         </div>
@@ -69,7 +70,7 @@
       <div class="reticle" aria-hidden="true"></div>
       <div class="gaze-warning" id="gaze-warning" hidden>
         <p id="gaze-command" aria-live="assertive"></p>
-        <div id="gaze-meter" role="meter" aria-labelledby="gaze-command" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="gaze-meter" role="meter" aria-label="Mourning Clerk aggression" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <i id="gaze-fill"></i>
         </div>
       </div>
@@ -80,8 +81,8 @@
           <p class="notice" id="notice" aria-live="polite" hidden></p>
         </div>
         <div class="touch" aria-label="Touch controls">
-          <div class="pad"><button data-touch="KeyW" aria-label="Forward">↑</button><button data-touch="KeyA" aria-label="Left">←</button><button data-touch="KeyS" aria-label="Back">↓</button><button data-touch="KeyD" aria-label="Right">→</button></div>
-          <div class="touch-actions"><button data-touch="ShiftLeft" id="touch-sprint">Sprint</button><button data-touch="KeyC" id="touch-quiet">Quiet</button><button data-touch="Space" id="touch-jump">Jump</button><button data-touch="KeyE" id="touch-use">Use</button><button data-touch="KeyX" id="touch-shift">Day / Night</button></div>
+          <div class="pad"><button data-touch="forward" aria-label="Forward">↑</button><button data-touch="left" aria-label="Left">←</button><button data-touch="back" aria-label="Back">↓</button><button data-touch="right" aria-label="Right">→</button></div>
+          <div class="touch-actions"><button data-touch="sprint" id="touch-sprint">Sprint</button><button data-touch="walk" id="touch-quiet">Quiet</button><button data-touch="jump" id="touch-jump">Jump</button><button data-touch="interact" id="touch-use">Use</button><button data-touch="shift" id="touch-shift">Day / Night</button></div>
         </div>
         <div class="bottom-bar">
           <div class="vitals">
@@ -97,24 +98,31 @@
 
     <div id="flash" aria-hidden="true"></div>
     <div id="death" aria-live="polite" hidden><p id="death-copy"></p></div>
-    <dialog id="panel">
-      <div class="panel-header"><h2 id="panel-title">Settings</h2><button id="close-panel" aria-label="Close">×</button></div>
+    <dialog id="panel" aria-labelledby="panel-title">
+      <div class="panel-header">
+        <div><p id="panel-edition" class="panel-edition">First-person edition</p><h2 id="panel-title">Settings</h2></div>
+        <button id="close-panel" aria-label="Close">×</button>
+      </div>
       <div id="settings">
-        <label><span id="volume-label">Master volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
-        <label id="mouse-sensitivity-row"><span id="mouse-sensitivity-label">Mouse sensitivity</span><span class="sensitivity-range"><input id="mouse-sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"><span id="mouse-sensitivity-value" aria-hidden="true">100%</span></span></label>
-        <label><span id="quality-label">Graphics</span><select id="quality"><option value="high">High</option><option value="medium">Balanced</option><option value="low">Performance</option></select></label>
-        <label class="checkbox"><input id="adaptive" type="checkbox" checked><span id="adaptive-label">Adaptive resolution</span></label>
-        <label class="checkbox"><input id="fps-visible" type="checkbox"><span id="fps-label">Show frame rate</span></label>
-        <label class="checkbox"><input id="reduced" type="checkbox"><span id="reduced-label">Reduce visual effects</span></label>
-        <p id="controls-copy"></p>
-        <details class="cast-credits">
-          <summary id="voice-credits">Voice cast and recording credits</summary>
-          <p>BlueSiren · pyro13djt · HorathDrak · GreasyPlastic — CC0.</p>
-          <p>RICHERlandTV · <a href="https://freesound.org/people/RICHERlandTV/sounds/705751/" target="_blank" rel="noopener">Things A Machine Might Say</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
-          <p id="voice-edits">Edited, equalized and mixed for LAST LIGHT.</p>
-        </details>
-        <button id="restart" hidden>Restart 3D shift</button>
-        <button id="confirm-restart" hidden>Confirm restart</button>
+        <div id="gameplay-settings"></div>
+        <section class="system-settings" aria-labelledby="system-settings-title">
+          <h3 id="system-settings-title">Display, audio and mouse</h3>
+          <label><span id="volume-label">Master volume</span><input id="volume" type="range" min="0" max="1" step="0.05" value="0.8"></label>
+          <label id="mouse-sensitivity-row"><span id="mouse-sensitivity-label">Mouse sensitivity</span><span class="sensitivity-range"><input id="mouse-sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"><span id="mouse-sensitivity-value" aria-hidden="true">100%</span></span></label>
+          <label><span id="quality-label">Graphics</span><select id="quality"><option value="high">High</option><option value="medium">Balanced</option><option value="low">Performance</option></select></label>
+          <label class="checkbox"><input id="adaptive" type="checkbox" checked><span id="adaptive-label">Adaptive resolution</span></label>
+          <label class="checkbox"><input id="fps-visible" type="checkbox"><span id="fps-label">Show frame rate</span></label>
+          <label class="checkbox"><input id="reduced" type="checkbox"><span id="reduced-label">Reduce visual effects</span></label>
+          <p id="controls-copy"></p>
+          <details class="cast-credits">
+            <summary id="voice-credits">Voice cast and recording credits</summary>
+            <p>BlueSiren · pyro13djt · HorathDrak · GreasyPlastic — CC0.</p>
+            <p>RICHERlandTV · <a href="https://freesound.org/people/RICHERlandTV/sounds/705751/" target="_blank" rel="noopener">Things A Machine Might Say</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
+            <p id="voice-edits">Edited, equalized and mixed for LAST LIGHT.</p>
+          </details>
+          <button id="restart" hidden>Restart 3D shift</button>
+          <button id="confirm-restart" hidden>Confirm restart</button>
+        </section>
       </div>
       <div id="journal-view" hidden><p id="journal-summary"></p><div id="journal-list"></div></div>
     </dialog>

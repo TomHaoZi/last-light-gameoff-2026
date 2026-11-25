@@ -1,9 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Simulation3D, STEP } from "../dist/3d/simulation.js";
+import { mourningHiddenByPartition } from "../dist/3d/mourning-gaze.js";
 
 import { transferControls } from '../scripts/play-3d-transfer.mjs';
 import { BACKROOMS_TRACK, chaseBlocked, chaseFloor } from '../dist/3d/backrooms-track.js';
+
+test("office occlusion culls only a distant Clerk fully behind a solid wall strip", () => {
+  const tiles = new Map([["4/3", {kind: "#", col: 4, row: 3}], ["5/3", {kind: "#", col: 5, row: 3}]]);
+  const map = {get: (col, row) => tiles.get(col + "/" + row)};
+  const eye = {x: 12, y: 0, z: 1.2};
+  const clerk = {x: 12, y: 0, z: 19};
+  assert.equal(mourningHiddenByPartition(map, eye, clerk, 2.4), true);
+  assert.equal(mourningHiddenByPartition(map, {...eye, y: 1.1}, clerk, 2.4), false);
+  assert.equal(mourningHiddenByPartition(map, eye, {...clerk, z: 12}, 2.4), false);
+  tiles.delete("5/3");
+  assert.equal(mourningHiddenByPartition(map, eye, clerk, 2.4), false);
+});
 
 function runTransfer(sim) {
   let jumping = false, shifts = 0;
@@ -73,7 +86,7 @@ function interact(sim, marker) {
   sim.step({ interact: true });
 }
 
-test("office eye contact builds only on a face, and a brief glance can be broken", () => {
+test("office face-to-face stare starts a real charge that stops when the gaze breaks", () => {
   const sim = start([corridor("gaze", "#SN.L..G...E#", { mourning: true, guide: ["Low eyes", "低头"] })]);
   const face = sim.ghosts[0];
   nextCell(sim, "E");
@@ -90,29 +103,38 @@ test("office eye contact builds only on a face, and a brief glance can be broken
 
   nextCell(sim, "E");
   sim.look(0, -sim.pitch);
-  advance(sim, .24);
-  assert.ok(sim.watching && sim.gaze > .2 && sim.gaze < .5);
+  advance(sim, .14);
+  assert.ok(sim.watching && sim.gaze > .2);
   const warning = sim.drain();
   assert.ok(warning.some(event => event.type === "mourning-glance"));
   assert.ok(warning.every(event => event.type !== "death"));
+  assert.equal(face.x, face.home.x, "there is time to respond to the warning");
+  advance(sim, .19);
+  assert.ok(face.charging && face.x < face.home.x - .8);
+  const stoppedAt = face.x;
   sim.look(0, -.46);
   advance(sim, .7);
   assert.equal(sim.gaze, 0);
+  assert.equal(face.charging, false);
   assert.equal(sim.life, "alive");
-  assert.deepEqual([face.x, face.z], [face.home.x, face.home.z], "the statue holds its post");
+  assert.equal(face.x, stoppedAt, "the statue stops at the instant you look away");
 
   sim.look(-.23, .46);
   advance(sim, .9);
   assert.equal(sim.gaze, 0, "peripheral vision stays clear");
+  assert.equal(face.x, stoppedAt);
   sim.look(.23, 0);
   advance(sim, .24);
   sim.step({ shift: true });
   assert.equal(sim.gaze, 0, "an inactive phase clears the warning");
   assert.equal(face.active, false);
+  const phaseStop = face.x;
   advance(sim, .35);
+  assert.equal(face.x, phaseStop);
   sim.step({ shift: true });
   advance(sim, .8);
   assert.equal(sim.deathCause, "gaze");
+  assert.ok(Math.hypot(face.x - sim.x, face.z - sim.z) < .62, "only the resulting contact is lethal");
   assert.equal(sim.pursuer, face);
   assert.equal(sim.progress.deaths, 1);
   advance(sim, 1.9);
@@ -136,6 +158,43 @@ test("office gaze does not see through a wall, but touching an active figure sti
   for (let i = 0; i < 140 && open.life === "alive"; i++) open.step({ forward: 1 });
   assert.equal(open.deathCause, "ghost");
   assert.equal(open.gaze, 0);
+});
+
+test("office charge cannot cross a phase gap even after a long stare", () => {
+  const sim = start([corridor("gaze", "#S..n.G.E#", { mourning: true })]);
+  nextCell(sim, "E");
+  nextCell(sim, "E");
+  sim.look(Math.PI / 2 - sim.yaw, -sim.pitch);
+  const face = sim.ghosts[0];
+  advance(sim, 1.7);
+  assert.equal(sim.gaze, 1);
+  assert.equal(sim.life, "alive");
+  assert.ok(face.x < face.home.x - 3);
+  assert.notEqual(sim.map.at(face.x, face.z).kind, "n");
+});
+
+test("3D difficulty changes the reaction delay, charge speed and hazard recovery", () => {
+  const profiles = ["easy", "normal", "hard"].map(difficulty => {
+    const sim = start([corridor("gaze", "#S....G.E#", { mourning: true })]);
+    nextCell(sim, "E");
+    nextCell(sim, "E");
+    const face = sim.ghosts[0];
+    sim.difficulty = difficulty;
+    sim.look(Math.PI / 2 - sim.yaw, -sim.pitch);
+    let reaction = 0;
+    while (!face.charging && reaction < 120) {
+      sim.step();
+      reaction++;
+    }
+    const startedAt = face.x;
+    advance(sim, .24);
+    assert.ok(face.x < face.home.x);
+    sim.hurt();
+    return [reaction, startedAt - face.x, sim.shield];
+  });
+  assert.ok(profiles[0][0] > profiles[1][0] && profiles[1][0] > profiles[2][0]);
+  assert.ok(profiles[0][1] < profiles[1][1] && profiles[1][1] < profiles[2][1]);
+  assert.ok(profiles[0][2] > profiles[1][2] && profiles[1][2] > profiles[2][2]);
 });
 
 test("a shift flips support, and station interaction respects the active phase", () => {

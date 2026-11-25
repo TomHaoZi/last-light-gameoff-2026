@@ -1,5 +1,11 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.19 · Bindings, difficulty and charge behavior
+
+Resolve physical keyboard codes to game actions before processing movement, camera input and interaction. Each edition has its own control defaults and browser preferences. A key belongs to one action at a time and a conflict can be swapped explicitly. Every action retains at least one key. Settings and input loss clear held controls. Touch continues to send its own game actions.
+
+Difficulty presets adjust enemy reaction, speed and recovery after hazards. Keep platform geometry, jump timing and puzzles consistent across presets. The Mourning Clerk moves toward the player during a sustained direct gaze. Breaking that gaze ends the charge, and capture requires contact. Her navigation respects phase-specific support and obstructions.
+
 ## 3.0.0-rc.18 · Eye contact and guidance
 
 Exposure accumulates only under a clear direct gaze at an active office spectre. A short warning gives the player time to look elsewhere. Ordinary collision remains dangerous. Render the new figure and repaired wings from original independent Blender assemblies. Keep rule instructions playable from the phonograph and readable in the journal. Give directional creature sounds their own path and keep speech free of parallel delayed copies.

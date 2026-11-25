@@ -67,7 +67,7 @@ function predicts(s,data,target,dir,jump,desiredNight,walk=false){
  for(let t=0;t<300;t++){
   updateMovingPlatforms(platforms,s.time+t/120,1/120);if(t===0)for(const q of platforms)q.dx=q.dy=0;
   stepPlayer(p,{left:dir<0,right:dir>0,jump:jump&&t===0,walk},index.query(p.x-40,p.y-20,p.x+60,p.y+65),t>10?desiredNight:night,1/120,{width:data.width,solids});
-  const predictionWorld={player:p,night:t>10?desiredNight:night,events:s.events,checkpoints:data.checkpoints,walls:data.walls,gazeBlockers:solids,time:s.time+t/120};
+  const predictionWorld={player:p,night:t>10?desiredNight:night,events:s.events,checkpoints:data.checkpoints,walls:data.walls,gazeBlockers:solids,platforms,collisionIndex:index,difficulty:s.difficulty,time:s.time+t/120};
   if(ghosts.some(g=>updateGhost(g,predictionWorld,1/120,walk?.1:.7)))return false;
   if(!p.grounded)airborne=true;if(p.grounded&&p.supportId!==s.player.supportId)return p.supportId===target;if(jump&&airborne&&p.grounded||p.y>1740)return false;
  }

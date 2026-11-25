@@ -182,8 +182,8 @@ export const LEVELS = [
     spawnYaw: 0,
     mourning: true,
     guide: [
-      "KEEP YOUR EYES LOW. The Mourning Clerk reacts to a direct stare. Turn your head or look down when the warning appears. Follow the crying to tell where it stands, and leave room as you pass.",
-      "视线放低。默哀档案员会回应直视。看到警告就转头或低头，听哭声辨别它的位置，绕行时留一点距离。",
+      "KEEP YOUR EYES LOW. Stare straight at the Mourning Clerk and she rushes you. Turn your head or look down to stop her. Listen for her crying and leave room as you pass.",
+      "视线放低。直视默哀档案员时，她会朝你冲过来。转头或低头就能让她停下。听哭声辨位，绕行时留出一点距离。",
     ],
     requiredPhase: { B: NIGHT },
     messages: {

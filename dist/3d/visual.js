@@ -1,4 +1,5 @@
 import { preloadMourningFigure } from './mourning-figure.js';
+import { mourningHiddenByPartition } from './mourning-gaze.js';
 import * as THREE from 'three';
 import { applyWorldWeather, createSurfaceSet } from './surfaces.js';
 import { decorateModels } from './models.js';
@@ -351,6 +352,77 @@ void main() {
 }
 `;
 
+async function warmMourningGeometry(renderer, figure) {
+  const geometries = new Set();
+  figure.traverse(object => { if (object.isMesh) geometries.add(object.geometry); });
+  const scene = new THREE.Scene();
+  const camera = new THREE.Camera();
+  const target = new THREE.WebGLRenderTarget(1, 1);
+  const material = new THREE.MeshBasicMaterial({ toneMapped: false });
+  const sample = new THREE.Mesh(geometries.values().next().value, material);
+  sample.frustumCulled = false;
+  scene.add(sample);
+  try {
+    for (const geometry of geometries) {
+      await waitForRenderIdle();
+      if (renderer.getContext().isContextLost()) return;
+      sample.geometry = geometry;
+      const previous = renderer.getRenderTarget();
+      try {
+        // Upload one mesh per idle frame without drawing to the game viewport.
+        renderer.setRenderTarget(target);
+        renderer.render(scene, camera);
+      } finally {
+        renderer.setRenderTarget(previous);
+      }
+    }
+  } finally {
+    target.dispose();
+    material.dispose();
+  }
+}
+
+async function warmMourningMaterials(visual, figure) {
+  const { renderer, stage, frameTarget, camera, scene, rig, lamp } = visual;
+  if (!renderer.extensions.has('KHR_parallel_shader_compile')) return;
+  const context = renderer.getContext();
+  let active = true;
+  const isCurrent = () => active && stage === visual.stage && !context.isContextLost();
+  const finish = makeOfficeProgramWarmup(renderer, stage, rig, lamp.shadow, isCurrent);
+  const meshes = [];
+  figure.traverse(object => {
+    if (!object.isMesh) return;
+    meshes.push([object, object.castShadow, object.receiveShadow]);
+    object.castShadow = object.receiveShadow = true;
+  });
+  let limit;
+  const prepare = async () => {
+    await waitForRenderIdle();
+    if (!isCurrent()) return;
+    const previous = renderer.getRenderTarget();
+    let linked;
+    try {
+      renderer.setRenderTarget(frameTarget);
+      linked = renderer.compileAsync(figure, camera, scene);
+    } finally {
+      renderer.setRenderTarget(previous);
+    }
+    await linked;
+    if (isCurrent()) await finish(figure);
+  };
+  try {
+    const timeout = new Promise(resolve => { limit = setTimeout(resolve, 425); });
+    await Promise.race([prepare(), timeout]);
+  } finally {
+    active = false;
+    clearTimeout(limit);
+    for (const [mesh, casts, receives] of meshes) {
+      mesh.castShadow = casts;
+      mesh.receiveShadow = receives;
+    }
+  }
+}
+
 export class Visual {
   constructor(canvas) {
     this.canvas = canvas;
@@ -445,6 +517,7 @@ export class Visual {
     this.preloadTransfer = level.id === 'office';
     this.theme = ['boiler', 'office', 'roof'].indexOf(level.theme || level.id);
     if (this.theme < 0) this.theme = /roof|garden|antenna/i.test(level.id) ? 2 : /office|archive/i.test(level.id) ? 1 : 0;
+    if (level.id === 'office') this.prepareMourningAsset();
     this.palette = [BOILER, OFFICE, ROOF][this.theme];
     const outdoors = this.theme === 2;
     if (!this.probes.has(outdoors)) this.probes.set(outdoors, makeReflectionProbe(outdoors));
@@ -520,7 +593,8 @@ export class Visual {
     this.surfacesReady = mountPhotoSurfaces(this);
     const stage = this.stage;
     const redraw = () => { if (this.stage === stage) this.overlayFrame = null; };
-    for (const ready of [this.environmentReady, this.workstationsReady, this.surfacesReady, preloadCreatureAsset()]) ready.then(redraw, redraw);
+    const creature = level.id === 'office' ? this.mourningAsset : preloadCreatureAsset();
+    for (const ready of [this.environmentReady, this.workstationsReady, this.surfacesReady, creature]) ready.then(redraw, redraw);
     // Sculpt both phases at chapter entry so Shift never has to build a mesh.
     decoded.ghosts.forEach((tile, index) => this.addCreature(tile.col + '/' + tile.row, index, level.id === 'office' ? 'mourning' : null));
   }
@@ -533,14 +607,21 @@ export class Visual {
     return actor;
   }
 
+  prepareMourningAsset() {
+    if (this.mourningAsset) return;
+    const desktop = this.desktopPointer.matches;
+    const warmup = async figure => {
+      await warmMourningGeometry(this.renderer, figure);
+      await warmMourningMaterials(this, figure);
+    };
+    this.mourningAsset = preloadMourningFigure(desktop ? warmup : undefined);
+    if (desktop) scheduleOfficeCreatureTextures(this.renderer);
+  }
+
   preparePhasePrograms() {
     if (!this.desktopPointer.matches) return;
     const { renderer, stage } = this;
     const office = this.theme === 1;
-    if (this.theme <= 1 && !this.officeTextureWarmupScheduled) {
-      this.officeTextureWarmupScheduled = true;
-      scheduleOfficeCreatureTextures(renderer);
-    }
     if (this.phasePrograms || !renderer.extensions.has('KHR_parallel_shader_compile')) return;
     const actors = [...this.ghosts.values()];
     const nightActors = office ? this.decoded.ghosts.filter(tile => tile.phase === 'night')
@@ -1287,7 +1368,8 @@ export class Visual {
       const key = ghost.key ?? ghost.id ?? index;
       seen.add(key);
       const visible = ghost.active !== false && (ghost.phase !== 'night' || state.night) &&
-        (ghost.phase !== 'day' || !state.night);
+        (ghost.phase !== 'day' || !state.night) &&
+        (ghost.kind !== 'mourning' || !mourningHiddenByPartition(this.decoded, state, ghost, TILE));
       let actor = this.ghosts.get(key);
       if (!visible) {
         if (actor) actor.group.visible = false;
@@ -1306,13 +1388,7 @@ export class Visual {
       const attacking = state.life === 'dying' && (state.deathCause === 'ghost' || state.deathCause === 'gaze') && ghost === state.pursuer;
       const attack = attacking ? THREE.MathUtils.smoothstep(state.lifeTimer, 0, .18) *
         (1 - .44 * THREE.MathUtils.smoothstep(state.lifeTimer, .47, .93)) : 0;
-      // A direct stare permits the clerk to close the last few metres in the
-      // capture animation. Simulation keeps the original collision position.
-      const lunge = attacking && state.deathCause === 'gaze' && !reduced ?
-        THREE.MathUtils.smoothstep(state.lifeTimer, .13, .48) *
-        (1 - .84 / Math.max(.84, distance)) : 0;
-      const x = THREE.MathUtils.lerp(ghost.x, state.x, lunge);
-      const z = THREE.MathUtils.lerp(ghost.z, state.z, lunge);
+      const { x, z } = ghost;
       const dx = x - actor.group.position.x;
       const dz = z - actor.group.position.z;
       const travel = Math.hypot(dx, dz);
@@ -1323,7 +1399,7 @@ export class Visual {
         (wasVisible ? Math.min(1, dt * (attack ? 17 : 8)) : 1);
       actor.group.position.set(x, ghost.y || 0, z);
       actor.placed = true;
-      updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced, moving, dt, travel, gazeLock: ghost.gaze || 0 });
+      updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced, moving, dt, travel, gazeLock: ghost.gaze || 0, charging: ghost.charging });
       this.air.breathe(actor, distance, state, this.theme, reduced);
     }
     for (const [key, actor] of this.ghosts) if (!seen.has(key)) actor.group.visible = false;
@@ -1446,6 +1522,7 @@ export class Visual {
       const stage = this.stage;
       void waitForRenderIdle().then(() => { if (this.stage === stage) void preloadBackroomsSet(); });
     }
+    if (this.theme === 0 && state.completed?.size > 0 && !this.mourningAsset) this.prepareMourningAsset();
     const time = state.time || 0;
     const lifeTime = state.lifeTimer ?? state.lifeTime ?? 0;
     const dying = ['dying', 'dead'].includes(state.life);

@@ -8,8 +8,10 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.18"
+VERSION = "3.0.0-rc.19"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
+SHARED_SETTINGS = {"player-settings.js", "settings-panel.js", "player-settings.css"}
+HISTORIC_MODEL = "assets/creature/mourning-clerk.glb"
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
     "simulation.js", "save.js", "lighting.js", "models.js", "surfaces.js",
@@ -27,13 +29,15 @@ REQUIRED_FILES = {
     "assets/CREDITS.md", "assets/creature/late-worker.glb",
     "assets/creature/SOURCES.md", "assets/env/CREDITS.md",
     "mourning-audio.js", "mourning-figure.js", "mourning-gaze.js",
-    "classic/mourning-clerk.js", "assets/creature/mourning-clerk.glb",
+    "classic/mourning-clerk.js", "assets/creature/mourning-clerk-human.glb",
     "assets/creature/mourning-wings.glb", "assets/env/office-phonograph.glb",
     "audio/mourning-sob-soft.m4a", "audio/mourning-sob-held.m4a",
     "assets/dialogue/CREDITS.md", "assets/surfaces/CREDITS.md",
     "audio/CREDITS.md", "air-effects.js", "service-lift.js", "station-traces.js", "workstation-models.js", "janitor-hands.js",
     "assets/janitor/janitor.glb", "assets/janitor/CREDITS.md", "assets/env/service-lift.glb",
 }
+REQUIRED_FILES.update(SHARED_SETTINGS)
+REQUIRED_FILES.update(f"classic/{name}" for name in SHARED_SETTINGS)
 
 
 REQUIRED_FILES.update(
@@ -63,14 +67,17 @@ def collect_runtime():
     files = {}
     for path in sorted(scene.rglob("*")):
         relative = path.relative_to(scene)
-        if path.is_file() and not path.is_symlink() and all(
+        if relative.as_posix() != HISTORIC_MODEL and path.is_file() and not path.is_symlink() and all(
             not part.startswith(".") for part in relative.parts
         ):
             files[relative.as_posix()] = path.read_bytes()
 
     for path in sorted(dist.iterdir()):
         if path.is_file() and not path.is_symlink() and path.suffix in {".html", ".css", ".js"}:
-            files[f"classic/{path.name}"] = path.read_bytes()
+            content = path.read_bytes()
+            files[f"classic/{path.name}"] = content
+            if path.name in SHARED_SETTINGS:
+                files[path.name] = content
 
     files["classic/backrooms-props.png"] = (dist / "backrooms-props.png").read_bytes()
     for module in ("chase-score.js", "mourning-audio.js"):
@@ -84,6 +91,17 @@ def collect_runtime():
     missing = REQUIRED_FILES - files.keys()
     if missing:
         raise ValueError(f"Missing runtime files: {', '.join(sorted(missing))}")
+
+    for scene_file, name in (
+        ("index.html", "player-settings.css"),
+        ("game.js", "player-settings.js"),
+        ("game.js", "settings-panel.js"),
+        ("simulation.js", "player-settings.js"),
+    ):
+        parent = f"../{name}".encode()
+        if files[scene_file].count(parent) != 1:
+            raise ValueError(f"Expected one {name} reference in {scene_file}")
+        files[scene_file] = files[scene_file].replace(parent, f"./{name}".encode())
 
     entry = files["index.html"]
     if entry.count(b'href="../"') != 2:

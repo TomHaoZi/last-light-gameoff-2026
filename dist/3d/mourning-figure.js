@@ -1,24 +1,34 @@
-import { Group, MathUtils } from 'three';
+import { Euler, Group, MathUtils, Skeleton, Sphere, Vector3 } from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
+import { applyPreparedCreatureTextures, prepareOfficeTextures } from './creature-textures.js';
 
 const loader = new GLTFLoader();
 const shared = new WeakSet();
+const bounds = new Sphere(new Vector3(0, .9, 0), 1.55);
 let prepared = null;
 let request = null;
+let prepareGeometry = null;
 
-export function preloadMourningFigure() {
+export function preloadMourningFigure(warmGeometry) {
+  if (warmGeometry && !prepared) prepareGeometry ??= warmGeometry;
   if (!request) {
     const asset = file => new URL('./assets/creature/' + file + '.glb', import.meta.url).href;
     request = Promise.all([
-      loader.loadAsync(asset('mourning-clerk')),
+      loader.loadAsync(asset('mourning-clerk-human')),
       loader.loadAsync(asset('mourning-wings'))
-    ]).then(([{ scene: figure }, { scene: wings }]) => {
-      for (const model of [figure, wings]) {
-        model.traverse(object => {
+    ]).then(async ([{ scene: figure }, { scene: wings }]) => {
+      for (const scene of [figure, wings]) {
+        scene.traverse(object => {
           if (object.isMesh) shared.add(object.geometry);
         });
       }
       figure.getObjectByName('WingAnchor').add(wings);
+      try {
+        await prepareGeometry?.(figure);
+      } catch {
+        // A reset or unavailable warmup leaves the normal draw path usable.
+      }
+      prepareGeometry = null;
       prepared = figure;
       return true;
     }).catch(error => {
@@ -32,64 +42,101 @@ export function preloadMourningFigure() {
 
 export const isSharedMourningGeometry = geometry => shared.has(geometry);
 
+export function prepareMourningTextures(renderer) {
+  void preloadMourningFigure().then(ready => {
+    if (ready) prepareOfficeTextures(renderer, prepared);
+  });
+}
+
 export function attachMourningFigure(actor) {
   if (!prepared || actor.pose) return;
   const figure = prepared.clone();
+  const joints = new Map();
+  const skins = new Map();
+  const boneLabel = object => object.userData.name ?? object.name;
+  figure.traverse(object => {
+    if (object.isBone) joints.set(boneLabel(object), object);
+  });
   figure.traverse(object => {
     if (!object.isMesh) return;
     object.material = object.material.clone();
     object.castShadow = true;
     object.receiveShadow = true;
+    if (object.isSkinnedMesh) {
+      object.boundingSphere = bounds;
+      const original = object.skeleton;
+      if (!skins.has(original)) {
+        skins.set(original, new Skeleton(original.bones.map(bone => joints.get(boneLabel(bone))), original.boneInverses));
+      }
+      object.skeleton = skins.get(original);
+    }
   });
-  const pivot = name => figure.getObjectByName(name);
   actor.body.group.add(figure);
-  actor.head = pivot('Crown');
+  actor.head = joints.get('head');
+  const wing = figure.getObjectByName('WingAnchor');
+  const rest = object => ({ object, rest: object.quaternion.clone() });
+  const joint = name => rest(joints.get(name));
   actor.pose = {
-    figure: pivot('Figure'), ribs: pivot('Ribcage'), skirt: pivot('Drape'),
-    lip: pivot('LowerLip'), wings: pivot('WingAnchor'),
-    arms: ['L', 'R'].map(side => ({
-      shoulder: pivot('Shoulder_' + side), elbow: pivot('Elbow_' + side), palm: pivot('Palm_' + side)
-    }))
+    figure, ribs: joint('spine02'), head: rest(actor.head), jaw: joint('jaw'), wings: rest(wing),
+    arms: ['R', 'L'].map((side, index) => ({
+      side: index ? 1 : -1,
+      shoulder: joint('upperarm01.' + side), elbow: joint('lowerarm01.' + side),
+      wrist: joint('wrist.' + side)
+    })),
+    legs: ['R', 'L'].map(side => ({ hip: joint('upperleg01.' + side), knee: joint('lowerleg01.' + side) })),
+    mouth: ['R', 'L'].map(side => joint('oris03.' + side))
   };
   actor.group.userData.authoredCreature = true;
 }
 
-export function createMourningFigure(group, seed, theme) {
+export function createMourningFigure(group, seed, theme, renderer) {
   const body = { group: new Group() };
   group.add(body.group);
-  const actor = { body, group, seed, theme, kind: 'mourning', movementTime: 0 };
+  const actor = { body, group, seed, theme, renderer, kind: 'mourning', movementTime: 0 };
   if (prepared) attachMourningFigure(actor);
   else void preloadMourningFigure();
   return actor;
 }
 
-export function poseMourningFigure(actor, { time, gaze, attack, reduced, travel, moving, dt }) {
+const offset = new Euler();
+function poseBone(joint, pitch, yaw, roll) {
+  joint.object.quaternion.setFromEuler(offset.set(pitch, yaw, roll)).premultiply(joint.rest);
+}
+
+export function poseMourningFigure(actor, { time, gaze, charging, attack, reduced, travel, moving }) {
   attachMourningFigure(actor);
   const pose = actor.pose;
   if (!pose) return;
-  const { arms, figure, ribs, skirt, lip, wings } = pose;
-  const alarm = MathUtils.smoothstep(gaze, 0, 0.9);
-  const grief = (1 - Math.max(alarm, attack));
+  applyPreparedCreatureTextures(actor);
+  const { arms, legs, figure, ribs, head, jaw, mouth, wings } = pose;
+  const alarm = MathUtils.smoothstep(gaze, 0, .78);
+  const reach = Math.max(attack, charging ? .77 + alarm * .23 : alarm * .23);
+  const grief = 1 - Math.max(alarm, attack);
   const breath = reduced ? 0 : Math.sin(time * 3.15 + actor.seed);
-  if (moving) actor.movementTime += travel * 4.6;
+  if (moving) actor.movementTime += travel * 5;
   const stride = reduced || !moving ? 0 : Math.sin(actor.movementTime);
-  const creep = Math.sin(time * 16 + actor.seed) * alarm * (reduced ? 0 : 1);
+  const shiver = reduced ? 0 : Math.sin(time * 17 + actor.seed) * alarm;
 
-  figure.position.y = Math.max(0, stride * .014);
-  ribs.rotation.set(.113 * grief - .23 * attack, -.032 * grief, -.068 * grief + breath * .015);
-  actor.head.rotation.set(.40 * grief - .177 * attack + .028 * breath, -.076 * grief + creep * .028,
-    .16 * grief + .033 * creep);
-  lip.position.y = -.013 * attack - .005 * alarm;
-  skirt.rotation.set(.035 * stride - .061 * attack, stride * .035, -.024 * stride);
-  wings.rotation.set(-.061 * grief - .11 * attack, .052 * grief, .05 * attack);
+  figure.position.y = Math.abs(stride) * .019;
+  poseBone(ribs, .11 * grief + .27 * reach, -.029 * grief + stride * .08, -.06 * grief + breath * .019);
+  poseBone(head, .26 * grief - .33 * reach + .031 * breath, -.075 * grief + shiver * .025,
+    .14 * grief - .085 * reach + .026 * shiver);
+  poseBone(jaw, .035 * grief + .245 * reach, shiver * .026, 0);
+  for (const [i, corner] of mouth.entries()) poseBone(corner, -.045 * reach, 0, (i ? 1 : -1) * .107 * reach);
+  poseBone(wings, -.06 * grief - .11 * reach, .054 * grief + stride * .066, .066 * reach);
 
-  for (const [index, arm] of arms.entries()) {
-    const side = index === 0 ? -1 : 1;
-    const raised = index === 0;
-    arm.shoulder.rotation.set(-.22 - .92 * attack - (raised ? .16 * grief : 0),
-      -.10 * side * attack, side * (.125 + .34 * attack - .18 * grief));
-    arm.elbow.rotation.set(-.16 - (raised ? .68 * grief : .29 * grief) - .22 * attack,
-      -.11 * side * attack, -side * (raised ? .95 : .20) * grief - side * .11 * attack);
-    arm.palm.rotation.set(.20 * grief + .11 * attack, -.18 * side, .13 * side * grief);
+  for (const [index, { side, shoulder, elbow, wrist }] of arms.entries()) {
+    const lift = index === 0;
+    const swing = side * stride;
+    poseBone(shoulder, -.43 * grief * Number(lift) - reach * (1.53 + side * .09) + swing * .18,
+      side * (.083 + .16 * reach), -side * (.40 + .10 * grief + .34 * reach));
+    poseBone(elbow, -.16 - (lift ? .96 : .20) * grief - .13 * reach,
+      -.16 * side * reach, side * ((lift ? .74 : .14) * grief + .12 * reach));
+    poseBone(wrist, .21 * grief + .27 * reach, -.16 * side, side * .15 * grief);
+  }
+  for (const [index, { hip, knee }] of legs.entries()) {
+    const step = stride * (index ? 1 : -1);
+    poseBone(hip, step * .64 - .09 * reach, 0, (index ? 1 : -1) * .044);
+    poseBone(knee, Math.max(0, step) * .62, 0, 0);
   }
 }

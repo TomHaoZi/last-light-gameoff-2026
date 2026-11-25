@@ -1,5 +1,15 @@
 # Progress · 2.0.0-rc.1
 
+## RC19 · Custom controls, difficulty and the Mourning Clerk
+
+Both editions have editable keyboard bindings with three slots per action, explicit conflict swaps and a restore-defaults control. Menus and gameplay prompts use the selected keys. Story, Standard and Nightmare change pursuit and recovery timing. Controls and difficulty are stored per edition.
+
+Direct eye contact now triggers a physical charge in the office. Looking away interrupts the charge, and a capture happens when the Clerk reaches the player. Both editions give players a warning and a way to avert their eyes. Chrome exercised 3D rebinding, the new keys in live gameplay, difficulty persistence, and the office charge and recovery.
+
+Two 3D Chrome playthroughs reached the normal and complete endings with zero deaths. The complete run recovered all six records. Both completed the Records Annex in 45.43 seconds and preserved the ending after reloading and switching to the 2D edition and back.
+
+The redesigned adult figure uses a fitted human mesh, a tailored gown, painted skin and a shared skeleton. Classic has a new hand-pixelled silhouette and charging pose. The Classic full Chrome run cleared all 18 sectors and reached the complete ending with six records and zero deaths. See the [RC19 controls and encounter record](docs/settings-and-mourning-rc19.md).
+
 ## RC18 · The Mourning Clerk
 
 The office now has a female limestone apparition with a gaze mechanic, a replayable phonograph, contextual guidance in Chinese and English, and direct speech mixing. Focused, exact-package tests in both editions verified the warning, recovery and capture. [Office acceptance record](docs/mourning-clerk-rc18.md).

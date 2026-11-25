@@ -75,110 +75,153 @@ export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir,
   a.line(-3, 21 + lag, 3, CAP[0]);
 }
 
-const LIMESTONE = ['#e8e1bf', '#c7c9ad', '#899c8f', '#34474a'];
-const SERGE = ['#929e92', '#718880', '#495d5e', '#2e4145'];
-const SLATE = ['#a8aca0', '#788486', '#515f66', '#36454d'];
+const CLERK_HAIR = ['#8c9390', '#626e70', '#46575c', '#273a40'];
+const CLERK_SKIN = ['#f3e6cc', '#c9c8af', '#899c95', '#45595a'];
+const CLERK_COAT = ['#a4acaf', '#788893', '#52626f', '#303f4b'];
+const CLERK_BLOUSE = ['#e5d8b6', '#b4b8ab', '#899b96', '#45585b'];
+const CLERK_LEATHER = ['#ad9a84', '#877b73', '#66595b', '#423b48'];
+const CLERK_STAIN = ['#b48c83', '#946360', '#704850', '#523a46'];
 
 export function drawMourningClerk(a, ghost, x, y) {
-  const danger = ghost.gaze || 0;
-  const rise = Math.round(danger * 7);
-  const spread = Math.round(danger * 3);
-  const agitated = danger > .53;
-  const tremble = danger > .18 ? Math.round(Math.sin(a.t * 17) * danger) : 0;
-  const braidSwing = Math.round(Math.sin(a.t * 2.8 + (ghost.seed || 0)));
-  const faceX = x + tremble;
-  const faceY = y - 13 - rise;
-  a.glow(x, y - 6, 33, 32, agitated ? '#dba17b' : '#a7bab3', .085 + danger * .13);
-  a.c.save();
+  const {gaze = 0, looking, charging} = ghost;
+  const direction = ghost.facing === -1 ? -1 : 1;
+  const lean = charging ? direction * 4 : 0;
+  const stride = charging ? Math.round(Math.sin(a.t * 26) * 2) : 0;
+  const hairLag = charging ? -direction * 3 : Math.round(Math.sin(a.t * 2.4 + (ghost.seed || 0)));
+  const faceY = looking ? -25 : -22;
+  const rect = (dx, dy, w, h, color) => a.rect(x + dx, y + dy, w, h, color);
+  const face = (dx, dy, w, h, color) => rect(lean + dx, faceY + dy, w, h, color);
+  const forward = (dx, dy, w, h, color) => rect(direction === 1 ? dx : 1 - dx - w, dy, w, h, color);
 
-  // The relief was once an arch of feathers. The right tip broke off.
-  a.rect(x - 19 - spread, y - 22 - spread, 5 + spread, 12 + spread, LIMESTONE[3]);
-  a.rect(x - 18 - spread, y - 21 - spread, 2, 11, LIMESTONE[1]);
-  a.line(x - 18 - spread, y - 21 - spread, 3, LIMESTONE[0]);
-  a.rect(x - 16 - spread, y - 17 - spread, 6 + spread, 17 + spread, LIMESTONE[2]);
-  a.rect(x - 16 - spread, y - 14 - spread, 2, 10 + spread, LIMESTONE[1]);
-  a.rect(x - 13 - spread, y - 12 - spread, 2, 14 + spread, LIMESTONE[2]);
-  a.rect(x - 15, y - 10, 9, 26, LIMESTONE[3]);
-  a.rect(x - 14, y - 9, 4, 18, LIMESTONE[2]);
-  a.rect(x - 14, y - 8, 1, 11, LIMESTONE[1]);
-  a.rect(x - 11, y - 4, 1, 8, LIMESTONE[3]);
-  a.rect(x - 13, y + 5, 4, 8, LIMESTONE[2]);
-  a.line(x - 16, y - 10, 3, LIMESTONE[0]);
-  a.rect(x - 11, y + 8, 2, 8, LIMESTONE[1]);
-  a.rect(x - 8, y + 6, 2, 7, LIMESTONE[2]);
-  a.rect(x + 6, y - 9 - spread, 8 + spread, 20 + spread, LIMESTONE[3]);
-  a.rect(x + 10, y - 13 - spread, 5, 8, LIMESTONE[3]);
-  a.rect(x + 11, y - 12 - spread, 3, 7, LIMESTONE[1]);
-  a.line(x + 12, y - 12 - spread, 2, LIMESTONE[0]);
-  a.rect(x + 8, y - 7, 5, 12, LIMESTONE[2]);
-  a.rect(x + 13, y - 4, 4 + spread, 9, LIMESTONE[2]);
-  a.rect(x + 14, y - 2, 1, 6, LIMESTONE[3]);
-  a.line(x + 12, y - 5, 3, LIMESTONE[0]);
-  a.rect(x + 15, y, 2 + spread, 5, LIMESTONE[3]);
-  a.rect(x + 9, y + 5, 3, 8, LIMESTONE[3]);
-  a.rect(x + 12, y + 5, 2, 4, LIMESTONE[1]);
+  a.glow(x, y - 3, 30, 37, charging ? '#c58573' : '#a3bdb4', .07 + gaze * .1);
+  // The hanging hair remains behind her shoulders. The ends lag the lunge.
+  face(-9, 4, 18, 17, CLERK_HAIR[3]);
+  face(-10, 8, 5, 15, CLERK_HAIR[2]);
+  face(-9, 10, 2, 13, CLERK_HAIR[1]);
+  face(7, 11, 3, 15, CLERK_HAIR[3]);
+  face(-8 + hairLag, 20, 4, 8, CLERK_HAIR[2]);
+  face(-8 + hairLag, 21, 1, 6, CLERK_HAIR[1]);
+  face(6 + hairLag, 22, 3, 7, CLERK_HAIR[2]);
 
-  // High collar, pinned archive badge and a single sculpted skirt.
-  a.rect(x - 9, y - 6 - rise / 2, 18, 14 + rise / 2, SERGE[3]);
-  a.rect(x - 7, y - 5 - rise / 2, 14, 11 + rise / 2, SERGE[2]);
-  a.rect(x - 6, y - 5, 4, 11, SERGE[1]);
-  a.line(x - 7, y - 6, 7, SERGE[0]);
-  a.rect(x - 6, y + 4, 12, 7, SERGE[3]);
-  a.rect(x - 7, y + 8, 14, 7, SERGE[2]);
-  a.rect(x - 9, y + 13, 18, 11, SERGE[3]);
-  a.rect(x - 8, y + 13, 7, 9, SERGE[2]);
-  a.rect(x - 5, y + 11, 3, 10, SERGE[1]);
-  a.rect(x + 2, y + 11, 4, 11, SERGE[2]);
-  a.line(x - 5, y + 7, 10, '#777463');
-  a.rect(x - 5, y + 23, 3, 2, SERGE[3]);
-  a.rect(x + 4, y + 23, 3, 2, SERGE[3]);
-  for (let i = 0; i < 4; i++) {
-    a.rect(x - 4 + i * 2, y - 5 - rise / 2, 1, 2, LIMESTONE[i > 1 ? 2 : 1]);
-  }
-  a.rect(x + 3, y + 1, 5, 3, '#97875c');
-  a.line(x + 3, y + 1, 4, '#c1ab75');
+  // Tailored archive uniform, stocking seams, and practical shoes.
+  rect(-5 - stride, 22, 4, 8, CLERK_SKIN[3]);
+  rect(-5 - stride, 23, 2, 6, CLERK_SKIN[2]);
+  rect(2 + stride, 22, 4, 8, CLERK_SKIN[3]);
+  rect(3 + stride, 23, 2, 6, CLERK_SKIN[2]);
+  rect(-7 - stride, 29, 7, 4, CLERK_LEATHER[3]);
+  rect(-7 - stride, 29, 5, 2, CLERK_LEATHER[1]);
+  rect(-7 - stride, 31, 2, 1, CLERK_LEATHER[0]);
+  rect(2 + stride, 29, 6, 4, CLERK_LEATHER[3]);
+  rect(3 + stride, 29, 4, 2, CLERK_LEATHER[2]);
 
-  // Carved braid, bent chin and weathered tears track the raising head.
-  a.rect(faceX - 6, faceY - 8, 11, 13, SLATE[3]);
-  a.line(faceX - 4, faceY - 8, 6, SLATE[1]);
-  a.rect(faceX - 7, faceY - 5, 4, 12, SLATE[2]);
-  for (let lock = 0; lock < 4; lock++) {
-    const bx = faceX - 6 - lock % 2 + braidSwing * Number(lock > 1);
-    const by = faceY + 3 + lock * 3;
-    a.rect(bx, by, 4, 4, SLATE[3]);
-    a.rect(bx, by, 2, 3, SLATE[1 + lock % 2]);
-  }
-  a.rect(faceX - 3, faceY - 5, 8, 10, LIMESTONE[2]);
-  a.rect(faceX - 3, faceY - 4, 7, 7, LIMESTONE[1]);
-  a.line(faceX - 2, faceY - 4, 3, LIMESTONE[0]);
-  a.rect(faceX - 2, faceY - 1, 2, 1, LIMESTONE[3]);
-  a.rect(faceX + 2, faceY - 1, 2, 1, LIMESTONE[3]);
-  a.rect(faceX - 2, faceY, 1, 3, '#596c66');
-  a.rect(faceX + 2, faceY, 1, 3, '#596c66');
-  a.rect(faceX + 4, faceY - 3, 1, 4, LIMESTONE[3]);
-  a.line(faceX + 2, faceY - 2, 2, LIMESTONE[2]);
-  a.rect(faceX, faceY + 1, 1, 1, LIMESTONE[0]);
+  rect(-6, 8, 12, 16, CLERK_COAT[3]);
+  rect(-8, 12, 16, 10, CLERK_COAT[3]);
+  rect(-7, 11, 14, 10, CLERK_COAT[2]);
+  rect(-6, 10, 7, 12, CLERK_COAT[1]);
+  rect(-5, 11, 2, 10, CLERK_COAT[0]);
+  rect(2, 12, 1, 10, CLERK_COAT[3]);
+  rect(3, 13, 2, 8, CLERK_COAT[2]);
+  rect(-7, 22, 6, 1, CLERK_COAT[1]);
+  rect(1, 22, 3, 2, CLERK_COAT[2]);
+  rect(-5, 18, 3, 3, CLERK_STAIN[1]);
+  rect(-3, 18, 2, 4, CLERK_STAIN[2]);
 
-  if (agitated) {
-    a.rect(faceX - 1, faceY + 3, 4, 2, LIMESTONE[3]);
-    a.rect(faceX - 2, faceY - 1, 2, 1, '#f1c3a0');
-    a.rect(faceX + 2, faceY - 1, 2, 1, '#ce8b70');
-    a.rect(x - 13, y - 3 - rise, 5, 15, SERGE[2]);
-    a.rect(x + 8, y - 2 - rise, 5, 14, SERGE[2]);
-    a.rect(x - 14, y - 6 - rise, 4, 7, LIMESTONE[2]);
-    a.rect(x + 11, y - 5 - rise, 4, 7, LIMESTONE[2]);
-    a.line(x - 14, y - 7 - rise, 4, LIMESTONE[0]);
-    a.line(x + 11, y - 6 - rise, 4, LIMESTONE[1]);
+  if (charging) {
+    forward(4, -7, 8, 5, CLERK_COAT[3]);
+    forward(8, -9, 9, 4, CLERK_COAT[2]);
+    forward(12, -9, 4, 1, CLERK_COAT[1]);
+    forward(15, -10, 4, 3, CLERK_SKIN[2]);
+    forward(17, -10, 3, 1, CLERK_SKIN[1]);
   } else {
-    a.rect(x - 8, y - 3, 5, 9, SERGE[2]);
-    a.rect(x + 5, y - 4, 4, 9, SERGE[2]);
-    a.rect(faceX - 4, faceY + 3, 5, 4, LIMESTONE[3]);
-    a.rect(faceX - 4, faceY + 3, 4, 2, LIMESTONE[1]);
-    a.rect(faceX + 1, faceY + 4, 5, 3, LIMESTONE[2]);
-    a.line(faceX + 2, faceY + 4, 3, LIMESTONE[1]);
+    rect(6, -7, 5, 17, CLERK_COAT[3]);
+    rect(7, -6, 3, 11, CLERK_COAT[2]);
+    rect(7, 8, 3, 6, CLERK_SKIN[3]);
+    rect(7, 8, 2, 4, CLERK_SKIN[2]);
   }
 
-  a.c.restore();
+  rect(-9 + lean, -10, 18, 12, CLERK_COAT[3]);
+  rect(-7 + lean, -11, 13, 10, CLERK_COAT[1]);
+  rect(-7 + lean, -11, 6, 1, CLERK_COAT[0]);
+  rect(4 + lean, -9, 4, 10, CLERK_COAT[2]);
+  rect(-6, 1, 12, 6, CLERK_COAT[3]);
+  rect(-5, 1, 9, 5, CLERK_COAT[2]);
+  rect(-4, 0, 4, 6, CLERK_COAT[1]);
+  rect(-5, 6, 10, 2, CLERK_LEATHER[3]);
+  rect(-5, 6, 6, 1, CLERK_LEATHER[1]);
+  rect(-1, 6, 2, 2, CLERK_LEATHER[0]);
+  rect(-2 + lean, -13, 5, 5, CLERK_SKIN[3]);
+  rect(-2 + lean, -13, 4, 4, CLERK_SKIN[1]);
+  rect(-3 + lean, -10, 7, 3, CLERK_BLOUSE[0]);
+  rect(-2 + lean, -7, 6, 3, CLERK_BLOUSE[1]);
+  rect(-1 + lean, -4, 4, 3, CLERK_BLOUSE[2]);
+  rect(-4 + lean, -9, 2, 7, CLERK_COAT[2]);
+  rect(4 + lean, -8, 1, 6, CLERK_COAT[3]);
+  rect(-6 + lean, -4, 4, 3, CLERK_LEATHER[2]);
+  rect(-6 + lean, -4, 3, 1, CLERK_LEATHER[0]);
+  rect(-8 + lean, 0, 3, 3, CLERK_STAIN[1]);
+  rect(-8 + lean, 1, 2, 3, CLERK_STAIN[2]);
+
+  if (charging) {
+    // The nearer arm extends from her shoulder, with a planted cuff and fingers.
+    forward(6, -4, 8, 6, CLERK_COAT[3]);
+    forward(7, -4, 6, 4, CLERK_COAT[1]);
+    forward(11, -6, 6, 5, CLERK_COAT[3]);
+    forward(11, -6, 5, 3, CLERK_COAT[2]);
+    forward(12, -6, 4, 1, CLERK_COAT[0]);
+    forward(15, -6, 2, 4, CLERK_BLOUSE[1]);
+    forward(17, -7, 4, 4, CLERK_SKIN[2]);
+    forward(17, -7, 5, 1, CLERK_SKIN[0]);
+    forward(18, -5, 5, 1, CLERK_SKIN[1]);
+    forward(18, -3, 3, 1, CLERK_SKIN[2]);
+    forward(17, -4, 2, 3, CLERK_SKIN[1]);
+  } else {
+    rect(-10, -7, 4, 15, CLERK_COAT[3]);
+    rect(-10, -7, 3, 12, CLERK_COAT[1]);
+    rect(-10, -7, 1, 6, CLERK_COAT[0]);
+    rect(-10, 5, 3, 2, CLERK_BLOUSE[1]);
+    rect(-10, 7, 4, 6, CLERK_SKIN[3]);
+    rect(-10, 7, 2, 5, CLERK_SKIN[1]);
+    rect(-8, 9, 1, 3, CLERK_SKIN[2]);
+  }
+
+  // Asymmetrical part and stepped cheekbones keep the eyes legible at 480×270.
+  face(-5, 0, 10, 2, CLERK_HAIR[2]);
+  face(-8, 2, 15, 5, CLERK_HAIR[3]);
+  face(-8, 3, 8, 3, CLERK_HAIR[1]);
+  face(-6, 1, 6, 2, CLERK_HAIR[0]);
+  face(-9, 4, 4, 8, CLERK_HAIR[2]);
+  face(-9, 6, 2, 5, CLERK_HAIR[1]);
+  face(3, 3, 5, 7, CLERK_HAIR[2]);
+  face(-5, 5, 10, 11, CLERK_SKIN[2]);
+  face(-4, 6, 8, 9, CLERK_SKIN[1]);
+  face(-4, 6, 4, 2, CLERK_SKIN[0]);
+  face(-5, 10, 2, 3, CLERK_SKIN[0]);
+  face(-3, 15, 7, 3, CLERK_SKIN[2]);
+  face(-2, 16, 5, 1, CLERK_SKIN[1]);
+  face(-7, 4, 4, 5, CLERK_HAIR[1]);
+  face(-7, 7, 2, 7, CLERK_HAIR[2]);
+  face(-7, 8, 1, 5, CLERK_HAIR[0]);
+  face(4, 6, 3, 8, CLERK_HAIR[3]);
+  face(5, 7, 2, 7, CLERK_HAIR[1]);
+  face(6, 11, 2, 7, CLERK_HAIR[2]);
+  face(-5, 11, 1, 2, CLERK_LEATHER[0]);
+
+  face(-4, 8, 3, 1, CLERK_SKIN[3]);
+  face(2, 8, 2, 1, CLERK_SKIN[3]);
+  face(-4, 9, 3, looking ? 2 : 1, CLERK_SKIN[3]);
+  face(2, 9, 3, looking ? 2 : 1, CLERK_SKIN[3]);
+  if (looking) {
+    face(-3, 9, 2, 1, '#e2baa4');
+    face(2, 9, 2, 1, '#cba18f');
+  }
+  face(-3, 11, 1, 3, CLERK_STAIN[1]);
+  face(3, 11, 1, 4, CLERK_STAIN[2]);
+  face(0, 10, 1, 3, CLERK_SKIN[0]);
+  face(0, 13, 2, 1, CLERK_SKIN[2]);
+  if (charging) {
+    face(-1, 14, 4, 2, CLERK_STAIN[3]);
+    face(0, 14, 2, 1, CLERK_BLOUSE[1]);
+  } else face(-1, 15, 3, 1, CLERK_STAIN[2]);
 }
 
 export function drawApparition(a, ghost, x, y) {

@@ -228,7 +228,9 @@ function crossing(a,s,o){
   const y=o.y, entrance=x-4, landing=x+w;
   a.rect(x,Math.min(y,o.landingY),w,253-Math.min(y,o.landingY),'#263234');
   const heading=phased?(zh?'相位桥':'PHASE RELAY'):(zh?'跳过断口':o.landingY<y?'STEP UP':o.landingY>y?'DROP':'FLOOR OPEN');
-  board(a,x-79,Math.min(113,y-69),heading,phased?(o.phase==='night'?(zh?'X / 夜':'X / NIGHT'):(zh?'X / 日':'X / DAY')):(zh?'空格 跳':'SPACE / JUMP'),night);
+  const shift=s.controlKeys?.shift??'X',jump=s.controlKeys?.jump??'Space';
+  const phase=o.phase==='night'?(zh?'夜':'NIGHT'):(zh?'日':'DAY');
+  board(a,x-79,Math.min(113,y-69),heading,phased?`${shift} / ${phase}`:`${jump} / ${zh?'跳':'JUMP'}`,night);
   a.rect(entrance-4,y-2,7,3,'#e3c78e');
   a.rect(landing,o.landingY-2,7,3,'#daca99');
   if(phased&&o.phase!==(night?'night':'day'))return;
@@ -334,12 +336,13 @@ export function drawBackrooms(a,s){
   a.rect(343,5,124,3,'#5b685c');a.rect(343,5,124*progress,3,'#dcbb79');
   a.rect(0,246,480,24,'#203236');a.line(0,246,480,'#aa9866');
   a.label(zh?'后室 · 一直向右跑':'THE BACKROOMS / KEEP RUNNING',9,260,'#f1d18e',8);
-  a.label(zh?'空格 跳  ·  X 换相':'SPACE jump   X shift',214,260,'#d6dbc1',8);
+  const jump=s.controlKeys?.jump??'Space',shift=s.controlKeys?.shift??'X',right=s.controlKeys?.right??'→';
+  a.label(zh?`${jump} 跳  ·  ${shift} 换相`:`${jump} jump   ${shift} shift`,214,260,'#d6dbc1',8);
   a.label(zh?'出口 →':'EXIT →',433,260,'#e1c787',8);
   if(!chase.active&&p.lifeState==='alive'){
     a.rect(21,36,288,46,'#253735f4');a.rect(21,36,3,46,'#ddbc73');
     a.label(zh?'档案附楼 / 失踪楼层':'RECORDS ANNEX / THE MISSING FLOOR',29,50,'#f2dba3',9);
-    a.label(zh?'它认得你的脚步。按住 → 或 D，一直跑。':'It knows your footsteps. Hold → or D and keep running.',29,62,'#e5e0c1',7);
+    a.label(zh?`它认得你的脚步。按住 ${right}，一直跑。`:`It knows your footsteps. Hold ${right} and keep running.`,29,62,'#e5e0c1',7);
     a.label(zh?'跨过推车与高低断口，按墙牌时钟切换昼夜。':'Vault the carts and broken levels. Match the clocks on signs.',29,74,'#c3cbaa',7);
   }else if(p.lifeState==='dying'||p.lifeState==='respawning'){
     a.rect(125,75,230,25,'#293b39e8');

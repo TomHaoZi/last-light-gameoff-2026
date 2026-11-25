@@ -69,7 +69,7 @@ export class Simulation{
  persist(){const p=this.progress;p.floor=this.floor;p.lang=this.lang;if(this.expanded)p.sector=this.sector;p.hp=this.player.hp>0?this.player.hp:3;p.chapterProgress[this.floor]=this.items.map(i=>i.got);p.checkpointId=this.checkpointId;p.resumeMode=this.mode==='between'?'between':p.finished&&this.mode!=='won'?'revisit':'menu';p.ending=this.ending||null;return p;}
  beginDeath(kind,ghost=null){
   if(!kill(this,kind,ghost))return;
-  const cause=ghost?.kind==='mourner'?(ghost.gaze>=1?'eye-contact':'mourning-contact'):undefined;
+  const cause=ghost?.kind==='mourner'?(ghost.charging?'eye-contact':'mourning-contact'):undefined;
   this.emit('death',{kind,cause});this.emit('clear-input');this.emit('save');
  }
  interact(){
@@ -132,7 +132,7 @@ export class Simulation{
   for(const g of this.ghosts){
    const before=g.state, hit=updateGhost(g,this,dt,noise);
    if(g.kind==='mourner'){
-    if(g.gaze>this.officeGaze.amount)Object.assign(this.officeGaze,{amount:g.gaze,looking:g.looking,ghostId:g.id});
+    if(g.gaze>this.officeGaze.amount)Object.assign(this.officeGaze,{amount:g.gaze,looking:g.looking,charging:g.charging,ghostId:g.id});
     if(hit&&['alive','hurt'].includes(p.lifeState)){
      this.emit('sound',{name:'mourning-strike',position:g.xNow});
      this.beginDeath('ghost',g);
@@ -165,5 +165,5 @@ export class Simulation{
   this.emit('checkpoint',{id:nearest.id});this.emit('save');
  }
  updateLift(dt){const d=this.door;d.progress+=dt;if(d.phase==='opening'&&d.progress>=.4){d.phase='entering';d.progress=0;}else if(d.phase==='entering'){this.player.x+=((this.door.target==='back'?8:this.exitX)+7-this.player.x)*Math.min(1,dt*7);if(d.progress>=.45){d.phase='closing';d.progress=0;this.emit('sound',{name:'door'});}}else if(d.phase==='closing'&&d.progress>=.4){d.phase='done';this.completionTimer=.65;}}
- snapshot(){return {time:this.time,officeGaze:this.backrooms?clearOfficeGaze():{...this.officeGaze},backrooms:annexSnapshot(this),worldRevision:this.expanded?2:1,sector:this.sector,world:{width:this.worldWidth,height:this.worldHeight||270},station:this.station?{...this.station}:null,mechanisms:this.progress.mechanisms?.slice(),scene:this.scene?{...this.scene,text:sceneText(this)}:null,pursuit:this.pursuit?{...this.pursuit}:null,floor:this.floor,phase:this.night?'night':'day',mode:this.mode,player:{...this.player},items:this.items.map(i=>({...i})),ghosts:this.ghosts.map(g=>({id:g.id,kind:g.kind,state:g.state,x:g.xNow,y:g.yNow,phase:g.phase,spawned:g.spawned,facing:g.facing,stateTime:g.stateTime,pathIndex:g.pathIndex,cooldown:g.cooldown,gaze:g.gaze||0,looking:!!g.looking,target:g.target?{...g.target}:null,collisionShape:{...g.collisionShape}})),doors:this.doors.map(d=>({...d})),lift:{...this.door},camera:{x:this.camera,y:this.cameraY},checkpoint:this.checkpointId,room:this.room,evidence:this.progress.evidence.slice(),events:this.events.slice(),deaths:this.deaths,shifts:this.shifts,death:this.death?{...this.death}:null,ending:this.ending,log:this.log.slice(-20)};}
+ snapshot(){return {time:this.time,officeGaze:this.backrooms?clearOfficeGaze():{...this.officeGaze},backrooms:annexSnapshot(this),worldRevision:this.expanded?2:1,sector:this.sector,world:{width:this.worldWidth,height:this.worldHeight||270},station:this.station?{...this.station}:null,mechanisms:this.progress.mechanisms?.slice(),scene:this.scene?{...this.scene,text:sceneText(this)}:null,pursuit:this.pursuit?{...this.pursuit}:null,floor:this.floor,phase:this.night?'night':'day',mode:this.mode,player:{...this.player},items:this.items.map(i=>({...i})),ghosts:this.ghosts.map(g=>({id:g.id,kind:g.kind,state:g.state,x:g.xNow,y:g.yNow,phase:g.phase,spawned:g.spawned,facing:g.facing,stateTime:g.stateTime,pathIndex:g.pathIndex,cooldown:g.cooldown,gaze:g.gaze||0,lockTime:g.lockTime||0,looking:!!g.looking,charging:!!g.charging,target:g.target?{...g.target}:null,collisionShape:{...g.collisionShape}})),doors:this.doors.map(d=>({...d})),lift:{...this.door},camera:{x:this.camera,y:this.cameraY},checkpoint:this.checkpointId,room:this.room,evidence:this.progress.evidence.slice(),events:this.events.slice(),deaths:this.deaths,shifts:this.shifts,death:this.death?{...this.death}:null,ending:this.ending,log:this.log.slice(-20)};}
 }

@@ -1,5 +1,6 @@
 import {createPlayer} from './core.js';
-import {clearOfficeGaze} from './mourning-clerk.js';
+import {clearOfficeGaze,resetMourningGaze} from './mourning-clerk.js';
+import {difficultyRules} from './player-settings.js';
 export function kill(world,kind,ghost=null){
  const p=world.player;if(!['alive','hurt'].includes(p.lifeState))return false;
  p.hp=0;p.lifeState='dying';p.lifeTime=0;p.vx=0;p.vy=0;p.buffer=0;p.coyote=0;
@@ -9,7 +10,7 @@ export function kill(world,kind,ghost=null){
 }
 export function damage(world,sourceX){
  const p=world.player;if(!['alive','hurt'].includes(p.lifeState)||p.invulnerable>0)return false;
- p.hp=Math.max(0,p.hp-1);p.invulnerable=.8;p.lifeState='hurt';p.lifeTime=0;p.anim='hurt';p.animTime=.22;
+ p.hp=Math.max(0,p.hp-1);p.invulnerable=.8*difficultyRules(world.difficulty).hazardRecovery;p.lifeState='hurt';p.lifeTime=0;p.anim='hurt';p.animTime=.22;
  p.vx=p.x<sourceX?-115:115;p.vy=-100;p.grounded=false;
  if(p.hp===0)kill(world,'hazard');return true;
 }
@@ -20,7 +21,7 @@ export function beginRespawn(world){
  world.door={phase:'closed',progress:0};world.scene=null;if(world.pursuit)world.pursuit={warning:5,active:false,x:cp.x-235,y:1545};
  world.officeGaze=clearOfficeGaze();
  for(const g of world.ghosts){g.xNow=g.home.x;g.yNow=g.home.y;g.prevX=g.xNow;g.prevY=g.yNow;g.state='dormant';g.stateTime=0;g.target=null;g.cooldown=1;
-  if(g.kind==='mourner'){g.gaze=0;g.looking=false;g.gazeWarned=false;g.cryCooldown=0;}
+  if(g.kind==='mourner'){resetMourningGaze(g);g.cryCooldown=0;}
  }
  return cp;
 }

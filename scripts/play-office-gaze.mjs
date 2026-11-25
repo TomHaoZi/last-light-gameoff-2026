@@ -10,7 +10,8 @@ export async function playOfficeGaze({snapshot, key, tap, stop, sleep, screensho
       if (condition(state)) return state;
       await sleep(16);
     } while (Date.now() < deadline);
-    throw Error('Office gaze check timed out: ' + label);
+    const state = await snapshot();
+    throw Error(`Office gaze check timed out: ${label} at x=${state.player.x.toFixed(2)}, y=${state.player.y.toFixed(2)} (${state.player.lifeState}, ${state.phase}, ${state.deaths} deaths)`);
   };
 
   let state = await wait('entry guide', s => s.floor === 1 && s.sector === 0 &&
@@ -39,20 +40,24 @@ export async function playOfficeGaze({snapshot, key, tap, stop, sleep, screensho
   assert.equal(state.deaths, 0);
   await screenshot('office-eyes-down');
 
+  const position = state => state.ghosts.find(g => g.kind === 'mourner').x;
+  const home = position(state);
   await key('KeyC', false);
-  const warning = await wait('front-on warning', s => s.officeGaze.looking && s.officeGaze.amount > .23);
+  const warning = await wait('front-on warning, followed by physical advance',
+    s => s.officeGaze.looking && position(s) < home - 5 && s.player.lifeState === 'alive');
   assert.equal(warning.deaths, 0);
-  await screenshot('office-look-away');
   await key('KeyC', true);
-  await wait('look away clears exposure', s => s.officeGaze.eyesDown && !s.officeGaze.looking);
+  const averted = await wait('look away stops the charge', s => s.officeGaze.eyesDown && !s.officeGaze.looking);
   state = await wait('recover after audible warning', s => s.officeGaze.amount === 0 && s.audio.recentEffects.includes('voice-glance'));
+  assert.equal(position(state), position(averted));
   assert.equal(state.deaths, 0);
+  await screenshot('office-look-away');
 
   await key('KeyC', false);
-  const caught = await wait('sustained eye contact kills without touching', s => s.player.lifeState === 'dying');
+  const caught = await wait('sustained eye contact leads to an actual collision', s => s.player.lifeState === 'dying');
   assert.equal(caught.deaths, 1);
   assert.equal(caught.death.ghost.kind, 'mourner');
-  assert.ok(Math.abs(caught.player.x + 7 - caught.death.ghost.x) > 42);
+  assert.ok(Math.abs(caught.player.x + 7 - caught.death.ghost.x) <= 13);
   assert.ok(caught.log.some(e => e.type === 'death' && e.cause === 'eye-contact'));
   await screenshot('office-eye-contact-death');
   const revival = await wait('revival at the lamp', s => s.player.lifeState === 'alive');
@@ -64,22 +69,16 @@ export async function playOfficeGaze({snapshot, key, tap, stop, sleep, screensho
   await wait('Clerk visible again after shift', s => s.phase === 'night');
   await key('KeyC', true);
   await key('ArrowRight', true);
-  await wait('ready to accelerate for a jump', s => {
-    const ghost = s.ghosts.find(g => g.kind === 'mourner');
-    return ghost.x - (s.player.x + 7) < 75;
-  });
-  await key('KeyC', false);
-  await wait('launch from the clear run-up', s => {
-    const ghost = s.ghosts.find(g => g.kind === 'mourner');
-    return ghost.x - (s.player.x + 7) < 50;
-  });
+  await wait('lowered eyes at the jump takeoff', s => position(s) - (s.player.x + 7) < 46);
   await key('Space', true);
-  await wait('get above the Clerk', s => !s.player.grounded && s.player.y < 166);
+  await key('KeyC', false);
+  await wait('get above the Clerk', s => !s.player.grounded && s.player.y < 178);
   await wait('land past the Clerk', s => s.player.grounded && s.player.x > 265);
   await stop();
   state = await snapshot();
   assert.equal(state.deaths, 1);
   await screenshot('office-jump-past');
   return { phase: state.phase, introduced: true, warned: warning.officeGaze.amount,
+    charge: { from: home, averted: position(averted) },
     caught: { x: caught.player.x, creature: caught.death.ghost.x }, checkpoint: revival.checkpoint, bypass: state.player.x };
 }

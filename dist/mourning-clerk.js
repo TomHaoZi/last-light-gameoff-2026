@@ -1,11 +1,13 @@
 import { phaseActive } from './phase.js';
+import { difficultyRules } from './player-settings.js';
 
-const lookTime = .85;
+const chargeSpeed = 216;
+const floorOffset = 33;
 const lookRange = 123;
 const cryRange = 175;
 
 export function clearOfficeGaze() {
-  return { amount: 0, looking: false, eyesDown: false, ghostId: null };
+  return { amount: 0, looking: false, charging: false, eyesDown: false, ghostId: null };
 }
 
 function crossesBlock(x, y, dx, dy, block) {
@@ -26,8 +28,32 @@ function crossesBlock(x, y, dx, dy, block) {
   return true;
 }
 
+export function resetMourningGaze(ghost) {
+  Object.assign(ghost, { gaze: 0, looking: false, charging: false, lockTime: 0, gazeWarned: false });
+}
+
+function charge(ghost, world, dt, speed, solids) {
+  const target = world.player.x + 7;
+  const delta = target - ghost.xNow;
+  const x = ghost.xNow + Math.sign(delta) * Math.min(Math.abs(delta), speed * dt);
+  const y = ghost.yNow;
+  const floorY = y + floorOffset;
+  const platforms = world.collisionIndex?.query(x - 8, floorY - 3, x + 8, floorY + 3) ?? world.platforms ?? [];
+  const planted = [x - 3, x + 3].every(foot => platforms.some(platform =>
+    phaseActive(platform, world.night) && Math.abs(platform.y - floorY) < 2 &&
+    foot >= platform.x && foot <= platform.x + platform.w));
+  const blocked = solids.some(block => phaseActive(block, world.night) &&
+    x + 8 > block.x && x - 8 < block.x + block.w &&
+    y + 22 > block.y && y - 17 < block.y + (block.h || 18));
+  if (!planted || blocked || x === ghost.xNow) return;
+  ghost.facing = Math.sign(delta);
+  ghost.xNow = x;
+}
+
 export function updateMourningGaze(ghost, world, dt, atLamp) {
   const player = world.player;
+  const rules = difficultyRules(world.difficulty);
+  const solids = world.gazeBlockers || world.walls || [];
   const eyeX = player.x + 7 + player.dir * 3, eyeY = player.y + 8;
   // The larger Clerk sprite and Eli share a corridor sight line when standing
   // on the same support. Upper walkways and jumps take Eli out of that lane.
@@ -43,14 +69,15 @@ export function updateMourningGaze(ghost, world, dt, atLamp) {
   const inFront = dx * player.dir >= 0;
   const atEyeLevel = Math.abs(dy) <= Math.min(32, 17 + Math.abs(dx) * .14);
   const looking = alive && !atLamp && !player.eyesDown && inFront && atEyeLevel &&
-    Math.hypot(dx, dy) < lookRange && !(world.gazeBlockers || world.walls || [])
-      .some(block => phaseActive(block, world.night) && crossesBlock(eyeX, eyeY, dx, dy, block));
-  const amount = ghost.gaze || 0;
-  ghost.gaze = looking ? Math.min(1, amount + dt / lookTime) : Math.max(0, amount - dt * 2.8);
+    Math.hypot(dx, dy) < lookRange * rules.gazeRange &&
+    !solids.some(block => phaseActive(block, world.night) && crossesBlock(eyeX, eyeY, dx, dy, block));
+  ghost.lockTime = looking ? (ghost.lockTime || 0) + dt : 0;
+  ghost.gaze = atLamp ? 0 : Math.max(0, Math.min(1, (ghost.gaze || 0) + dt * (looking ? 2 : -4)));
   ghost.looking = looking;
+  ghost.charging = looking && ghost.lockTime >= rules.gazeDelay;
 
   if (ghost.gaze === 0) ghost.gazeWarned = false;
-  if (ghost.gaze >= .17 && !ghost.gazeWarned) {
+  if (ghost.lockTime >= .075 && !ghost.gazeWarned) {
     ghost.gazeWarned = true;
     world.emit?.('sound', { name: 'mourning-lock', position: ghost.xNow });
     const voice = world.time >= (world.mourningVoiceAfter || 0);
@@ -59,7 +86,11 @@ export function updateMourningGaze(ghost, world, dt, atLamp) {
     }
     world.emit?.('mourning-glance', { voice });
   }
-  if (looking) ghost.state = 'alert';
-  else if (ghost.state === 'alert') ghost.state = 'patrol';
-  return looking && ghost.gaze >= 1;
+  ghost.state = looking ? 'alert' : 'patrol';
+  if (ghost.charging) charge(ghost, world, dt, chargeSpeed * rules.gazeSpeed, solids);
+
+  // A short collider overlap across a thin partition is still blocked by cover.
+  const fromX = player.x + 7, fromY = player.y + 14;
+  return !atLamp && alive && !solids.some(block => phaseActive(block, world.night) &&
+    crossesBlock(fromX, fromY, ghost.xNow - fromX, ghost.yNow - fromY, block));
 }

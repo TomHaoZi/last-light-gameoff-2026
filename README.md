@@ -1,9 +1,9 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.18
+## 2D and 3D browser release · 3.0.0-rc.19
 
-[默哀档案员与语音 / The Mourning Clerk](docs/mourning-clerk-rc18.md) · [后室追逐实测 / Records Annex playtest](docs/backrooms-rc17.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
+[设置与女鬼 / Settings and the Mourning Clerk](docs/settings-and-mourning-rc19.md) · [后室追逐实测 / Records Annex playtest](docs/backrooms-rc17.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -17,7 +17,7 @@ python3 scripts/package-3d.py
 ```
 
 - Press **X** or click the phase button to switch day and night. WASD moves, the mouse looks around, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. The first bridge exists at night. Starting or resuming captures the mouse. Esc pauses and releases it. On touch screens, drag the scene to look and tap the phase button to switch.
-- On desktop, press Enter to resume from pause. Set mouse sensitivity from 50% to 200% in Settings. If the browser releases the mouse, click the scene to capture it again.
+- On desktop, press Enter to resume from pause. Set mouse sensitivity from 50% to 200% in Settings. If the browser releases the mouse, click the scene to capture it again. The browser's Escape shortcut also releases a captured mouse when you bind Pause to a different key.
 - WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The game combines procedural sets with imported props and photographic PBR materials. The high preset adds depth-aware light shafts and contact shading. Balanced and Performance reduce rendering cost. Web Audio synthesizes the score and mixes recorded dialogue, spatial effects and room tone. Adaptive resolution runs within the selected graphics preset. The settings menu can display measured frame rate.
 - Blender-authored models give the boiler worker, records clerk and roof caretaker their own faces, clothing and equipment. The janitor's hand operates the controls and wears a watch that advances one minute on a shift. Folding inspection gates retract their bolts before opening.
 - Twelve performed English voice cues have English and Chinese subtitles. The lift announcements, archive playback, reply behind Gary’s door and two endings follow different events. Listen for each worker’s approach and for the change from pursuit to contact. [Cast, sources and licenses](dist/3d/assets/CREDITS.md).
@@ -25,9 +25,15 @@ python3 scripts/package-3d.py
 - Hold the directional pad with one finger and drag the scene with another to move and look around together. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
 - The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows both editions.
 
+### Settings in both editions
+
+Open **Settings → Key bindings** from the title or pause screen. Select a key slot and press a new key. Each action can have up to three keys, and you can swap an occupied key or restore the defaults. The guide, interaction prompts and phase shortcut show your current bindings. Each edition saves its own keys in the browser. Touch controls keep their dedicated buttons.
+
+Choose **Story**, **Standard** or **Nightmare** in **Settings → Difficulty**. Story gives you more time to escape an enemy and recover from hazards. Nightmare shortens the reaction window and makes enemies faster. You can change difficulty during a run. Each edition remembers the choice separately from the checkpoint save.
+
 ### The Mourning Clerk
 
-The offices are haunted by a limestone archivist in a fractured dress and repaired stone wings. When she raises her face, turn away before the gaze bar fills. In 3D, look down or keep her to one side while passing. In Classic, hold **C** to lower your eyes, or jump past her sightline. Leave space as you pass. Walls and doors can break eye contact. Press **E** at the phonograph near the office lift to replay the recorded warning, or read the note in the journal.
+The offices are haunted by the Mourning Clerk. When you look directly at her in the active phase, she rushes toward you. Break eye contact to stop her charge, and give her room as you pass. The meter tracks her aggression, and contact is lethal. In 3D, look down or turn away. In 2D, turn away, hold the quiet-walk key (**C** by default) to lower your eyes, or jump clear of her sightline. Walls and doors can also break her line of sight. Use the phonograph near the office lift to replay the recorded warning, or read the note in the journal.
 
 ### The Records Annex
 
@@ -80,7 +86,7 @@ Open **http://127.0.0.1:8786/**. Any static server can serve `dist/`. No runtime
 - Space / W / up: jump; release early for a short jump.
 - Shift / X: switch memories. E / down: work, clues, doors, exit light.
 - J: journal. M: mute. Esc: pause/resume. Touch controls remain available.
-- Settings adjust master/music/SFX volume and reduce flash effects.
+- Settings offer the same difficulty and key binding controls, plus master/music/SFX volume and reduced flash effects.
 - Scenes advance automatically. E can advance a beat after its minimum animation time; the departure has a longer minimum so its actors can finish leaving.
 
 ## Expanded chapters

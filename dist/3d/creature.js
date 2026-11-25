@@ -3,9 +3,9 @@ import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 import { clone } from './vendor/utils/SkeletonUtils.js';
 import { makeCreatureBody, animateCreatureBody } from './creature-body.js';
 import { createSculptedHead, animateSculptedHead } from './creature-head.js';
-import { applyPreparedCreatureTextures, prepareOfficeTextures } from './creature-textures.js';
+import { applyPreparedCreatureTextures } from './creature-textures.js';
 
-import { createMourningFigure, isSharedMourningGeometry, poseMourningFigure, preloadMourningFigure } from './mourning-figure.js';
+import { createMourningFigure, isSharedMourningGeometry, poseMourningFigure, prepareMourningTextures } from './mourning-figure.js';
 
 const { smoothstep } = MathUtils;
 
@@ -53,11 +53,8 @@ export function isSharedCreatureGeometry(geometry) {
 
 export function scheduleOfficeCreatureTextures(renderer) {
   if (officeTextureRequests.has(renderer)) return;
-  void preloadMourningFigure();
   officeTextureRequests.add(renderer);
-  void preloadCreatureAsset().then(ok => {
-    if (ok) prepareOfficeTextures(renderer, template);
-  });
+  prepareMourningTextures(renderer);
 }
 
 function fingerJoints(joints, side) {
@@ -187,7 +184,7 @@ export function createCreature(index = 0, theme = 0, renderer = null, kind = nul
   const seed = (index + 1) * 1.81 + theme * .49;
   const group = new CreatureGroup();
   group.scale.set(1 + (index % 3 - 1) * .028, 1 + (index % 3 - 1) * .022, 1);
-  if (kind === 'mourning') return createMourningFigure(group, seed, theme);
+  if (kind === 'mourning') return createMourningFigure(group, seed, theme, renderer);
   const didLoad = Boolean(template);
   const actor = didLoad ? authoredRig(theme, seed) : fallbackRig(theme, seed);
   group.add(actor.body.group);
@@ -197,9 +194,9 @@ export function createCreature(index = 0, theme = 0, renderer = null, kind = nul
 }
 
 export function updateCreature(actor, { time, threat = 0, attack = 0, night = false,
-  distance = 10, reduced = false, moving = false, dt = 0, travel = 0, gazeLock = 0 }) {
+  distance = 10, reduced = false, moving = false, dt = 0, travel = 0, gazeLock = 0, charging = false }) {
   if (actor.kind === 'mourning') {
-    poseMourningFigure(actor, { time, gaze: gazeLock, attack, reduced, moving, dt, travel });
+    poseMourningFigure(actor, { time, gaze: gazeLock, charging, attack, reduced, moving, travel });
     return;
   }
   if (template && !actor.group.userData.authoredCreature) {

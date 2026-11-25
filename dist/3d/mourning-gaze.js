@@ -2,10 +2,12 @@
 export const EYE_HEIGHT = 1.66;
 const FACE_HEIGHT = 1.65;
 const REACH = 10.4;
-const LOCK_TIME = .78;
+const CHARGE_SPEED = 8.8;
+const CONTACT_RADIUS = .62;
 const FACE_CONE = Math.cos(Math.PI * 9 / 180);
+const MODEL_FOOTPRINT = 1.55;
 
-function wallInSight(map, ax, az, bx, bz, tileSize) {
+export function firstSightWall(map, ax, az, bx, bz, tileSize) {
   const dx = bx - ax;
   const dz = bz - az;
   const stepX = Math.sign(dx);
@@ -19,8 +21,12 @@ function wallInSight(map, ax, az, bx, bz, tileSize) {
   // Trace tile boundaries instead of sampling at fixed intervals. A narrow
   // crossing of the corner of an office partition still blocks the stare.
   while (Math.min(nextX, nextZ) < 1) {
-    if (Math.abs(nextX - nextZ) < 1e-8 &&
-        (map.get(col + stepX, row)?.kind === '#' || map.get(col, row + stepZ)?.kind === '#')) return true;
+    if (Math.abs(nextX - nextZ) < 1e-8) {
+      const side = map.get(col + stepX, row);
+      const forward = map.get(col, row + stepZ);
+      if (side?.kind === '#') return side;
+      if (forward?.kind === '#') return forward;
+    }
     if (nextX <= nextZ) {
       col += stepX;
       nextX += spanX;
@@ -28,24 +34,61 @@ function wallInSight(map, ax, az, bx, bz, tileSize) {
       row += stepZ;
       nextZ += spanZ;
     }
-    if (map.get(col, row)?.kind === '#') return true;
+    const tile = map.get(col, row);
+    if (tile?.kind === '#') return tile;
+  }
+  return null;
+}
+
+export function mourningHiddenByPartition(map, player, ghost, tileSize) {
+  // Check the complete silhouette including the wings. Four corner rays
+  // must all enter the same uninterrupted, full-height strip of wall.
+  if (player.y > .92 || (ghost.y ?? 0) > .35 ||
+      Math.hypot(player.x - ghost.x, player.z - ghost.z) < 12) return false;
+  const hits = [];
+  for (const dx of [-MODEL_FOOTPRINT, MODEL_FOOTPRINT]) {
+    for (const dz of [-MODEL_FOOTPRINT, MODEL_FOOTPRINT]) {
+      const wall = firstSightWall(map, player.x, player.z, ghost.x + dx, ghost.z + dz, tileSize);
+      if (!wall) return false;
+      hits.push(wall);
+    }
+  }
+  const { col, row } = hits[0];
+  if (hits.every(wall => wall.col === col)) {
+    const rows = hits.map(wall => wall.row);
+    for (let y = Math.min(...rows); y <= Math.max(...rows); y++) {
+      if (map.get(col, y)?.kind !== '#') return false;
+    }
+    return true;
+  }
+  if (hits.every(wall => wall.row === row)) {
+    const cols = hits.map(wall => wall.col);
+    for (let x = Math.min(...cols); x <= Math.max(...cols); x++) {
+      if (map.get(x, row)?.kind !== '#') return false;
+    }
+    return true;
   }
   return false;
 }
 
-export function updateMourningClerks(state, dt, tileSize, sanctuary) {
+export function updateMourningClerks(state, dt, tileSize, sanctuary, rules, supported) {
   const cosPitch = Math.cos(state.pitch);
   const lookX = Math.sin(state.yaw) * cosPitch;
   const lookY = Math.sin(state.pitch);
   const lookZ = -Math.cos(state.yaw) * cosPitch;
 
   for (const ghost of state.ghosts) {
-    ghost.watching = false;
+    ghost.watching = ghost.charging = false;
     if (!ghost.active || sanctuary) {
-      ghost.gaze = ghost.alert = 0;
+      ghost.gaze = ghost.alert = ghost.lockTime = 0;
+      ghost.gazeWarned = false;
       continue;
     }
 
+    if (!supported(ghost.x, ghost.z)) {
+      ghost.x = ghost.home.x;
+      ghost.z = ghost.home.z;
+    }
     const dx = ghost.x - state.x;
     const dz = ghost.z - state.z;
     const dy = (ghost.y ?? 0) + FACE_HEIGHT - (state.y + EYE_HEIGHT);
@@ -53,23 +96,36 @@ export function updateMourningClerks(state, dt, tileSize, sanctuary) {
     const faceRange = Math.hypot(range, dy);
     const centred = faceRange > .001 &&
       (dx * lookX + dy * lookY + dz * lookZ) > FACE_CONE * faceRange;
-    ghost.watching = centred && faceRange <= REACH &&
-      !wallInSight(state.map, state.x, state.z, ghost.x, ghost.z, tileSize);
-
-    const previousGaze = ghost.gaze;
-    ghost.gaze = Math.max(0, Math.min(1, ghost.gaze + dt * (ghost.watching ? 1 / LOCK_TIME : -4)));
+    const lineClear = (centred || range < CONTACT_RADIUS) &&
+      !firstSightWall(state.map, state.x, state.z, ghost.x, ghost.z, tileSize);
+    ghost.watching = centred && faceRange <= REACH * rules.gazeRange && lineClear;
+    ghost.lockTime = ghost.watching ? ghost.lockTime + dt : 0;
+    ghost.gaze = Math.max(0, Math.min(1, ghost.gaze + dt * (ghost.watching ? 2 : -4)));
     ghost.alert = ghost.gaze;
+    ghost.charging = ghost.watching && ghost.lockTime >= rules.gazeDelay;
     state.gaze = Math.max(state.gaze, ghost.gaze);
     state.watching ||= ghost.watching;
     state.tension = Math.max(state.tension, ghost.gaze, Math.max(0, 1 - range / 11) * .22);
 
-    if (previousGaze < .18 && ghost.gaze >= .18) {
+    if (!ghost.gaze) ghost.gazeWarned = false;
+    if (ghost.lockTime >= .075 && !ghost.gazeWarned) {
+      ghost.gazeWarned = true;
       state.emit('sound', { name: 'mourning-lock', position: ghost });
       state.emit('mourning-glance');
     }
-    if (ghost.gaze >= 1 || (range < .62 && state.y < .85)) {
+    if (ghost.charging && range > .001) {
+      const move = Math.min(range, CHARGE_SPEED * rules.gazeSpeed * dt);
+      const x = ghost.x - dx / range * move;
+      const z = ghost.z - dz / range * move;
+      if (supported(x, z) && !state.blocks(x, z, .24) && !state.ghostSanctuary(x, z)) {
+        ghost.x = x;
+        ghost.z = z;
+      }
+    }
+    if (lineClear && Math.hypot(ghost.x - state.x, ghost.z - state.z) < CONTACT_RADIUS &&
+        (state.y - (ghost.y ?? 0)) >= -.22 && (state.y - (ghost.y ?? 0)) < .85) {
       state.emit('sound', { name: 'mourning-strike', position: ghost });
-      state.startDeath(ghost.gaze >= 1 ? 'gaze' : 'ghost', ghost);
+      state.startDeath(ghost.charging ? 'gaze' : 'ghost', ghost);
       return;
     }
     if (range < 12 && state.time >= ghost.nextCry) {
