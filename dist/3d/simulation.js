@@ -1,6 +1,7 @@
 import { BACKROOMS_LEVEL, BACKROOMS_TRACK, advancePursuit, beginPursuit, chaseBlocked, chaseFloor, runDistance } from './backrooms-track.js';
 import { LEVELS, TILE, decodeLevel } from './levels.js';
 import { updateMourningClerks } from './mourning-gaze.js';
+import { CLERK_CAPTURE_CUES, CLERK_CAPTURE_TIME, CLERK_REVIVAL_TIME } from './mourning-capture.js';
 import { difficultyRules } from '../player-settings.js';
 
 export const SAVE_KEY = 'last-light-3d-v1';
@@ -106,7 +107,8 @@ export class Simulation3D {
       yaw: this.checkpoint === this.map.spawn ? (this.checkpoint.yaw ?? this.level.spawnYaw ?? this.startYaw()) : 0,
       pitch: 0, life: 'alive', lifeTimer: 0, hp: 3, shield: 0, grounded: true, coyote: .1,
       jumpBuffer: 0, moving: false, sprint: false, quiet: false, stamina: 1,
-      stepDistance: 0, hazardClock: 0, tension: 0, pursuer: null, atRisk: false, gaze: 0, watching: false
+      stepDistance: 0, hazardClock: 0, tension: 0, pursuer: null, atRisk: false, gaze: 0, watching: false,
+      mourningCapture: null
     });
     this.ghosts = this.map.ghosts.map((tile, i) => ({
       x: tile.x, z: tile.z, home: tile, key: this.tileKey(tile), index: i,
@@ -156,6 +158,12 @@ export class Simulation3D {
     this.lifeTimer = 0;
     this.deathCause = kind;
     this.pursuer = attacker;
+    if (attacker?.kind === 'mourning') {
+      const angle = Math.atan2(attacker.x - this.x, this.z - attacker.z);
+      const bearing = Math.sin(angle - this.yaw);
+      const side = Math.abs(bearing) > .16 ? Math.sign(bearing) : (attacker.index & 1 ? -1 : 1);
+      this.mourningCapture = { side };
+    }
     this.hp = 0;
     this.moving = false;
     this.sprint = false;
@@ -174,17 +182,26 @@ export class Simulation3D {
   }
 
   lifeStep(dt) {
+    const previous = this.lifeTimer;
     this.lifeTimer += dt;
-    if (this.life === 'dying' && this.lifeTimer >= 1.12) {
+    const capture = this.mourningCapture;
+    if (capture && this.life === 'dying') {
+      for (const { at, name } of CLERK_CAPTURE_CUES) {
+        if (previous < at && this.lifeTimer >= at) this.emit('sound', { name, position: this.pursuer });
+      }
+    }
+    if (this.life === 'dying' && this.lifeTimer >= (capture ? CLERK_CAPTURE_TIME : 1.12)) {
       this.night = false;
       this.spawnPlayer();
+      this.mourningCapture = capture;
       this.life = 'respawning';
       this.lifeTimer = 0;
       this.emit('sound', { name: 'revive' });
       this.emit('revive');
-    } else if (this.life === 'respawning' && this.lifeTimer >= .68) {
+    } else if (this.life === 'respawning' && this.lifeTimer >= (capture ? CLERK_REVIVAL_TIME : .68)) {
       this.life = 'alive';
       this.lifeTimer = 0;
+      this.mourningCapture = null;
       this.shield = .7;
     }
   }

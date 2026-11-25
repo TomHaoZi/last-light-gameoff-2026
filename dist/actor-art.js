@@ -81,12 +81,107 @@ const CLERK_COAT = ['#a4acaf', '#788893', '#52626f', '#303f4b'];
 const CLERK_BLOUSE = ['#e5d8b6', '#b4b8ab', '#899b96', '#45585b'];
 const CLERK_LEATHER = ['#ad9a84', '#877b73', '#66595b', '#423b48'];
 const CLERK_STAIN = ['#b48c83', '#946360', '#704850', '#523a46'];
+const PINION = ['#9da9a3', '#788e91', '#536e78', '#31464f'];
+
+function pixelStroke(a, start, end, width, ramp, taper = 0) {
+  const steps = Math.max(1, Math.ceil(Math.hypot(end[0] - start[0], end[1] - start[1]) / 1.6));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const size = Math.max(2, Math.round(width - taper * t));
+    const x = Math.round(start[0] + (end[0] - start[0]) * t - size / 2);
+    const y = Math.round(start[1] + (end[1] - start[1]) * t - size / 2);
+    a.rect(x, y, size, size, ramp[3]);
+    if (size > 2) a.rect(x, y, size - 1, size - 1, ramp[2]);
+    if (size > 3) a.rect(x + 1, y, size - 3, 2, ramp[1]);
+  }
+}
+
+function drawClerkWings(a, x, y, spread, fold, facing) {
+  for (const side of [-facing, facing]) {
+    const near = side === facing;
+    const span = 1 + spread * .29 - fold * .39;
+    const lift = spread * 12 - fold * 5;
+    const point = (dx, dy) => [x + dx * side * span, y + dy - lift * Math.min(1, dx / 24)];
+    const ramp = near ? PINION : [PINION[1], PINION[2], '#425a66', '#2a3e49'];
+    for (let feather = 6; feather >= 0; feather--) {
+      const tip = point(31 - feather * 3.4 - (near ? 0 : 2), 9 + feather * 2 + (feather === 1 && near ? -4 : 0));
+      const shaft = point(21 - feather * 2.15, -10 + feather * 2.4);
+      pixelStroke(a, shaft, tip, 5, ramp, 3);
+    }
+    pixelStroke(a, point(6, -7), point(15, -17), 7, ramp, 1);
+    pixelStroke(a, point(14, -17), point(24, -11), 6, ramp, 3);
+    for (let covert = 0; covert < 4; covert++) {
+      pixelStroke(a, point(11 + covert * 3, -12), point(14 + covert * 3, -3), 4, ramp, 2);
+    }
+    const seam = point(near ? 17 : 9, near ? -16 : -13);
+    a.rect(seam[0], seam[1], 3, 1, near ? '#b49b82' : ramp[0]);
+  }
+}
+
+export function drawClerkForearms(a, x, y, target, facing, grip) {
+  for (const near of [false, true]) {
+    const start = [x + facing * (near ? 5 : -2), y - (near ? 6 : 8)];
+    const rest = [x + facing * (near ? 7 : -8), y + (near ? 10 : 8)];
+    const palm = [rest[0] + (target.x + (near ? -1 : 3) * facing - rest[0]) * grip,
+      rest[1] + (target.y + (near ? 0 : 6) - rest[1]) * grip];
+    const elbow = [(start[0] + palm[0]) / 2 + 4 * facing, (start[1] + palm[1]) / 2 + (near ? 6 : -4)];
+    pixelStroke(a, start, elbow, 6, CLERK_COAT, 1);
+    pixelStroke(a, elbow, palm, 5, CLERK_COAT, 1);
+    a.rect(palm[0] - 2, palm[1] - 2, 5, 5, CLERK_SKIN[3]);
+    a.rect(palm[0] - 2, palm[1] - 2, 3, 3, near ? CLERK_SKIN[0] : CLERK_SKIN[2]);
+    a.rect(palm[0] + facing * 2 - 1, palm[1] - 1, 2, 1, CLERK_SKIN[1]);
+  }
+}
+
+export function drawJanitorCapture(a, { x, feet, direction, tilt, lift, appeal, dropCap, opacity = 1 }) {
+  const stable = Math.cos(tilt);
+  const sway = Math.sin(tilt) * direction;
+  const raised = feet - lift;
+  const torsoFloor = raised - (1 - stable) * 5;
+  const hip = [x + sway * 11, torsoFloor - 11 * stable];
+  const shoulders = [x + sway * 20, torsoFloor - 19 * stable];
+  const head = [x + sway * 26, torsoFloor - 25 * stable];
+  const c = a.c;
+  c.save();
+  c.globalAlpha *= opacity;
+  for (const side of [-1, 1]) {
+    const knee = [x + sway * 4 + side * (2 + appeal * 2), raised - (5 + side * appeal * 2) * stable];
+    const heel = [x + side * 3 - direction * appeal * 2, raised - 2 + side * appeal * 2];
+    pixelStroke(a, hip, knee, 5, COAT);
+    pixelStroke(a, knee, heel, 5, COAT, 1);
+    a.rect(heel[0] - 2, Math.min(feet - 3, heel[1] - 1), 7, 3, BOOTS[3]);
+    a.rect(heel[0] - 2, Math.min(feet - 3, heel[1] - 1), 5, 1, BOOTS[0]);
+  }
+  const elbow = [shoulders[0] - 5 * direction, Math.min(feet - 3, shoulders[1] + 5)];
+  const palm = [shoulders[0] - direction * (5 + appeal * 6), Math.min(feet - 3, shoulders[1] + 9 - appeal * 17)];
+  pixelStroke(a, shoulders, elbow, 5, COAT);
+  pixelStroke(a, elbow, palm, 5, COAT, 2);
+  a.rect(palm[0] - 2, palm[1] - 1, 4, 3, FACE[1]);
+  pixelStroke(a, hip, shoulders, 11, COAT, 2);
+  a.rect(hip[0] + direction * 3 - 1, hip[1] + 2, 3, 2, CAP[2]);
+  a.rect(shoulders[0] + 2, shoulders[1] + 1, 3, 2, CAP[0]);
+  const farPalm = [shoulders[0] + direction * (4 + appeal * 3), Math.min(feet - 3, shoulders[1] + 11 - appeal * 13)];
+  pixelStroke(a, [shoulders[0] + 4, shoulders[1] + 1], farPalm, 5, COAT, 2);
+  a.rect(farPalm[0] - 1, farPalm[1] - 1, 3, 4, FACE[2]);
+  a.rect(head[0] - 4, head[1] - 3, 9, 7, FACE[3]);
+  a.rect(head[0] - 3, head[1] - 3, 7, 6, FACE[1]);
+  a.rect(head[0] - direction * 2, head[1] - 1, 2, 1, FACE[3]);
+  a.rect(head[0] - 3, head[1] - 3, 6, 1, FACE[0]);
+  const capX = head[0] + direction * 11 * dropCap;
+  const capY = head[1] - 5 - Math.sin(dropCap * Math.PI) * 9 + dropCap * (feet - head[1] + 1);
+  a.rect(capX - 5, capY - 1, 9, 4, CAP[3]);
+  a.rect(capX - 4, capY - 1, 7, 2, CAP[1]);
+  a.rect(capX - 4, capY - 1, 4, 1, CAP[0]);
+  a.rect(capX - 6, capY + 2, 5, 1, CAP[2]);
+  c.restore();
+  return { x: shoulders[0], y: shoulders[1] };
+}
 
 export function drawMourningClerk(a, ghost, x, y) {
-  const {gaze = 0, looking, charging} = ghost;
+  const {gaze = 0, looking, charging, capture} = ghost;
   const direction = ghost.facing === -1 ? -1 : 1;
   const lean = charging ? direction * 4 : 0;
-  const stride = charging ? Math.round(Math.sin(a.t * 26) * 2) : 0;
+  const stride = charging && !capture ? Math.round(Math.sin(a.t * 26) * 2) : 0;
   const hairLag = charging ? -direction * 3 : Math.round(Math.sin(a.t * 2.4 + (ghost.seed || 0)));
   const faceY = looking ? -25 : -22;
   const rect = (dx, dy, w, h, color) => a.rect(x + dx, y + dy, w, h, color);
@@ -94,6 +189,8 @@ export function drawMourningClerk(a, ghost, x, y) {
   const forward = (dx, dy, w, h, color) => rect(direction === 1 ? dx : 1 - dx - w, dy, w, h, color);
 
   a.glow(x, y - 3, 30, 37, charging ? '#c58573' : '#a3bdb4', .07 + gaze * .1);
+  const spread = capture?.spread ?? (charging ? .45 : looking ? .23 : .10 + Math.sin(a.t * 2.7) * .06);
+  drawClerkWings(a, x, y, spread, capture?.fold ?? 0, direction);
   // The hanging hair remains behind her shoulders. The ends lag the lunge.
   face(-9, 4, 18, 17, CLERK_HAIR[3]);
   face(-10, 8, 5, 15, CLERK_HAIR[2]);
@@ -126,13 +223,13 @@ export function drawMourningClerk(a, ghost, x, y) {
   rect(-5, 18, 3, 3, CLERK_STAIN[1]);
   rect(-3, 18, 2, 4, CLERK_STAIN[2]);
 
-  if (charging) {
+  if (charging && !capture) {
     forward(4, -7, 8, 5, CLERK_COAT[3]);
     forward(8, -9, 9, 4, CLERK_COAT[2]);
     forward(12, -9, 4, 1, CLERK_COAT[1]);
     forward(15, -10, 4, 3, CLERK_SKIN[2]);
     forward(17, -10, 3, 1, CLERK_SKIN[1]);
-  } else {
+  } else if (!capture) {
     rect(6, -7, 5, 17, CLERK_COAT[3]);
     rect(7, -6, 3, 11, CLERK_COAT[2]);
     rect(7, 8, 3, 6, CLERK_SKIN[3]);
@@ -161,7 +258,7 @@ export function drawMourningClerk(a, ghost, x, y) {
   rect(-8 + lean, 0, 3, 3, CLERK_STAIN[1]);
   rect(-8 + lean, 1, 2, 3, CLERK_STAIN[2]);
 
-  if (charging) {
+  if (charging && !capture) {
     // The nearer arm extends from her shoulder, with a planted cuff and fingers.
     forward(6, -4, 8, 6, CLERK_COAT[3]);
     forward(7, -4, 6, 4, CLERK_COAT[1]);
@@ -174,7 +271,7 @@ export function drawMourningClerk(a, ghost, x, y) {
     forward(18, -5, 5, 1, CLERK_SKIN[1]);
     forward(18, -3, 3, 1, CLERK_SKIN[2]);
     forward(17, -4, 2, 3, CLERK_SKIN[1]);
-  } else {
+  } else if (!capture) {
     rect(-10, -7, 4, 15, CLERK_COAT[3]);
     rect(-10, -7, 3, 12, CLERK_COAT[1]);
     rect(-10, -7, 1, 6, CLERK_COAT[0]);

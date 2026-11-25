@@ -217,7 +217,10 @@ function inputDown(source,action,repeat=false){
  if(action==='pause'){if(!repeat)togglePause();return;}
  if(state.mode!=='playing'||repeat)return;
  if(state.player.lifeState==='dying'){
-  if((action==='jump'||action==='interact')&&state.deaths>1)state.player.lifeTime=Math.max(state.player.lifeTime,.85);
+  if((action==='jump'||action==='interact')&&state.deaths>1){
+   const end=state.death?.duration;
+   if(!end||state.player.lifeTime>end-.29)state.player.lifeTime=Math.max(state.player.lifeTime,end?end-.09:.85);
+  }
   return;
  }
  if(state.scene){if(action==='interact'||action==='jump')edges.interact=true;return;}

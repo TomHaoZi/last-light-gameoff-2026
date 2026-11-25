@@ -1,11 +1,13 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.19
+## 2D and 3D browser release · 3.0.0-rc.20
+
+[档案室重制与抓捕动画 / Archive rebuild and capture sequence](docs/archive-and-capture-rc20.md)
 
 [设置与女鬼 / Settings and the Mourning Clerk](docs/settings-and-mourning-rc19.md) · [后室追逐实测 / Records Annex playtest](docs/backrooms-rc17.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
 
-[Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
+[Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact or a fall begins a death sequence. The last lamp restores the shift.
 
 ```sh
 npm ci

@@ -59,7 +59,12 @@ export async function playOfficeGaze({snapshot, key, tap, stop, sleep, screensho
   assert.equal(caught.death.ghost.kind, 'mourner');
   assert.ok(Math.abs(caught.player.x + 7 - caught.death.ghost.x) <= 13);
   assert.ok(caught.log.some(e => e.type === 'death' && e.cause === 'eye-contact'));
-  await screenshot('office-eye-contact-death');
+  const hold = await wait('the Clerk draws Eli up', s => s.death?.time > .36 && s.death.time < .68);
+  await screenshot('office-capture-hold');
+  const release = await wait('Eli drops back to the floor', s => s.death?.time > .95 && s.death.time < 1.18);
+  await screenshot('office-capture-release');
+  const recovery = await wait('revival animation plays under the lamp', s => s.player.mourningRevival && s.player.lifeTime >= .36);
+  await screenshot('office-lamp-revival');
   const revival = await wait('revival at the lamp', s => s.player.lifeState === 'alive');
   assert.equal(revival.phase, 'day');
   assert.equal(revival.officeGaze.amount, 0);
@@ -80,5 +85,7 @@ export async function playOfficeGaze({snapshot, key, tap, stop, sleep, screensho
   await screenshot('office-jump-past');
   return { phase: state.phase, introduced: true, warned: warning.officeGaze.amount,
     charge: { from: home, averted: position(averted) },
-    caught: { x: caught.player.x, creature: caught.death.ghost.x }, checkpoint: revival.checkpoint, bypass: state.player.x };
+    caught: { x: caught.player.x, creature: caught.death.ghost.x },
+    beats: { hold: hold.death.time, release: release.death.time, recovery: recovery.player.lifeTime },
+    checkpoint: revival.checkpoint, bypass: state.player.x };
 }

@@ -1,5 +1,11 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.20 · Practical light and capture continuity
+
+Use the existing phase and collision grid for the archive. Its modeled slab, ceiling fixtures, cabinets and dressing instance behind neutral geometry. Light selection checks real walls and keeps safety sources and phase markings distinct. Retain old runtime assets in the repository for archived releases.
+
+The contact frame settles the death and begins one timed presentation shared by the attacker, camera, player hands, sound and particles. The view goes fully dark before changing position to the saved lamp. Reduced effects limits camera motion while preserving the consequences and recovery. The wings keep their independent rig and license.
+
 ## 3.0.0-rc.19 · Bindings, difficulty and charge behavior
 
 Resolve physical keyboard codes to game actions before processing movement, camera input and interaction. Each edition has its own control defaults and browser preferences. A key belongs to one action at a time and a conflict can be swapped explicitly. Every action retains at least one key. Settings and input loss clear held controls. Touch continues to send its own game actions.

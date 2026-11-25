@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.19"
+VERSION = "3.0.0-rc.20"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 SHARED_SETTINGS = {"player-settings.js", "settings-panel.js", "player-settings.css"}
 HISTORIC_MODEL = "assets/creature/mourning-clerk.glb"
@@ -24,12 +24,13 @@ REQUIRED_FILES = {
     "classic/backrooms-art.js", "classic/chase-props.js", "classic/backrooms-props.png",
     "assets/env/backrooms-annex.glb", "assets/env/steamtrap.glb", "assets/env/ticketcase.glb",
     "assets/env/rainhead.glb", "dialogue.js", "frame-budget.js", "photo-surfaces.js",
-    "environment-assets.js", "vendor/loaders/GLTFLoader.js",
+    "environment-assets.js", "archive-interior.js", "assets/env/archive-interior.glb",
+    "vendor/loaders/GLTFLoader.js",
     "vendor/utils/BufferGeometryUtils.js", "vendor/utils/SkeletonUtils.js",
     "assets/CREDITS.md", "assets/creature/late-worker.glb",
     "assets/creature/SOURCES.md", "assets/env/CREDITS.md",
-    "mourning-audio.js", "mourning-figure.js", "mourning-gaze.js",
-    "classic/mourning-clerk.js", "assets/creature/mourning-clerk-human.glb",
+    "mourning-audio.js", "mourning-figure.js", "mourning-gaze.js", "mourning-capture.js", "creature-rig.js",
+    "classic/mourning-clerk.js", "classic/mourning-capture-art.js", "assets/creature/mourning-clerk-human.glb",
     "assets/creature/mourning-wings.glb", "assets/env/office-phonograph.glb",
     "audio/mourning-sob-soft.m4a", "audio/mourning-sob-held.m4a",
     "assets/dialogue/CREDITS.md", "assets/surfaces/CREDITS.md",
@@ -56,7 +57,7 @@ REQUIRED_FILES.update(
 )
 REQUIRED_FILES.update(
     f"assets/surfaces/{kind}-{channel}.webp"
-    for kind in ("boiler", "office", "roof", "block")
+    for kind in ("boiler", "office", "roof", "block", "archive-floor", "archive-plaster")
     for channel in ("color", "normal", "arm")
 )
 

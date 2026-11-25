@@ -32,9 +32,13 @@ export class JanitorHands {
     this.group = new Group();
     this.group.name = 'Janitor first-person hand';
     this.group.visible = false;
+    this.counterHand = new Group();
+    this.counterHand.name = 'Janitor free hand';
+    this.counterHand.visible = false;
 
-    camera.add(this.group);
+    camera.add(this.group, this.counterHand);
     this.fingers = [];
+    this.counterFingers = [];
     this.action = 0;
     this.grip = 0;
     this.brace = 0;
@@ -51,6 +55,16 @@ export class JanitorHands {
         object.receiveShadow = false;
       });
       this.group.add(scene);
+      const opposite = scene.clone();
+      const watch = [];
+      opposite.traverse(object => {
+        const name = object.userData.name ?? object.name;
+        if (name === 'JanitorMinute' || name.includes('watch dial') || name.includes('nickel case')) watch.push(object);
+        if (object.morphTargetDictionary?.Operate != null) this.counterFingers.push(object);
+      });
+      for (const part of watch) part.removeFromParent();
+      opposite.scale.x = -1;
+      this.counterHand.add(opposite);
       return scene;
     }).catch(error => {
       console.warn('Could not load the janitor hand.', error);
@@ -62,9 +76,10 @@ export class JanitorHands {
     this.action = .63;
   }
 
-  update(state, dt, walk = 0, velocity = 0) {
+  update(state, dt, walk = 0, velocity = 0, capture = null) {
     const group = this.group;
     group.visible = state.mode === 'playing' || state.mode === 'paused';
+    this.counterHand.visible = false;
     if (!group.visible) {
       this.action = 0;
       return;
@@ -80,7 +95,7 @@ export class JanitorHands {
     this.shiftPose = damp(this.shiftPose, phaseFlash, phaseFlash > this.shiftPose ? 24 : 12, dt);
     const shift = this.shiftPose;
     const caught = state.life === 'dying' && state.deathCause === 'ghost';
-    const fallen = state.life === 'dying' && !caught;
+    const fallen = state.life === 'dying' && !caught && !capture;
     const protect = caught ? smoothstep(state.lifeTimer, 0, .14) * (1 - smoothstep(state.lifeTimer, .50, 1.02)) : 0;
     this.air = damp(this.air, state.grounded === false && !fallen ? 1 : 0, 8, dt);
     this.grip = damp(this.grip, Math.min(1, .27 + contact*.59 + shift*.25 + (state.sprint ? .26 : 0)), 12, dt);
@@ -111,6 +126,30 @@ export class JanitorHands {
       mesh.morphTargetInfluences[Operate] = this.grip * (1 - this.brace);
       mesh.morphTargetInfluences[Brace] = this.brace;
     }
+    if (capture) this.defend(capture, side, lift);
     if (this.minute) this.minute.rotation.y = -this.roll*minuteArc;
+  }
+
+  defend(capture, side, lift) {
+    const { brace, resistance = 0, drop = 0, impulse = 0 } = capture;
+    const recovery = capture.beat === 'revival' ? 1 - capture.rise : 0;
+    const action = Math.max(brace, .53 * recovery, .30 * drop);
+    if (action <= .004) return;
+    const pressure = lift * action;
+    const turn = capture.side * resistance;
+    this.group.position.set(.223 * side - .11 * pressure - .041 * turn, -.23 + .17 * pressure
+      - (.17 * drop + .09 * recovery) * lift, -.423 - .16 * pressure + .059 * impulse);
+    this.group.rotation.set(.38 + .69 * pressure - .37 * drop, .40 - .80 * pressure + .22 * turn,
+      -.04 + .48 * pressure + .17 * drop);
+    this.counterHand.visible = action > .04;
+    this.counterHand.position.set(-.26 * side + .14 * pressure + .026 * turn, -.38 + .27 * pressure
+      - (.12 * drop + .072 * recovery) * lift, -.39 - .20 * pressure + .05 * impulse);
+    this.counterHand.rotation.set(.56 + .56 * pressure - .32 * drop, -.40 + .71 * pressure,
+      -.02 - .52 * pressure - .18 * drop);
+    for (const mesh of [...this.fingers, ...this.counterFingers]) {
+      const { Operate, Brace } = mesh.morphTargetDictionary;
+      mesh.morphTargetInfluences[Operate] = .42 * resistance;
+      mesh.morphTargetInfluences[Brace] = Math.min(1, .87 * action + .14 * drop);
+    }
   }
 }

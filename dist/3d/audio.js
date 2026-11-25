@@ -13,7 +13,7 @@ const CUE_COOLDOWN = {
   step: .105, warning: 1.38, howl: 7.8, snarl: 2.65, breath: 2.25,
   'mourning-cry': 2.7, 'mourning-lock': .45, 'mourning-strike': 1.2
 };
-const MOURNING_SOUNDS = new Set(['mourning-cry', 'mourning-lock', 'mourning-strike']);
+const MOURNING_SOUNDS = new Set(['mourning-cry', 'mourning-lock', 'mourning-strike', 'mourning-bind', 'mourning-floor']);
 const VOCAL_GAIN = {
   howl: .57,    // At range its reverb and shape carry before the peak level.
   scream: .69,  // The short alert must sit above the pursuit score.
@@ -749,10 +749,18 @@ export class HorrorAudio {
       // Lead with an unmistakable intake rather than obscuring the warning's vowels.
       this.noise(at, .16, .12, 1350, 1.9, bus, .012, 2850);
       this.tone(at + .11, 90, 54, .23, .08, this.closeBus);
-    } else {
+    } else if (name === 'mourning-strike') {
       this.playRecording(SOB_FILES[1], at, bus, .68, .78, .05, 1.09);
       this.noise(at, .35, .22, 1750, 1.35, bus, .009, 690);
       this.duck(at, .35, 1.1);
+    } else if (name === 'mourning-bind') {
+      this.noise(at, .33, .152, 2700, 1.1, bus, .007, 880);
+      this.tone(at + .045, 390, 167, .42, .047, bus, 'triangle', .020);
+      this.tone(at, 102, 55, .37, .052, this.closeBus);
+    } else {
+      this.playRecording('step-stone', at, this.closeBus, .37, .68, STEP_CLIP, STEP_CLIP);
+      this.tone(at, 70, 29, .37, .12, this.closeBus);
+      this.noise(at + .024, .27, .15, 1080, .81, this.closeBus, .012, 268);
     }
   }
 
@@ -839,7 +847,14 @@ export class HorrorAudio {
         break;
       case 'death':
         for (const emitter of this.vocalEmitters) this.finishCreatureCall(emitter, at);
-        if (position?.kind !== 'mourning' && Number.isFinite(position?.x) && Number.isFinite(position?.z)) {
+        if (position?.kind === 'mourning') {
+          // Leave room for the authored bind and impact beats that follow contact.
+          tone(0, 94, 42, .28, .151);
+          noise(.009, .22, .112, 985, 1.18, .008, 375);
+          this.duck(at, .25, 1.55);
+          break;
+        }
+        if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) {
           this.creatureCue('grab', at, position);
         }
         tone(0, 76, 22, 1.25, 0.23);

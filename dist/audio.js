@@ -199,6 +199,8 @@ export class Sound {
     }
     if(name==='mourning-lock'){this.noise(t,.14,.085,1390,this.sfx,1.55);this.tone(82,43,t+.09,.20,.075,'sine');}
     if(name==='mourning-strike'){this.stopSobs();this.playSob(t,true);this.noise(t,.23,.15,1520,this.sfx,1.1);this.duck(.62);}
+    if(name==='mourning-release'){this.noise(t,.17,.064,1300,this.sfx,1.5);this.tone(159,71,t+.02,.16,.035,'triangle');}
+    if(name==='mourning-impact'){this.stopSobs();this.kick(t,.12,.18);this.noise(t+.01,.16,.047,510);}
     if(name==='ghostAlert'){this.tone(320,220,t,.48,.035,'sine');this.noise(t,.5,.025,950);this.duck(.35);}
     if(name==='handle'){this.tick(t,.065);this.clunk(t+.12,.07);}
     if(name==='evidence'){[0,7,12].forEach((v,i)=>this.tone(midi(65+v),midi(65+v),t+i*.1,.5,.04,'sine'));}

@@ -543,3 +543,8 @@
 }
 .gaze-warning[data-breaking="true"] { border-color: #aebd9b99; color: #dce4c4; }
 @media (max-height: 520px) { .gaze-warning { top: 31%; } }
+
+#stage.clerk-capture-active #hud{opacity:.12}
+#death.clerk-execution{background:transparent}
+#death.clerk-execution::before{content:"";position:absolute;inset:0;background:#060909;opacity:var(--execution-veil,0)}
+#death.clerk-execution p{position:relative;align-self:end;margin:0 0 clamp(1.2rem,8vh,5rem);padding:.6rem 1.1rem;opacity:var(--execution-caption,0);font-size:clamp(1.15rem,2.8vw,1.65rem);text-align:center;text-shadow:0 2px 8px #000,0 0 21px #0c1314}

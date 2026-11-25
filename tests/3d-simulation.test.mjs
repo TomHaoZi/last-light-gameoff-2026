@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Simulation3D, STEP } from "../dist/3d/simulation.js";
 import { mourningHiddenByPartition } from "../dist/3d/mourning-gaze.js";
+import { CLERK_CAPTURE_TIME, CLERK_REVIVAL_TIME } from "../dist/3d/mourning-capture.js";
 
 import { transferControls } from '../scripts/play-3d-transfer.mjs';
 import { BACKROOMS_TRACK, chaseBlocked, chaseFloor } from '../dist/3d/backrooms-track.js';
@@ -137,7 +138,7 @@ test("office face-to-face stare starts a real charge that stops when the gaze br
   assert.ok(Math.hypot(face.x - sim.x, face.z - sim.z) < .62, "only the resulting contact is lethal");
   assert.equal(sim.pursuer, face);
   assert.equal(sim.progress.deaths, 1);
-  advance(sim, 1.9);
+  advance(sim, CLERK_CAPTURE_TIME + CLERK_REVIVAL_TIME + STEP);
   assert.equal(sim.life, "alive");
   assert.equal(sim.gaze, 0);
   assert.equal(sim.x, sim.checkpoint.x);

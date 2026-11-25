@@ -80,7 +80,10 @@ try{
  for(let n=0;n<40;n++){try{if((await fetch(`http://127.0.0.1:${port}/`)).ok)break;}catch{}await sleep(100);}
  await send('Page.navigate',{url:`http://127.0.0.1:${port}${pagePath}`});await sleep(200);let ready=false;for(let n=0;n<90;n++){if(n===25||n===55){log.push({event:'startup-reload',retry:n});await send('Page.reload');await sleep(250);}ready=await evaluate("document.readyState==='complete'&&typeof window.lastLight?.snapshot==='function'&&!!document.getElementById('start')");if(ready)break;await sleep(100);}if(!ready){log.push({event:'startup-diagnostic',page:await evaluate("({url:location.href,ready:document.readyState,title:document.title,body:document.body?.textContent?.slice(0,180)})")});throw Error('Game module readiness timed out');}if(checkAnnex||checkOfficeGaze){
   const fixture=freshSave();
-  if(checkOfficeGaze)Object.assign(fixture,{floor:1,sector:0,lang:'en'});
+  if(checkOfficeGaze){
+   Object.assign(fixture,{floor:1,sector:0,lang:'en'});
+   fixture.settings.reducedEffects=process.env.REDUCED_OFFICE==='1';
+  }
   else if(replayAnnex)Object.assign(fixture,{floor:2,sector:5,finished:true,ending:'complete',mechanisms:['1/archive'],evidence:['night-letter']});
   else Object.assign(fixture,{floor:1,sector:2,mechanisms:['1/archive'],events:['backrooms-entered']});
   await send('DOMStorage.enable');

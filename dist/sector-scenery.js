@@ -168,6 +168,12 @@ function officeTile(a, s, night) {
     } else {
       windowBay(a, x + 15, 51, 116, 128, metal, night, 3 + i + s.sector, false);
       for (let u = 0; u < 5; u++) a.line(x + 20, 61 + u * 6, 107, metal[3]);
+      if (night) {
+        a.rect(x + 21, 177, 8, 13 + i, wall[2]);
+        a.rect(x + 23, 182, 4, 10 + i * 2, wall[3]);
+        a.rect(x + 100, 175, 17, 4, metal[3]);
+        a.rect(x + 108, 179, 5, 9, wall[2]);
+      }
     }
     a.box(x + 5, 201, 138, 48, metal);
     a.box(x + 12, 208, 55, 31, wall);
@@ -278,6 +284,28 @@ export function sceneryCanopy(a, s) {
       a.rect(left + 50, 5 + bend, 8, 3, metal[3]);
     } else if (s.floor === 2 && s.sector >= 3) {
       a.rect(left + 5, 4, 5, 5, metal[2]);
+    } else if (s.floor === 1 && i % 2 === 1) {
+      const bulb = left + 34;
+      a.rect(bulb - 1, 0, 2, 15, metal[3]);
+      a.box(bulb - 12, 13, 24, 7, metal);
+      a.rect(bulb - 9, 17, 17, 2, s.night ? '#c9aa78' : metal[0]);
+      if (a.n > .02) {
+        const c = a.c;
+        c.save();
+        c.globalCompositeOperation = 'lighter';
+        const light = c.createLinearGradient(bulb, 19, bulb, 145);
+        const gain = s.reducedEffects ? .07 : .065 + Math.sin(a.t * 2.1 + i) * .014;
+        light.addColorStop(0, '#d4b982');
+        light.addColorStop(1, '#d4b98200');
+        c.globalAlpha = gain * a.n;
+        c.fillStyle = light;
+        c.beginPath();
+        c.moveTo(bulb - 9, 19);c.lineTo(bulb + 8, 19);
+        c.lineTo(bulb + 56, 150);c.lineTo(bulb - 42, 150);
+        c.closePath();c.fill();
+        c.restore();
+        a.glow(bulb, 23, 27, 22, '#e0ba7f', gain * a.n * .9);
+      }
     }
   }
 }

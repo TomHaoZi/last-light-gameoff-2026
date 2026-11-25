@@ -2,6 +2,7 @@ import { Group, MathUtils, Sphere, Vector3 } from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 import { clone } from './vendor/utils/SkeletonUtils.js';
 import { makeCreatureBody, animateCreatureBody } from './creature-body.js';
+import { fingerJoints } from './creature-rig.js';
 import { createSculptedHead, animateSculptedHead } from './creature-head.js';
 import { applyPreparedCreatureTextures } from './creature-textures.js';
 
@@ -55,27 +56,6 @@ export function scheduleOfficeCreatureTextures(renderer) {
   if (officeTextureRequests.has(renderer)) return;
   officeTextureRequests.add(renderer);
   prepareMourningTextures(renderer);
-}
-
-function fingerJoints(joints, side) {
-  const point = label => joints.get(label + '.' + side).getWorldPosition(new Vector3());
-  const middle = point('finger3-1').sub(point('wrist'));
-  const breadth = point('finger5-1').sub(point('finger2-1'));
-  const palm = middle.cross(breadth).normalize().multiplyScalar(side === 'R' ? 1 : -1);
-  const curl = [];
-  for (const finger of [2, 3, 4, 5]) {
-    for (let link = 1; link <= 3; link++) {
-      const label = 'finger' + finger + '-' + link;
-      const direction = link === 3 ? point(label).sub(point('finger' + finger + '-2')) :
-        point('finger' + finger + '-' + (link + 1)).sub(point(label));
-      curl.push({
-        bone: joints.get(label + '.' + side),
-        axis: direction.cross(palm).normalize(),
-        depth: [.41, .68, .47][link - 1] * (1 - (finger - 2) * .06)
-      });
-    }
-  }
-  return curl;
 }
 
 function authoredRig(theme, seed) {
@@ -194,9 +174,9 @@ export function createCreature(index = 0, theme = 0, renderer = null, kind = nul
 }
 
 export function updateCreature(actor, { time, threat = 0, attack = 0, night = false,
-  distance = 10, reduced = false, moving = false, dt = 0, travel = 0, gazeLock = 0, charging = false }) {
+  distance = 10, reduced = false, moving = false, dt = 0, travel = 0, gazeLock = 0, charging = false, capture = null }) {
   if (actor.kind === 'mourning') {
-    poseMourningFigure(actor, { time, gaze: gazeLock, charging, attack, reduced, moving, travel });
+    poseMourningFigure(actor, { time, gaze: gazeLock, charging, attack, reduced, moving, travel, capture });
     return;
   }
   if (template && !actor.group.userData.authoredCreature) {

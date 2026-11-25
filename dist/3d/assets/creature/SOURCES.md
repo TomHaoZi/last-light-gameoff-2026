@@ -23,17 +23,29 @@ blender -b --python-exit-code 1 -P scripts/blender/build-late-workers.py -- \
 
 ## The Mourning Clerk
 
-The female limestone archivist is an original LAST LIGHT sculpture. The editable facial mesh, slate braid, archive dress and pose pivots are in `art/blender/mourning-clerk.blend`. The asymmetric, repaired stone wings have their own Blender scene and packed limestone maps in `art/blender/mourning-wings.blend`. Their GLBs assemble at the upper back in the game. Build scripts sit beside both editable files.
+The RC18 female limestone archivist originated as a LAST LIGHT sculpture. The editable facial mesh, slate braid, archive dress and pose pivots are in `art/blender/mourning-clerk.blend`. The current human figure and replacement wings assemble at the upper back in the game. Build scripts sit beside the editable files.
 
 ### RC19 · Human figure
 
 The current Clerk uses the MakeHuman Team's `hm08` topology, adult female targets, default armature and skin weights, and the high-poly eye geometry from the [pinned CC0 source](https://github.com/makehumancommunity/makehuman/tree/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/makehuman/data). The photographic `middleage_caucasian_female` skin, `long01` hair, `shoes02` shoes, `teeth_base` geometry, `eyebrow001` brows and `eyelashes01` lashes are from the [official CC0 system asset pack](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html). Its source credits name Data Collection AB, Joel Palmius and Jonas Hauquier.
 
-LAST LIGHT reshaped the adult figure in Blender, fitted an original wine-colored archive gown to the body, painted asymmetric tear paths, bruises and mineral wear onto the source skin UVs, and authored the layered garment texture. The cloth, hair, face, eyes and teeth follow a shared skeletal pose in the browser. The original LAST LIGHT wings attach to the upper back.
+LAST LIGHT reshaped the adult figure in Blender, fitted an original wine-colored archive gown to the body, painted asymmetric tear paths, bruises and mineral wear onto the source skin UVs, and authored the layered garment texture. The cloth, hair, face, eyes and teeth follow a shared skeletal pose in the browser.
 
 Open `art/blender/mourning-clerk-human.blend` to inspect the editable character. To regenerate the glTF from licensed source data, run this from the repository root:
 
 ```sh
 blender -b --python-exit-code 1 -P art/blender/build_mourning_clerk.py -- \
     /path/to/makehuman/makehuman/data /path/to/unpacked-cc0-system-assets
+```
+
+### RC20 · Articulated feather wings
+
+The wing asset adapts feather geometry and albedo grain from [Crow, by Vinish](https://vinish.dev/free-3d-models/birds) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). LAST LIGHT isolated remiges and coverts, reshaped and refitted the vanes to the Clerk's back, added a layered scapular mantle and clipped feathers, painted an ash and oil finish, and built a new six-joint rig. The adapted wing asset remains available under CC BY 4.0.
+
+Every feather and weight group stays editable in `art/blender/mourning-wings.blend`. The runtime `mourning-wings.glb` joins them into one skinned mesh. Its material packs color, normal and roughness maps.
+
+To regenerate, download the [source Crow GLB](https://vinish-models.pages.dev/birds/crow.glb) with SHA-256 `3c703732b064b2ae98d703963f1fbb2218750c737f7cc59819ba7c7039ae145f`.
+
+```sh
+blender -b --python-exit-code 1 -P art/blender/build_mourning_wings.py -- /path/to/crow.glb
 ```

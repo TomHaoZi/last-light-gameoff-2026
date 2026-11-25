@@ -1,5 +1,6 @@
 import { preloadMourningFigure } from './mourning-figure.js';
-import { mourningHiddenByPartition } from './mourning-gaze.js';
+import { firstSightWall, mourningHiddenByPartition } from './mourning-gaze.js';
+import { clerkCaptureFrame } from './mourning-capture.js';
 import * as THREE from 'three';
 import { applyWorldWeather, createSurfaceSet } from './surfaces.js';
 import { decorateModels } from './models.js';
@@ -18,6 +19,7 @@ import { mountServiceLift, poseServiceLift } from './service-lift.js';
 import { mountStationTrace } from './station-traces.js';
 import { mountWorkstations, updateWorkstation } from './workstation-models.js';
 import { mountWallSigns } from './set-dressing.js';
+import { mountArchiveInterior } from './archive-interior.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -34,7 +36,8 @@ const COLD = new THREE.Color('#9bcfea');
 const YELLOW = new THREE.Color('#ffb95a');
 const PALE = new THREE.Color('#b8e8ff');
 const SAFE = new THREE.Color('#72e6bf');
-const OFFICE_LIGHT = new THREE.Color('#f3efcf');
+const OFFICE_LIGHT = new THREE.Color('#e3ead4');
+const OFFICE_EMERGENCY = new THREE.Color('#e56849');
 const STATION_TITLES = [
   { A: 'PRESSURE', B: 'COOLING', C: 'INTERLOCK' },
   { A: 'REGISTER', B: 'CORRECTION', C: 'LUNCHBOX' },
@@ -45,8 +48,8 @@ const BOILER = {
   daySky: '#302520', nightSky: '#152230', steel: '#586263', accent: '#b36b30'
 };
 const OFFICE = {
-  floor: '#61564d', wall: '#a8a295', ceiling: '#857d6b', low: '#302622',
-  daySky: '#3d3831', nightSky: '#16272e', steel: '#626f74', accent: '#725049'
+  floor: '#606b66', wall: '#a1a79a', ceiling: '#6a6c63', low: '#2a2e2a',
+  daySky: '#313731', nightSky: '#121f26', steel: '#626f74', accent: '#6b5147'
 };
 const ROOF = {
   floor: '#596467', wall: '#6b6d69', ceiling: '#515651', low: '#182425',
@@ -552,6 +555,13 @@ export class Visual {
     this.batches = {
       neutral: new Batch(this.groups.neutral), day: new Batch(this.groups.day), night: new Batch(this.groups.night)
     };
+    this.archiveTube = this.archiveBulkhead = null;
+    if (this.theme === 1 && level.id !== 'backrooms') {
+      this.archiveFixtures = [];
+      this.archiveFixtureFallback = new THREE.Group();
+      this.batches.archiveFixture = new Batch(this.archiveFixtureFallback);
+      this.stage.add(this.archiveFixtureFallback);
+    }
 
     if (level.id === 'backrooms') {
       this.fogWarm.set('#686344');
@@ -589,7 +599,7 @@ export class Visual {
     Object.values(this.batches).forEach(batch => batch.build());
     this.makeParticles();
     this.workstationsReady = mountWorkstations(this);
-    this.environmentReady = mountEnvironment(this);
+    this.environmentReady = Promise.all([mountEnvironment(this), mountArchiveInterior(this)]);
     this.surfacesReady = mountPhotoSurfaces(this);
     const stage = this.stage;
     const redraw = () => { if (this.stage === stage) this.overlayFrame = null; };
@@ -850,7 +860,8 @@ export class Visual {
       batch.box(m.accent, x + .9, .006, z, .045, .016, 2.28);
     }
     const archiveCorner = this.theme === 1 && kind === '.' &&
-      (col === 9 && row === 10 || col === 21 && row === 9);
+      (col === 9 && row === 10 || col === 21 && row === 9 ||
+       row === 2 && (col === 12 || col === 14) || col === 11 && row === 13);
     if (kind === 'S' || kind === 'E' || (kind === '.' && (col + row * 3) % 12 === 0) || archiveCorner) {
       this.fixture(x, this.theme === 2 ? 2.74 : 2.98, z, kind === 'E' ? 'safe' : 'general');
     }
@@ -903,10 +914,14 @@ export class Visual {
       b.box(m.steel, x + .33, y / 2, z, .047, y, .047);
       b.box(m.dark, x + .33, .067, z, .22, .13, .21);
     } else if (this.theme === 1) {
-      b.box(m.dark, x, y + .07, z, 1.12, .145, .38);
-      b.box(m.bone, x, y + .006, z, 1.06, .042, .35);
-      for (const dz of [-.076, .076]) b.box(lens, x, y - .029, z + dz, .90, .032, .105);
-      b.box(m.dark, x, y - .033, z, .94, .029, .024);
+      const { row, col } = this.decoded.at(x, z);
+      const narrow = this.decoded.get(col-1,row)?.kind === '#' || this.decoded.get(col+1,row)?.kind === '#';
+      const damaged = (col * 19 + row * 7) % 5 < 2 && type !== 'safe';
+      this.archiveFixtures.push({ x, y, z, angle: narrow ? Math.PI / 2 : 0, damaged });
+      this.batches.archiveFixture.box(m.dark, x, y + .07, z, 1.12, .145, .38);
+      this.batches.archiveFixture.box(lens, x, y - .029, z, .90, .042, .24);
+      this.lightSource(x, y - .11, z, damaged ? 10.8 : 21, type, damaged ? .46 : .64);
+      return;
     } else {
       b.box(m.dark, x, y + .08, z, .72, .15, .36);
       b.box(m.copper, x, y + .027, z, .67, .07, .27);
@@ -1058,7 +1073,7 @@ export class Visual {
   }
 
   lightSource(x, y, z, strength, type, scale) {
-    const color = type === 'safe' ? SAFE : type === 'alarm' ? YELLOW :
+    const color = type === 'safe' ? SAFE : type === 'alarm' ? YELLOW : type === 'bulkhead' ? OFFICE_EMERGENCY :
       this.theme === 1 ? OFFICE_LIGHT : WARM;
     const material = new THREE.SpriteMaterial({
       map: this.glow, color, transparent: true, opacity: .32, depthWrite: false,
@@ -1361,7 +1376,7 @@ export class Visual {
     this.stage.add(this.particles);
   }
 
-  updateGhosts(state, dt, reduced) {
+  updateGhosts(state, dt, reduced, execution = null) {
     const seen = new Set();
     let faceExposure = 1;
     for (const [index, ghost] of (state.ghosts || []).entries()) {
@@ -1386,8 +1401,9 @@ export class Visual {
       const proximity = 1 - THREE.MathUtils.smoothstep(distance, .96, 3.22);
       faceExposure = Math.min(faceExposure, 1 - .79 * proximity * inView);
       const attacking = state.life === 'dying' && (state.deathCause === 'ghost' || state.deathCause === 'gaze') && ghost === state.pursuer;
-      const attack = attacking ? THREE.MathUtils.smoothstep(state.lifeTimer, 0, .18) *
-        (1 - .44 * THREE.MathUtils.smoothstep(state.lifeTimer, .47, .93)) : 0;
+      const capture = attacking && ghost.kind === 'mourning' ? execution : null;
+      const attack = capture?.reach ?? (attacking ? THREE.MathUtils.smoothstep(state.lifeTimer, 0, .18) *
+        (1 - .44 * THREE.MathUtils.smoothstep(state.lifeTimer, .47, .93)) : 0);
       const { x, z } = ghost;
       const dx = x - actor.group.position.x;
       const dz = z - actor.group.position.z;
@@ -1399,7 +1415,8 @@ export class Visual {
         (wasVisible ? Math.min(1, dt * (attack ? 17 : 8)) : 1);
       actor.group.position.set(x, ghost.y || 0, z);
       actor.placed = true;
-      updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced, moving, dt, travel, gazeLock: ghost.gaze || 0, charging: ghost.charging });
+      updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced,
+        moving, dt, travel, gazeLock: ghost.gaze || 0, charging: ghost.charging, capture });
       this.air.breathe(actor, distance, state, this.theme, reduced);
     }
     for (const [key, actor] of this.ghosts) if (!seen.has(key)) actor.group.visible = false;
@@ -1430,12 +1447,17 @@ export class Visual {
   updateLights(state, time, night, exposure) {
     const roof = this.theme === 2;
     const office = this.theme === 1;
-    this.fill.color.set(state.chase ? '#fff1ae' : office ? '#e9decb' : '#dce3ed').lerp(COLD, night * .8);
-    this.fill.intensity = state.chase ? 1.3 - night * .3 : roof ? 1.50 - night * .39 : office ? 1.02 - night * .25 : .94 - night * .22;
-    if (office) this.materials.frosted.emissiveIntensity = .13 + night * .16;
-    this.scene.environmentIntensity = roof ? .63 - night * .31 : .57 - night * .19;
+    const steady = state.reduceMotion || state.reducedMotion;
+    this.fill.color.set(state.chase ? '#fff1ae' : office ? '#bdcbbe' : '#dce3ed').lerp(COLD, night * .8);
+    this.fill.intensity = state.chase ? 1.3 - night * .3 : roof ? 1.50 - night * .39 : office ? .55 - night * .22 : .94 - night * .22;
+    if (office) {
+      this.materials.frosted.emissiveIntensity = .09 + night * .13;
+      if (this.archiveTube) this.archiveTube.emissiveIntensity = 2.15 - night * 1.20;
+      if (this.archiveBulkhead) this.archiveBulkhead.emissiveIntensity = .70 + night * 2.45;
+    }
+    this.scene.environmentIntensity = roof ? .63 - night * .31 : office ? .34 - night * .09 : .57 - night * .19;
     this.rim.color.copy(WARM).lerp(COLD, night);
-    this.rim.intensity = roof ? 1.85 - night * .18 : .64 - night * .12;
+    this.rim.intensity = roof ? 1.85 - night * .18 : office ? .20 - night * .08 : .64 - night * .12;
     this.lamp.color.copy(WARM).lerp(PALE, night);
     this.lamp.position.copy(this.camera.position);
     // Mount the beam beside the left temple. Off-axis highlights reveal the
@@ -1449,14 +1471,16 @@ export class Visual {
     }
     this.lamp.position.y += .10;
     this.lamp.target.position.copy(this.camera.position).addScaledVector(this.view, 18);
-    this.lamp.intensity = ((roof ? 5.8 : 13.8) + night * 13.5 + Math.sin(time * 18) * .15 * night) * exposure;
+    this.lamp.intensity = ((roof ? 5.8 : office ? 7.6 : 13.8) +
+      night * (office ? 16.2 : 13.5) + (steady ? 0 : Math.sin(time * 18) * .15 * night)) * exposure;
     this.eyeFill.position.copy(this.camera.position);
-    this.eyeFill.intensity = (.55 + night * .66) * exposure;
+    this.eyeFill.intensity = ((office ? .24 : .55) + night * .66) * exposure;
     if (time < this.fixtureSearchTime || time - this.fixtureSearchTime >= .12) {
       this.fixtureSearchTime = time;
       this.nearestFixtures = this.ambience
         .map(source => ({ source, distance: (source.x - state.x) ** 2 + (source.z - state.z) ** 2 }))
-        .filter(entry => entry.distance < 20 ** 2)
+        .filter(({ source, distance }) => distance < (office ? 14 : 20) ** 2 &&
+          (!office || !firstSightWall(this.decoded, state.x, state.z, source.x, source.z, TILE)))
         .sort((a, b) => a.distance - b.distance).slice(0, this.nearLights.length);
     }
     const near = this.nearestFixtures;
@@ -1470,10 +1494,15 @@ export class Visual {
       const { source, distance } = entry;
       light.position.set(source.x, source.y, source.z);
       const seed = source.x * 33 + source.z * 5;
-      const pulse = .84 + .13 * Math.sin(time * 4 + seed) + .03 * Math.sin(time * 15 + seed);
+      const pulse = steady ? 1 : office ? .96 + .04 * Math.sin(time * 2 + seed) :
+        .84 + .13 * Math.sin(time * 4 + seed) + .03 * Math.sin(time * 15 + seed);
+      const power = source.type === 'bulkhead' ? .23 + night * 1.03 :
+        (office && source.type === 'general' ? 1 - night * .69 : 1);
+      light.distance = office ? (source.type === 'bulkhead' ? 6.4 : 9.5) : 12;
+      light.decay = office ? 2 : 1.7;
       light.color.copy(source.color);
       if (source.type === 'general') light.color.lerp(COLD, night * .91);
-      light.intensity = source.strength * pulse * (1 - Math.min(1, distance / 400) ** 1.4);
+      light.intensity = source.strength * power * pulse * (1 - Math.min(1, distance / 400) ** 1.4);
     }
     const { bulbs, tints } = this.atmosphere.uniforms;
     for (let i = 0; i < bulbs.value.length; i++) {
@@ -1483,13 +1512,16 @@ export class Visual {
         continue;
       }
       const { source } = entry;
-      const ceilingSource = source.y > 2.3;
-      bulbs.value[i].set(source.x, source.y, source.z, ceilingSource ? source.strength * .095 : 0);
+      const scattering = office ? this.nearLights[i].intensity * .067 : source.strength * .095;
+      const ceilingSource = source.y > 2.3 || source.type === 'bulkhead';
+      bulbs.value[i].set(source.x, source.y, source.z, ceilingSource ? scattering : 0);
       tints.value[i].copy(this.nearLights[i].color);
     }
     for (const source of this.ambience) {
       if (source.type === 'general') source.sprite.material.color.copy(source.color).lerp(COLD, night * .9);
-      source.sprite.material.opacity = .23 + .08 * Math.sin(time * 1.75 + source.x * .4) + night * .08;
+      const variation = steady ? 0 : .05 * Math.sin(time * 1.75 + source.x * .4);
+      source.sprite.material.opacity = source.type === 'bulkhead' ? .06 + night * .27 :
+        (office && source.type === 'general' ? .19 + variation - night * .085 : .23 + variation + night * .08);
     }
     for (const { tile, pool, beacon } of this.safeLamps) {
       const active = state.checkpoint === tile || state.checkpoint === `${tile.col}/${tile.row}`;
@@ -1545,14 +1577,38 @@ export class Visual {
     const bob = reduced ? 0 : Math.sin(this.walk) * this.velocity * .011;
     const lean = reduced ? 0 : Math.cos(this.walk * .52) * this.velocity * .003;
     const caught = dying && (state.deathCause === 'ghost' || state.deathCause === 'gaze');
+    const capture = clerkCaptureFrame(state, reduced);
     const collapse = caught ? THREE.MathUtils.smoothstep(lifeTime, .38, 1.07) :
       dying ? Math.min(1, Math.abs(lifeTime) * 1.25 + .14) :
         revival ? .57 * (1 - THREE.MathUtils.smoothstep(lifeTime, .08, .63)) : 0;
-    this.camera.position.set(state.x, (state.y || 0) + EYE + bob - collapse * 1.19, state.z);
+    const descent = capture ? capture.stretch : collapse * 1.19;
+    this.camera.position.set(state.x, (state.y || 0) + EYE + (capture ? 0 : bob) - descent, state.z);
     let yaw = state.yaw || 0;
-    let pitch = (state.pitch || 0) - (reduced ? 0 : collapse * .17);
-    const faceExposure = this.updateGhosts(state, dt, reduced);
-    if (caught && state.pursuer && !reduced) {
+    let pitch = (state.pitch || 0) - (reduced ? 0 : capture ? .26 * descent : collapse * .17);
+    const faceExposure = this.updateGhosts(state, dt, reduced, capture);
+    if (caught && state.pursuer && capture && !reduced) {
+      const actor = this.ghosts.get(state.pursuer.key ?? state.pursuer.id);
+      const target = this.captureTarget.set(state.pursuer.x, 1.69, state.pursuer.z);
+      if (actor?.head) {
+        actor.head.getWorldPosition(target);
+        target.y += .12;
+      }
+      const angle = Math.atan2(target.x - state.x, state.z - target.z);
+      const back = -Math.sin(angle) * capture.recoil + Math.cos(angle) * capture.slide;
+      const sideways = Math.cos(angle) * capture.recoil + Math.sin(angle) * capture.slide;
+      // The camera is a witness to the contact, never allowed to drift through a wall.
+      for (const fraction of [.33, .67, 1]) {
+        const x = state.x + back * fraction, z = state.z + sideways * fraction;
+        if (state.blocks(x, z, .12)) break;
+        this.camera.position.x = x;
+        this.camera.position.z = z;
+      }
+      const dx = target.x - this.camera.position.x, dz = target.z - this.camera.position.z;
+      const facing = Math.atan2(dx, -dz) - yaw;
+      yaw += Math.atan2(Math.sin(facing), Math.cos(facing)) * capture.aim;
+      const head = Math.atan2(target.y - this.camera.position.y, Math.max(.25, Math.hypot(dx, dz)));
+      pitch = THREE.MathUtils.lerp(pitch, THREE.MathUtils.lerp(head, -.49, capture.drop), capture.aim);
+    } else if (caught && state.pursuer && !reduced) {
       const actor = this.ghosts.get(state.pursuer.key ?? state.pursuer.id);
       const target = this.captureTarget.set(state.pursuer.x, 1.76, state.pursuer.z);
       if (actor?.head) {
@@ -1578,16 +1634,18 @@ export class Visual {
     }
     this.view.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     this.camera.lookAt(delta.copy(this.camera.position).add(this.view));
-    this.camera.rotateZ(lean + (reduced ? 0 : collapse * .31));
-    const fov = 65 + (state.sprint || state.sprinting ? 4 : 0) + shift * (reduced ? 0 : 2.5);
+    this.camera.rotateZ(lean + (reduced ? 0 : capture ? capture.roll ?? 0 : collapse * .31));
+    const fov = 65 + (state.sprint || state.sprinting ? 4 : 0) + shift * (reduced ? 0 : 2.5) +
+      (reduced ? 0 : capture?.lens ?? 0);
     if (Math.abs(this.camera.fov - fov) > .01) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fov, Math.min(1, dt * 9));
       this.camera.updateProjectionMatrix();
     }
-    this.janitorHands.update(state, dt, this.walk, this.velocity);
+    this.janitorHands.update(state, dt, this.walk, this.velocity, capture);
     // Prevent the flashlight from flattening a face at arm’s length.
     this.creatureExposure = THREE.MathUtils.lerp(this.creatureExposure, faceExposure, Math.min(1, dt * 13));
-    const exposure = caught ? 1 - .94 * THREE.MathUtils.smoothstep(lifeTime, .015, .19) : this.creatureExposure;
+    const exposure = capture ? (capture.lamp ?? 1) * (1 - .71 * (capture.grip ?? 0)) :
+      caught ? 1 - .94 * THREE.MathUtils.smoothstep(lifeTime, .015, .19) : this.creatureExposure;
     this.updateLights(state, time, night, exposure);
     const door = Math.min(1, Math.max(0, state.door || 0));
     const slide = door * door * (3 - 2 * door);
@@ -1633,10 +1691,12 @@ export class Visual {
     const uniforms = this.grade.uniforms;
     uniforms.night.value = night;
     uniforms.shift.value = shift * (reduced ? .14 : 1);
-    uniforms.life.value = (dying || revival ? .7 : 0) * (reduced ? .35 : 1);
-    uniforms.lifeJitter.value = .018 * uniforms.life.value * Math.sin(time * 23);
+    uniforms.life.value = capture ? .3 * capture.veil : (dying || revival ? .7 : 0) * (reduced ? .35 : 1);
+    uniforms.lifeJitter.value = capture ? (reduced ? 0 : (capture.grit ?? 0) * .007) :
+      .018 * uniforms.life.value * Math.sin(time * 23);
     const gazeTint = state.watching ? .12 + (state.gaze || 0) * .75 : 0;
-    uniforms.danger.value = dying ? 1 : hurt ? .6 : Math.max(gazeTint, Math.max(0, 3 - (state.hp ?? 3)) * .19);
+    uniforms.danger.value = capture ? (capture.grip ?? 0) * .42 :
+      dying ? 1 : hurt ? .6 : Math.max(gazeTint, Math.max(0, 3 - (state.hp ?? 3)) * .19);
     if (quality === 'low') {
       this.renderer.setRenderTarget(null);
       this.renderer.render(this.scene, this.camera);

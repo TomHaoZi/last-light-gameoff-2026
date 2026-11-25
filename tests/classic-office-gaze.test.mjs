@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { Simulation, FIXED_DT } from '../dist/simulation.js';
 import { freshSave } from '../dist/save.js';
 import { damage } from '../dist/player-state.js';
+import { MOURNING_CAPTURE } from '../dist/mourning-clerk.js';
+import { mourningShot } from '../dist/mourning-capture-art.js';
 
 function encounter() {
   const save = freshSave();
@@ -47,10 +49,37 @@ test('classic Clerk moves only while stared at and kills on contact', () => {
   assert.equal(world.death.ghost.kind, 'mourner');
   assert.ok(Math.abs(world.death.ghost.x - world.player.x - 7) <= 13);
   assert.ok(world.drain().some(event => event.type === 'death' && event.cause === 'eye-contact'));
-  advance(world, 1.7);
+  const untilImpact = MOURNING_CAPTURE.impact + .04 - world.death.time;
+  const where = world.player.x;
+  advance(world, untilImpact, { right: true, jump: true, shift: true });
+  assert.equal(world.player.x, where);
+  assert.equal(world.player.lifeState, 'dying');
+  const cues = world.drain().filter(event => event.name?.startsWith('mourning-'));
+  assert.deepEqual(cues.map(event => event.name), ['mourning-release', 'mourning-impact']);
+  advance(world, .32);
+  assert.equal(world.player.lifeState, 'respawning');
+  assert.equal(world.player.hp, 3);
+  assert.equal(mourningShot(world).kind, 'revive');
+  advance(world, MOURNING_CAPTURE.revival);
   assert.equal(world.player.lifeState, 'alive');
   assert.equal(world.officeGaze.amount, 0);
   assert.equal(world.night, false);
+});
+
+test('classic capture switches poses and uses a steady reduced-effects sequence', () => {
+  const { world } = encounter();
+  advance(world, .90);
+  const hold = mourningShot(world);
+  assert.equal(hold.kind, 'capture');
+  assert.ok(hold.lift > 8 && hold.grip > .9);
+  world.reducedEffects = true;
+  const reduced = mourningShot(world);
+  assert.ok(reduced.lift <= 2 && reduced.dropCap === 0 && reduced.dust === 0);
+  world.reducedEffects = false;
+  advance(world, 1.18 - world.death.time);
+  const release = mourningShot(world);
+  assert.ok(release.tilt > 1.4 && release.dropCap === 1);
+  assert.ok(release.blackout > 0 && release.blackout < 1);
 });
 
 test('classic Clerk respects facing direction, active phase and intervening solid cover', () => {

@@ -6,6 +6,15 @@ const floorOffset = 33;
 const lookRange = 123;
 const cryRange = 175;
 
+export const MOURNING_CAPTURE = Object.freeze({
+  close: .23,
+  recoil: .72,
+  impact: .99,
+  blackout: 1.07,
+  duration: 1.32,
+  revival: .86
+});
+
 export function clearOfficeGaze() {
   return { amount: 0, looking: false, charging: false, eyesDown: false, ghostId: null };
 }

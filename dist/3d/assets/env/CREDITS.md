@@ -19,3 +19,5 @@ The Records Annex and its fixtures are original LAST LIGHT assets, authored in B
 
 
 The archive phonograph is an original LAST LIGHT prop. The spun brass bell, shellac grooves and desk notice are modeled in `art/blender/office-phonograph.blend`.
+
+The archive kit is an original LAST LIGHT scene, authored in Blender 4.5. It includes a chamfered floor slab, two recessed fluorescent fittings, a red fire bulkhead, a steel register cabinet, a return grille, a cast floor drain and curled ledger sheets. Open `art/blender/archive-interior.blend` or rebuild it with `art/blender/build_archive_interior.py`. In the game, the kit instances share source geometry. Its ceramic and plaster scans are credited in the surfaces directory.

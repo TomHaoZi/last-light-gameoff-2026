@@ -289,8 +289,25 @@ async function playMourning() {
   const attacker = position(hit);
   assert.ok(Math.hypot(attacker.x - hit.x, attacker.z - hit.z) < .63, 'death happens at physical contact');
   assert.equal(await read("document.querySelector('#death-copy').textContent"), 'IT CAUGHT YOUR EYE');
-  await delay(220);
-  await capture('mourning-capture');
+  const execution = [];
+  for (const [beat, time, image] of [
+    ['hold', .19, 'mourning-capture'],
+    ['shroud', .42, 'mourning-shroud'],
+    ['fall', .83, 'mourning-fall'],
+    ['blackout', 1.36, null],
+    ['revival', .24, 'mourning-revival']
+  ]) {
+    const stage = await until(async () => {
+      const state = await snapshot();
+      return state.capture?.beat === beat && state.capture.time >= time && state;
+    }, 'Clerk execution beat ' + beat, 2200);
+    assert.equal(stage.deaths, hit.deaths);
+    if (beat === 'blackout') {
+      assert.equal(await read("document.querySelector('#death').style.getPropertyValue('--execution-veil')"), '1.000');
+    }
+    if (image) await capture(image);
+    execution.push({beat, time: stage.capture.time});
+  }
   const revival = await until(async () => {
     const state = await snapshot();
     return state.life === 'alive' && state;
@@ -298,7 +315,8 @@ async function playMourning() {
   assert.ok(at(revival, 10, 13));
   assert.equal(revival.gaze.amount, 0);
   console.log(JSON.stringify({ model, mouseLook: mouse.yaw - beforeMouse.yaw, warning: glimpse.gaze.amount, recoveryPitch: safe.pitch,
-    charge: { from: dayFigure.x, averted: position(safe).x }, phaseRecovery: shifted.phase, death: hit.deathCause, checkpoint: [10, 13], note: revival.gaze.noteRead }));
+    charge: { from: dayFigure.x, averted: position(safe).x }, phaseRecovery: shifted.phase, death: hit.deathCause,
+    execution, checkpoint: [10, 13], note: revival.gaze.noteRead }));
 }
 
 async function playGhostRecoveries() {

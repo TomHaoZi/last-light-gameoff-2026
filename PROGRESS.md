@@ -1,5 +1,9 @@
 # Progress · 2.0.0-rc.1
 
+## RC20 · Archive interior and synchronized capture
+
+The 3D office now has eight editable Blender assemblies and new photographic ceramic and plaster. Its practical fluorescent and emergency fixtures provide localized highlights, with darker intervening hallways. The Clerk wears layered, six-joint wings fitted to her body. Contact starts a synchronized capture, defense, wing sweep, fall, blackout and lamp recovery. Classic has its own pixel-art sequence. [Archive and capture verification](docs/archive-and-capture-rc20.md).
+
 ## RC19 · Custom controls, difficulty and the Mourning Clerk
 
 Both editions have editable keyboard bindings with three slots per action, explicit conflict swaps and a restore-defaults control. Menus and gameplay prompts use the selected keys. Story, Standard and Nightmare change pursuit and recovery timing. Controls and difficulty are stored per edition.

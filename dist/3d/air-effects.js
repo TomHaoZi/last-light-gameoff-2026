@@ -87,6 +87,20 @@ export class AirEffects {
     }
   }
 
+  captureDust(state, floor) {
+    if (state.reduceMotion || !state.pursuer) return;
+    const ghost = state.pursuer;
+    const x = floor ? state.x : .62 * ghost.x + .38 * state.x;
+    const z = floor ? state.z : .62 * ghost.z + .38 * state.z;
+    const y = floor ? Math.max(.09, state.y + .09) : 1.42 + (ghost.y || 0);
+    for (let i = 0; i < 7; i++) {
+      const angle = i * Math.PI * 2 / 7;
+      const radius = floor ? .055 : .15;
+      this.release(x + Math.sin(angle) * radius, y, z + Math.cos(angle) * radius,
+        angle, state.time + i * .01, floor, i * 1.31);
+    }
+  }
+
   update(state, mount, reduced) {
     const changed = this.phase !== state.night;
     this.phase = state.night;

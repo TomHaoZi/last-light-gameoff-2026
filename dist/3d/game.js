@@ -3,6 +3,7 @@ import { BACKROOMS_TRACK, nextChaseObstacle } from './backrooms-track.js';
 import { HorrorAudio } from './audio.js';
 import { Dialogue } from './dialogue.js';
 import { Simulation3D, SAVE_KEY, STEP } from './simulation.js';
+import { clerkCaptureFrame } from './mourning-capture.js';
 import { loadRun, storeRun, restartRun } from './save.js';
 import { createPlayerSettings } from '../player-settings.js';
 import { mountPlayerSettings } from '../settings-panel.js';
@@ -373,14 +374,24 @@ function updateHUD() {
     $('gaze-fill').style.transform = 'scaleX(' + state.gaze + ')';
     $('gaze-meter').setAttribute('aria-valuenow', Math.floor(state.gaze * 20) * 5);
   }
-  $('death').hidden = state.life === 'alive' || state.mode !== 'playing';
-  if (!$('death').hidden) {
+  const execution = state.mode === 'playing' ? clerkCaptureFrame(state, state.reduceMotion) : null;
+  const death = $('death');
+  death.hidden = state.life === 'alive' || state.mode !== 'playing';
+  death.classList.toggle('clerk-execution', Boolean(execution));
+  $('stage').classList.toggle('clerk-capture-active', Boolean(execution));
+  if (!death.hidden) {
     const deathCopy = state.life === 'dying'
       ? (state.level.mourning && state.deathCause === 'ghost' ? t().mourningContact : t()[state.deathCause])
       : state.chase ? (lang === 'zh' ? '回到中转层电梯' : 'Back at the transfer lift')
         : state.level.mourning ? t().mourningRevival : t().revival;
     if ($('death-copy').textContent !== deathCopy) screenText('death-copy', deathCopy);
-    $('death').style.opacity = state.life === 'dying' ? Math.min(1, .2 + state.lifeTimer) : Math.max(0, 1 - state.lifeTimer / .68);
+    if (execution) {
+      death.style.opacity = 1;
+      death.style.setProperty('--execution-veil', execution.veil.toFixed(3));
+      death.style.setProperty('--execution-caption', execution.caption.toFixed(3));
+    } else {
+      death.style.opacity = state.life === 'dying' ? Math.min(1, .2 + state.lifeTimer) : Math.max(0, 1 - state.lifeTimer / .68);
+    }
   }
   $('flash').style.opacity = state.reduceMotion ? 0 : state.shiftFx * .57;
 }
@@ -390,6 +401,9 @@ function processEvents() {
     if (event.type === 'sound') {
       sound.cue(event.name, event.position);
       if (['interact', 'pickup', 'door'].includes(event.name)) visual?.janitorHands.operate();
+      if (event.name === 'mourning-bind' || event.name === 'mourning-floor') {
+        visual?.air?.captureDust(state, event.name === 'mourning-floor');
+      }
     }
     if (event.type === 'warning') { sound.cue('warning', event.ghost); notice(t().warning, 2.6); }
     if (event.type === 'notice') {
@@ -758,6 +772,7 @@ window.lastLight3D = Object.freeze({
     x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch,
     mouseLocked: document.pointerLockElement === canvas, hp: state.hp, deaths: state.progress.deaths,
     work: [...state.completed], evidence: [...state.progress.evidence], life: state.life, deathCause: state.life === 'dying' ? state.deathCause : null,
+    capture: state.mourningCapture ? {beat: clerkCaptureFrame(state)?.beat, time: state.lifeTimer} : null,
     chase: state.chase ? { ...state.chase, length: BACKROOMS_TRACK.length, exiting: state.departing,
       pursuer: { x: state.ghosts[0].x, z: state.ghosts[0].z } } : null,
     gaze: state.level.mourning ? {
