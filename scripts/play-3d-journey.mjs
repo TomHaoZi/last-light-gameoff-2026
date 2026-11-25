@@ -28,7 +28,7 @@ const centre = tile => (tile + .5) * TILE;
 
 // This circuit stays on the regular corridors. It shares the trusted-input
 // browser session with the separate shortcut and recovery checks.
-async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide, runTransfer }, ending, chapter, route) {
+async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, aim, readHud, pauseAndReadGuide, runTransfer }, ending, chapter, route) {
   const start = await snapshot();
   assert.equal(start.chapter, chapter);
   assert.ok(Math.abs(start.yaw) < .01);
@@ -36,6 +36,10 @@ async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, readHud, 
   let row = Math.floor(start.z / TILE);
   const proof = { chapter, phaseChanges: [], interactions: [] };
   if (pauseAndReadGuide) proof.pauseGuide = await pauseAndReadGuide();
+  if (start.gaze) {
+    await aim('pitch', -.42);
+    proof.officeLookPitch = (await snapshot()).pitch;
+  }
   const started = performance.now();
   for (const command of route.trim().split(/\s+/)) {
     assert.ok(performance.now() - started < 85000, 'Chapter reached its time limit');

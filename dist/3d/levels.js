@@ -2,7 +2,7 @@ export const TILE = 2.4;
 
 const DAY = "day";
 const NIGHT = "night";
-const floorKinds = new Set(".dnSELABC12GHJ~!P");
+const floorKinds = new Set(".dnSELABC12GHJN~!P");
 
 // Each shortcut crosses existing work areas. Coordinates name real pads; a
 // single empty cell between them leaves a gap that a running jump can span.
@@ -117,8 +117,8 @@ const office = plan(25, 18, [
   [1, 2, 3, 4],       // Dead-end oral-history alcove
 ], [
   ["S", 10, 15], ["L", 10, 13], ["L", 12, 10], ["L", 20, 6], ["L", 12, 14],
-  ["A", 11, 2], ["1", 8, 2], ["B", 20, 8], ["2", 21, 7],
-  ["C", 2, 7], ["E", 21, 2], ["G", 13, 2], ["H", 17, 9],
+  ["N", 9, 14], ["A", 11, 2], ["1", 8, 2], ["B", 20, 8], ["2", 21, 7],
+  ["C", 2, 7], ["E", 21, 2], ["G", 13, 2], ["H", 17, 10],
   ["J", 3, 12], ["!", 4, 6], ["~", 4, 10],
 ], { shortcut: shortcuts[1] });
 
@@ -180,6 +180,11 @@ export const LEVELS = [
     rows: office,
     shortcut: shortcuts[1],
     spawnYaw: 0,
+    mourning: true,
+    guide: [
+      "KEEP YOUR EYES LOW. The Mourning Clerk reacts to a direct stare. Turn your head or look down when the warning appears. Follow the crying to tell where it stands, and leave room as you pass.",
+      "视线放低。默哀档案员会回应直视。看到警告就转头或低头，听哭声辨别它的位置，绕行时留一点距离。",
+    ],
     requiredPhase: { B: NIGHT },
     messages: {
       A: ["The unsigned register says EVERYONE EVACUATED. The time beside Gary’s name has been erased.", "未签名的名单写着「全员撤离」。Gary 名字旁的时间被擦掉了。"],
@@ -225,6 +230,7 @@ export function decodeLevel(spec) {
   const lamps = [];
   const stations = [];
   const clues = [];
+  const notes = [];
   const ghosts = [];
   const hazards = [];
   let spawn = null;
@@ -262,8 +268,13 @@ export function decodeLevel(spec) {
         Object.assign(tile, { key: kind, id: kind, clue: spec.clues?.[kind] });
         clues.push(tile);
       }
+      if (kind === "N") {
+        Object.assign(tile, { key: kind, id: kind, messages: spec.guide });
+        notes.push(tile);
+      }
       if ("GHJ".includes(kind)) {
-        Object.assign(tile, { id: `${kind}${col}-${row}`, phase: kind === "G" ? DAY : kind === "H" ? NIGHT : null });
+        Object.assign(tile, { id: `${kind}${col}-${row}`, phase: kind === "G" ? DAY : kind === "H" ? NIGHT : null,
+          ...(spec.mourning ? { creature: "mourning" } : {}) });
         ghosts.push(tile);
       }
       if ("~!".includes(kind)) {
@@ -280,7 +291,7 @@ export function decodeLevel(spec) {
   };
   return {
     width, depth, worldWidth: width * TILE, worldDepth: depth * TILE, tiles, walls, floors,
-    spawn, exit, power, lamps, stations, clues, ghosts, hazards, shortcut, get,
+    spawn, exit, power, lamps, stations, clues, notes, ghosts, hazards, shortcut, get,
     at: (x, z) => get(Math.floor(x / TILE), Math.floor(z / TILE)),
   };
 }

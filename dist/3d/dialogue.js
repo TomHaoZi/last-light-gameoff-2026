@@ -1,4 +1,10 @@
+import { GUIDANCE_LINES, MOURNING_LINES, fileForVoice, mourningVoiceURL } from './mourning-audio.js';
+
 const LINES = {
+  mourningGuide: MOURNING_LINES.guide,
+  mourningGlance: MOURNING_LINES.glance,
+  boilerGuide: GUIDANCE_LINES.boiler3d,
+  roofGuide: GUIDANCE_LINES.roof,
   lost: {
     channel: 'stairwell',
     seconds: 1.81,
@@ -69,9 +75,9 @@ const LINES = {
 };
 
 const CHAPTER_RECORDINGS = [
-  ['gap', 'lost', 'evacuate', 'doors'],
-  ['calling', 'trapped', 'register', 'exchange', 'lunch', 'doors'],
-  ['circuit', 'farewell', 'recovered', 'doors']
+  ['gap', 'lost', 'evacuate', 'doors', 'boilerGuide'],
+  ['calling', 'trapped', 'register', 'exchange', 'lunch', 'doors', 'mourningGuide', 'mourningGlance'],
+  ['circuit', 'farewell', 'recovered', 'doors', 'roofGuide']
 ];
 
 export class Dialogue {
@@ -86,13 +92,19 @@ export class Dialogue {
     this.queue = [];
     this.files = new Map();
     this.decoded = new Map();
+    this.lastWarning = -Infinity;
+    this.positions = new Map();
   }
 
   preload(ids = CHAPTER_RECORDINGS[0]) {
     for (const id of ids) {
-      if (this.files.has(id)) continue;
-      const url = new URL('./assets/dialogue/' + id + '.m4a', import.meta.url);
-      this.files.set(id, fetch(url).then(response => response.ok ? response.arrayBuffer() : null).catch(() => null));
+      const line = LINES[id];
+      const files = line?.stem ? [fileForVoice(line, 'en'), fileForVoice(line, 'zh')] : [id];
+      for (const file of files) {
+        if (this.files.has(file)) continue;
+        const url = mourningVoiceURL(file);
+        this.files.set(file, fetch(url).then(response => response.ok ? response.arrayBuffer() : null).catch(() => null));
+      }
     }
   }
 
@@ -111,8 +123,17 @@ export class Dialogue {
 
   onGameEvent(event, state) {
     const floor = state.levelIndex;
-    if (event.type === 'chapter') {
+    if (event.type === 'mourning-guide') {
+      this.play('mourningGuide', { repeat: Boolean(event.manual), position: event.position });
+    } else if (event.type === 'mourning-glance') {
+      const now = state.time ?? performance.now() / 1000;
+      if (now < this.lastWarning || now - this.lastWarning >= 7) {
+        this.lastWarning = now;
+        this.play('mourningGlance', { repeat: true, urgent: true });
+      }
+    } else if (event.type === 'chapter') {
       this.preload(CHAPTER_RECORDINGS[floor]);
+      if (floor === 2 && state.mode === 'playing' && state.completed.size === 0) this.play('roofGuide');
     } else if (event.type === 'sound') {
       if (floor === 0 && state.night && event.name === 'shift') this.play('lost');
       if (event.name === 'ending') {
@@ -135,9 +156,18 @@ export class Dialogue {
     }
   }
 
-  play(id) {
-    if (!LINES[id] || this.heard.has(id) || this.active?.id === id || this.queue.includes(id)) return;
-    this.queue.push(id);
+  play(id, { repeat = false, urgent = false, position } = {}) {
+    if (!LINES[id] || this.active?.id === id || this.queue.includes(id) || (!repeat && this.heard.has(id))) return;
+    if (repeat) this.heard.delete(id);
+    if (position) this.positions.set(id, position);
+    if (urgent) {
+      // A warning must stay current. An initial manual recording can be
+      // replayed from its prop, and an old combat warning should never queue.
+      this.clearActive();
+      this.queue.unshift(id);
+    } else {
+      this.queue.push(id);
+    }
     void this.next();
   }
 
@@ -146,22 +176,23 @@ export class Dialogue {
     const id = this.queue.shift();
     this.preload([id]);
     const line = LINES[id];
-    const entry = { id, line };
+    const entry = { id, line, position: this.positions.get(id) };
     this.active = entry;
-    let buffer;
+    const file = line.stem ? fileForVoice(line, this.language ? 'zh' : 'en') : id;
     const context = this.sound.context;
+    let buffer;
     if (context) {
       try {
-        if (!this.decoded.has(id)) {
-          this.decoded.set(id, this.files.get(id).then(bytes => bytes && context.decodeAudioData(bytes.slice(0))));
+        if (!this.decoded.has(file)) {
+          this.decoded.set(file, this.files.get(file).then(bytes => bytes && context.decodeAudioData(bytes.slice(0))));
         }
-        buffer = await this.decoded.get(id);
+        buffer = await this.decoded.get(file);
       } catch {
-        this.decoded.delete(id);
+        this.decoded.delete(file);
       }
     }
     if (this.active !== entry) return;
-    entry.source = buffer ? this.sound.playDialogue(buffer, line.channel) : null;
+    entry.source = buffer ? this.sound.playDialogue(buffer, line.channel, entry.position) : null;
     entry.source?.addEventListener('ended', () => {
       if (this.active !== entry) return;
       entry.source = null;
@@ -176,7 +207,7 @@ export class Dialogue {
         this.show(entry);
       }, line.next.at * 1000);
     }
-    const visibleFor = Math.max(2.15, (buffer?.duration ?? line.seconds) + .45);
+    const visibleFor = line.channel === 'warning' ? 1.20 : Math.max(2.15, (buffer?.duration ?? line.seconds) + .45);
     entry.timer = setTimeout(() => {
       if (this.active !== entry) return;
       this.heard.add(id);
@@ -189,7 +220,7 @@ export class Dialogue {
   pause() {
     this.paused = true;
     const id = this.active?.id;
-    if (id && !this.heard.has(id)) this.queue.unshift(id);
+    if (id && id !== 'mourningGlance' && !this.heard.has(id)) this.queue.unshift(id);
     this.clearActive();
   }
 
@@ -211,11 +242,13 @@ export class Dialogue {
 
   stop() {
     this.queue.length = 0;
+    this.positions.clear();
     this.clearActive();
   }
 
   reset() {
     this.stop();
     this.heard.clear();
+    this.lastWarning = -Infinity;
   }
 }

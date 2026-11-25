@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.17"
+VERSION = "3.0.0-rc.18"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
@@ -26,6 +26,10 @@ REQUIRED_FILES = {
     "vendor/utils/BufferGeometryUtils.js", "vendor/utils/SkeletonUtils.js",
     "assets/CREDITS.md", "assets/creature/late-worker.glb",
     "assets/creature/SOURCES.md", "assets/env/CREDITS.md",
+    "mourning-audio.js", "mourning-figure.js", "mourning-gaze.js",
+    "classic/mourning-clerk.js", "assets/creature/mourning-clerk.glb",
+    "assets/creature/mourning-wings.glb", "assets/env/office-phonograph.glb",
+    "audio/mourning-sob-soft.m4a", "audio/mourning-sob-held.m4a",
     "assets/dialogue/CREDITS.md", "assets/surfaces/CREDITS.md",
     "audio/CREDITS.md", "air-effects.js", "service-lift.js", "station-traces.js", "workstation-models.js", "janitor-hands.js",
     "assets/janitor/janitor.glb", "assets/janitor/CREDITS.md", "assets/env/service-lift.glb",
@@ -35,6 +39,11 @@ REQUIRED_FILES = {
 REQUIRED_FILES.update(
     f"assets/dialogue/{name}.m4a" for name in ("lost", "evacuate", "calling", "trapped",
         "circuit", "doors", "exchange", "farewell", "gap", "lunch", "recovered", "register")
+)
+REQUIRED_FILES.update(
+    f"assets/dialogue/mourning-{cue}-{lang}.m4a"
+    for cue in ("guide", "glance", "boiler", "boiler3d", "roof")
+    for lang in ("en", "zh")
 )
 REQUIRED_FILES.update(
     f"assets/env/{name}.glb" for name in
@@ -64,10 +73,13 @@ def collect_runtime():
             files[f"classic/{path.name}"] = path.read_bytes()
 
     files["classic/backrooms-props.png"] = (dist / "backrooms-props.png").read_bytes()
-    audio_import = b"'./3d/chase-score.js'"
-    if files["classic/audio.js"].count(audio_import) != 1:
-        raise ValueError("Expected one shared chase score import in the classic edition")
-    files["classic/audio.js"] = files["classic/audio.js"].replace(audio_import, b"'../chase-score.js'")
+    for module in ("chase-score.js", "mourning-audio.js"):
+        absolute_import = f"'./3d/{module}'".encode()
+        sibling_import = f"'../{module}'".encode()
+        classic_audio = files["classic/audio.js"]
+        if classic_audio.count(absolute_import) != 1:
+            raise ValueError(f"Expected one {module} import in the classic edition")
+        files["classic/audio.js"] = classic_audio.replace(absolute_import, sibling_import)
 
     missing = REQUIRED_FILES - files.keys()
     if missing:

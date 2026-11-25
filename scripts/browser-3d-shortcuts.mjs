@@ -37,7 +37,7 @@ const server = createServer(async (req, res) => {
 await new Promise(ready => server.listen(0, '127.0.0.1', ready));
 const origin = 'http://127.0.0.1:' + server.address().port;
 const chrome = spawn(process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
-  '--headless=new', '--no-first-run', '--no-default-browser-check', '--enable-webgl', '--ignore-gpu-blocklist',
+  '--headless=new', '--mute-audio', '--no-first-run', '--no-default-browser-check', '--enable-webgl', '--ignore-gpu-blocklist',
   '--remote-debugging-port=0', '--user-data-dir=' + profiles, 'about:blank',
 ], { stdio: 'ignore' });
 const browserExit = new Promise(done => {
@@ -86,7 +86,7 @@ async function whenPlaying(check, title, limit = 5000) {
   }, title, limit);
 }
 
-const keys = { KeyA: 'a', KeyD: 'd', KeyE: 'e', KeyS: 's', KeyW: 'w', KeyX: 'x', ShiftLeft: 'Shift', Space: ' ', Escape: 'Escape' };
+const keys = { KeyA: 'a', KeyD: 'd', KeyE: 'e', KeyS: 's', KeyW: 'w', KeyX: 'x', ShiftLeft: 'Shift', Space: ' ', Escape: 'Escape', ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown' };
 const input = (code, down) => send('Input.dispatchKeyEvent', { code, key: keys[code], type: down ? 'keyDown' : 'keyUp' });
 async function hold(codes, run) {
   for (const key of codes) await input(key, true);
@@ -116,6 +116,17 @@ async function phaseTo(phase) {
 async function approach(col, row) {
   await moveTo('x', tileCentre(col));
   await moveTo('z', tileCentre(row));
+}
+
+async function aim(axis, angle) {
+  const getError = state => axis === 'pitch' ? angle - state.pitch :
+    Math.atan2(Math.sin(angle - state.yaw), Math.cos(angle - state.yaw));
+  const initial = getError(await snapshot());
+  if (Math.abs(initial) <= .035) return;
+  const key = axis === 'pitch' ? (initial > 0 ? 'ArrowUp' : 'ArrowDown') :
+    (initial > 0 ? 'ArrowRight' : 'ArrowLeft');
+  await hold([key], () => whenPlaying(state => Math.sign(initial) * getError(state) < .044,
+    'turn to ' + axis + ' ' + angle, 2600));
 }
 
 async function jump(from, to) {
@@ -200,6 +211,86 @@ async function pauseAndReadGuide() {
   return guide;
 }
 
+async function playMourning() {
+  await startChapter(1);
+  await moveTo('x', tileCentre(9) - .38);
+  await moveTo('z', tileCentre(14) + 1.52);
+  assert.match(await readHud().then(hud => hud.prompt), /play the gramophone/i);
+  await tap('KeyE');
+  assert.ok((await snapshot()).gaze.noteRead);
+  await until(() => read("document.querySelector('#dialogue').textContent.includes('keep your eyes down')"), 'voiced warning is captioned');
+
+  const stills = process.env.MOURNING_STILLS;
+  async function capture(name) {
+    if (!stills) return;
+    const shot = await send('Page.captureScreenshot', { format: 'jpeg', quality: 90 });
+    await writeFile(join(stills, name + '.jpg'), Buffer.from(shot.data, 'base64'));
+  }
+  if (stills) await mkdir(stills, { recursive: true });
+  await aim('pitch', -.23);
+  await capture('mourning-note');
+  await aim('pitch', 0);
+
+  await approach(10, 13);
+  await tap('KeyE');
+  await moveTo('x', tileCentre(11));
+  await moveTo('z', tileCentre(2));
+  await moveTo('x', tileCentre(12) - .55);
+  const side = await snapshot();
+  const dayFigure = side.gaze.figures.find(figure => figure.active && figure.x > side.x);
+  assert.ok(dayFigure);
+  assert.equal(side.gaze.amount, 0);
+  const facing = Math.atan2(dayFigure.x - side.x, side.z - dayFigure.z);
+  // Move the same mouse pointer inside the canvas. The normal browser events
+  // traverse the game's pointer-lock or fallback mouse-look branch.
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 130, y: 360 });
+  const beforeMouse = await snapshot();
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 560, y: 360 });
+  const mouse = await whenPlaying(state => Math.abs(state.yaw - beforeMouse.yaw) > .18, 'mouse rotates the gaze');
+  await aim('pitch', 0);
+  await aim('yaw', facing);
+  const glimpse = await whenPlaying(state => state.gaze.direct && state.gaze.amount >= .19,
+    'direct stare produces a warning');
+  assert.equal(await read("document.querySelector('#gaze-warning').hidden"), false);
+  assert.equal(await read("document.querySelector('#gaze-command').textContent"), 'LOOK AWAY');
+
+  // Start the screenshot and look-away input together so the camera captures
+  // the warning at its onset, before the runner breaks eye contact.
+  const warningCapture = capture('mourning-warning');
+  const escape = aim('pitch', -.42);
+  await Promise.all([warningCapture, escape]);
+  const safe = await whenPlaying(state => !state.gaze.direct && state.gaze.amount === 0,
+    'looking down clears the eye contact meter');
+  await delay(900);
+  assert.equal((await snapshot()).deaths, side.deaths);
+  await capture('mourning-look-down');
+
+  await aim('pitch', 0);
+  await whenPlaying(state => state.gaze.direct && state.gaze.amount > .20, 'another stare begins');
+  await phaseTo('night');
+  const shifted = await whenPlaying(state => state.gaze.amount === 0 && !state.gaze.direct,
+    'only the active phase counts');
+  await delay(300);
+  await phaseTo('day');
+  const hit = await until(async () => {
+    const state = await snapshot();
+    return state.life === 'dying' && state;
+  }, 'sustained eye contact triggers capture', 2200);
+  assert.equal(hit.deathCause, 'gaze');
+  assert.equal(hit.deaths, side.deaths + 1);
+  assert.equal(await read("document.querySelector('#death-copy').textContent"), 'IT CAUGHT YOUR EYE');
+  await delay(220);
+  await capture('mourning-capture');
+  const revival = await until(async () => {
+    const state = await snapshot();
+    return state.life === 'alive' && state;
+  }, 'checkpoint revived after stare', 2800);
+  assert.ok(at(revival, 10, 13));
+  assert.equal(revival.gaze.amount, 0);
+  console.log(JSON.stringify({ mouseLook: mouse.yaw - beforeMouse.yaw, warning: glimpse.gaze.amount, recoveryPitch: safe.pitch,
+    phaseRecovery: shifted.phase, death: hit.deathCause, checkpoint: [10, 13], note: revival.gaze.noteRead }));
+}
+
 async function playGhostRecoveries() {
   // From a real lamp, enter a live patrol's corridor. The ghost may catch the
   // player on the approach or while they wait at the end of the corridor.
@@ -227,7 +318,7 @@ async function playGhostRecoveries() {
     assert.equal(hit.hp, 0);
     assert.equal(hit.deaths, before.deaths + 1);
     const message = await read("document.querySelector('#death-copy').textContent");
-    assert.equal(message, 'IT FOUND YOU');
+    assert.equal(message, chapter === 1 ? (hit.deathCause === 'gaze' ? 'IT CAUGHT YOUR EYE' : 'YOU GOT TOO CLOSE') : 'IT FOUND YOU');
     await until(async () => (await snapshot()).life === 'respawning', 'ghost capture recovery animation');
     const revived = await whenRevived();
     assert.ok(at(revived, ...lamp));
@@ -304,7 +395,7 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: Number(process.env.QA_WIDTH || 1280), height: Number(process.env.QA_HEIGHT || 720), deviceScaleFactor: 1, mobile: false });
   if (process.env.JOURNEY) {
     await startChapter();
-    const proof = await play3DJourney({ snapshot, until, whenPlaying, moveTo, hold, tap, readHud, pauseAndReadGuide, runTransfer:()=>runTransfer({snapshot,input}) }, process.env.JOURNEY);
+    const proof = await play3DJourney({ snapshot, until, whenPlaying, moveTo, hold, tap, aim, readHud, pauseAndReadGuide, runTransfer:()=>runTransfer({snapshot,input}) }, process.env.JOURNEY);
     const saved = await read("JSON.parse(localStorage.getItem('last-light-3d-v1'))");
     assert.equal(saved.finished, true);
     await send('Page.reload', { ignoreCache: true });
@@ -417,7 +508,8 @@ try {
         p99:frames[Math.floor(frames.length*.99)], max:frames.at(-1), over50ms:frames.filter(v=>v>50.1).length};
     })()`) : null;
     console.log(JSON.stringify({retry:retry.deaths,captureDistance:hit.chase.distance,falls,run,frames}));
-  } else if (process.env.GHOST_RECOVERY) await playGhostRecoveries();
+  } else if (process.env.MOURNING) await playMourning();
+  else if (process.env.GHOST_RECOVERY) await playGhostRecoveries();
   else await playShortcuts();
   assert.deepEqual(exceptions, []);
 } finally {

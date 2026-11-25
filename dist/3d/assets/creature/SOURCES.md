@@ -19,3 +19,8 @@ blender -b --python-exit-code 1 -P scripts/blender/build-late-workers.py -- \
     /path/to/rc13-late-worker.glb dist/3d/assets/creature/late-worker.glb \
     art/blender/late-workers.blend
 ```
+
+
+## The Mourning Clerk
+
+The female limestone archivist is an original LAST LIGHT sculpture. The editable facial mesh, slate braid, archive dress and pose pivots are in `art/blender/mourning-clerk.blend`. The asymmetric, repaired stone wings have their own Blender scene and packed limestone maps in `art/blender/mourning-wings.blend`. Their GLBs assemble at the upper back in the game. Build scripts sit beside both editable files.

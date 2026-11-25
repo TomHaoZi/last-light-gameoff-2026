@@ -5,6 +5,8 @@ import { makeCreatureBody, animateCreatureBody } from './creature-body.js';
 import { createSculptedHead, animateSculptedHead } from './creature-head.js';
 import { applyPreparedCreatureTextures, prepareOfficeTextures } from './creature-textures.js';
 
+import { createMourningFigure, isSharedMourningGeometry, poseMourningFigure, preloadMourningFigure } from './mourning-figure.js';
+
 const { smoothstep } = MathUtils;
 
 const DEPARTMENTS = ['boiler', 'office', 'roof'];
@@ -46,11 +48,12 @@ export function preloadCreatureAsset() {
 }
 
 export function isSharedCreatureGeometry(geometry) {
-  return authoredGeometries.has(geometry);
+  return authoredGeometries.has(geometry) || isSharedMourningGeometry(geometry);
 }
 
 export function scheduleOfficeCreatureTextures(renderer) {
   if (officeTextureRequests.has(renderer)) return;
+  void preloadMourningFigure();
   officeTextureRequests.add(renderer);
   void preloadCreatureAsset().then(ok => {
     if (ok) prepareOfficeTextures(renderer, template);
@@ -180,10 +183,11 @@ function releaseFallback(body) {
   for (const item of materials) item.dispose();
 }
 
-export function createCreature(index = 0, theme = 0, renderer = null) {
+export function createCreature(index = 0, theme = 0, renderer = null, kind = null) {
   const seed = (index + 1) * 1.81 + theme * .49;
   const group = new CreatureGroup();
   group.scale.set(1 + (index % 3 - 1) * .028, 1 + (index % 3 - 1) * .022, 1);
+  if (kind === 'mourning') return createMourningFigure(group, seed, theme);
   const didLoad = Boolean(template);
   const actor = didLoad ? authoredRig(theme, seed) : fallbackRig(theme, seed);
   group.add(actor.body.group);
@@ -193,7 +197,11 @@ export function createCreature(index = 0, theme = 0, renderer = null) {
 }
 
 export function updateCreature(actor, { time, threat = 0, attack = 0, night = false,
-  distance = 10, reduced = false, moving = false, dt = 0, travel = 0 }) {
+  distance = 10, reduced = false, moving = false, dt = 0, travel = 0, gazeLock = 0 }) {
+  if (actor.kind === 'mourning') {
+    poseMourningFigure(actor, { time, gaze: gazeLock, attack, reduced, moving, dt, travel });
+    return;
+  }
   if (template && !actor.group.userData.authoredCreature) {
     releaseFallback(actor.body);
     Object.assign(actor, authoredRig(actor.theme, actor.seed), { face: null });

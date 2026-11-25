@@ -1,3 +1,4 @@
+import { preloadMourningFigure } from './mourning-figure.js';
 import * as THREE from 'three';
 import { applyWorldWeather, createSurfaceSet } from './surfaces.js';
 import { decorateModels } from './models.js';
@@ -506,6 +507,7 @@ export class Visual {
     if (decoded.power) this.makeStation(decoded.power, true);
     mountStationTrace(this);
     for (const clue of decoded.clues) this.makeClue(clue);
+    for (const note of decoded.notes || []) this.makePhonographMarker(note);
     for (const hazard of decoded.hazards) this.makeHazard(hazard);
     this.air = new AirEffects(this.stage);
     this.liftLeaves = null;
@@ -520,11 +522,11 @@ export class Visual {
     const redraw = () => { if (this.stage === stage) this.overlayFrame = null; };
     for (const ready of [this.environmentReady, this.workstationsReady, this.surfacesReady, preloadCreatureAsset()]) ready.then(redraw, redraw);
     // Sculpt both phases at chapter entry so Shift never has to build a mesh.
-    decoded.ghosts.forEach((tile, index) => this.addCreature(tile.col + '/' + tile.row, index));
+    decoded.ghosts.forEach((tile, index) => this.addCreature(tile.col + '/' + tile.row, index, level.id === 'office' ? 'mourning' : null));
   }
 
-  addCreature(key, index) {
-    const actor = createCreature(index, this.theme, this.renderer);
+  addCreature(key, index, kind) {
+    const actor = createCreature(index, this.theme, this.renderer, kind);
     actor.group.visible = false;
     this.stage.add(actor.group);
     this.ghosts.set(key, actor);
@@ -550,7 +552,7 @@ export class Visual {
     const prepare = async () => {
       for (const target of targets) {
         const actor = target.group ? target : null;
-        const authored = actor && await preloadCreatureAsset();
+        const authored = actor && await (actor.kind === 'mourning' ? preloadMourningFigure() : preloadCreatureAsset());
         await waitForRenderIdle();
         if (this.stage !== stage || this.phasePrograms !== task || renderer.getContext().isContextLost()) return;
         if (this.renderQuality !== 'high') {
@@ -1092,6 +1094,19 @@ export class Visual {
     this.objects.set(id, { indicator, action, kind: power ? 'power' : 'station' });
   }
 
+  makePhonographMarker(tile) {
+    const x = tile.x - .38, z = tile.z;
+    const label = spriteText('RECORD 17', '#ebd2a2', 'ARCHIVE / SAFETY NOTE');
+    this.localTextures.push(label);
+    const sign = new THREE.Mesh(unitPlane, new THREE.MeshBasicMaterial({
+      map: label, transparent: true, opacity: .94, depthWrite: false
+    }));
+    sign.position.set(x, 1.78, z + .20);
+    sign.scale.set(.77, .27, 1);
+    this.stage.add(sign);
+    this.lightSource(x + .28, 1.31, z + .50, 5.4, 'alarm', .46);
+  }
+
   makeClue(tile) {
     const id = tile.key || tile.kind;
     const { x, z } = this.edgeOffset(tile, .78);
@@ -1279,7 +1294,7 @@ export class Visual {
         continue;
       }
       const toward = Math.atan2(state.x - ghost.x, state.z - ghost.z);
-      if (!actor) actor = this.addCreature(key, index);
+      if (!actor) actor = this.addCreature(key, index, ghost.kind);
       const wasVisible = actor.group.visible;
       actor.group.visible = true;
       const threat = typeof ghost.alert === 'number' ? ghost.alert : Number(Boolean(ghost.chase || ghost.state === 'chase'));
@@ -1288,20 +1303,27 @@ export class Visual {
       const inView = THREE.MathUtils.smoothstep(Math.cos(relativeBearing), .70, .93);
       const proximity = 1 - THREE.MathUtils.smoothstep(distance, .96, 3.22);
       faceExposure = Math.min(faceExposure, 1 - .79 * proximity * inView);
-      const attacking = state.life === 'dying' && state.deathCause === 'ghost' && ghost === state.pursuer;
+      const attacking = state.life === 'dying' && (state.deathCause === 'ghost' || state.deathCause === 'gaze') && ghost === state.pursuer;
       const attack = attacking ? THREE.MathUtils.smoothstep(state.lifeTimer, 0, .18) *
         (1 - .44 * THREE.MathUtils.smoothstep(state.lifeTimer, .47, .93)) : 0;
-      const dx = ghost.x - actor.group.position.x;
-      const dz = ghost.z - actor.group.position.z;
+      // A direct stare permits the clerk to close the last few metres in the
+      // capture animation. Simulation keeps the original collision position.
+      const lunge = attacking && state.deathCause === 'gaze' && !reduced ?
+        THREE.MathUtils.smoothstep(state.lifeTimer, .13, .48) *
+        (1 - .84 / Math.max(.84, distance)) : 0;
+      const x = THREE.MathUtils.lerp(ghost.x, state.x, lunge);
+      const z = THREE.MathUtils.lerp(ghost.z, state.z, lunge);
+      const dx = x - actor.group.position.x;
+      const dz = z - actor.group.position.z;
       const travel = Math.hypot(dx, dz);
       const moving = wasVisible && actor.placed && travel > .002;
       const bearing = moving && threat < .33 && !attack ? Math.atan2(dx, dz) : toward;
       const turn = bearing - actor.group.rotation.y;
       actor.group.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) *
         (wasVisible ? Math.min(1, dt * (attack ? 17 : 8)) : 1);
-      actor.group.position.set(ghost.x, ghost.y || 0, ghost.z);
+      actor.group.position.set(x, ghost.y || 0, z);
       actor.placed = true;
-      updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced, moving, dt, travel });
+      updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced, moving, dt, travel, gazeLock: ghost.gaze || 0 });
       this.air.breathe(actor, distance, state, this.theme, reduced);
     }
     for (const [key, actor] of this.ghosts) if (!seen.has(key)) actor.group.visible = false;
@@ -1445,7 +1467,7 @@ export class Visual {
     this.walk += this.velocity * dt * 2.8;
     const bob = reduced ? 0 : Math.sin(this.walk) * this.velocity * .011;
     const lean = reduced ? 0 : Math.cos(this.walk * .52) * this.velocity * .003;
-    const caught = dying && state.deathCause === 'ghost';
+    const caught = dying && (state.deathCause === 'ghost' || state.deathCause === 'gaze');
     const collapse = caught ? THREE.MathUtils.smoothstep(lifeTime, .38, 1.07) :
       dying ? Math.min(1, Math.abs(lifeTime) * 1.25 + .14) :
         revival ? .57 * (1 - THREE.MathUtils.smoothstep(lifeTime, .08, .63)) : 0;
@@ -1536,7 +1558,8 @@ export class Visual {
     uniforms.shift.value = shift * (reduced ? .14 : 1);
     uniforms.life.value = (dying || revival ? .7 : 0) * (reduced ? .35 : 1);
     uniforms.lifeJitter.value = .018 * uniforms.life.value * Math.sin(time * 23);
-    uniforms.danger.value = dying ? 1 : hurt ? .6 : Math.max(0, 3 - (state.hp ?? 3)) * .19;
+    const gazeTint = state.watching ? .12 + (state.gaze || 0) * .75 : 0;
+    uniforms.danger.value = dying ? 1 : hurt ? .6 : Math.max(gazeTint, Math.max(0, 3 - (state.hp ?? 3)) * .19);
     if (quality === 'low') {
       this.renderer.setRenderTarget(null);
       this.renderer.render(this.scene, this.camera);

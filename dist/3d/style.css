@@ -481,3 +481,35 @@
 @media (pointer: fine) {
   .pursuit .interaction { top: auto; bottom: max(78px, 12vh); }
 }
+
+/* Eye contact is a distinct warning that leaves the reticle and lower prompts visible. */
+.gaze-warning {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 8.5rem;
+  max-width: 85vw;
+  padding: .4rem .7rem .52rem;
+  background: #16131af2;
+  border: 1px solid #bc8d7499;
+  color: #f6dbbd;
+  text-align: center;
+  pointer-events: none;
+}
+.gaze-warning p {
+  margin: 0 0 .37rem;
+  font: 700 .8rem/1.4 var(--sans);
+  letter-spacing: .05em;
+}
+#gaze-meter { height: 3px; background: #472e36; }
+#gaze-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(90deg, #e8b982, #e67762);
+}
+.gaze-warning[data-breaking="true"] { border-color: #aebd9b99; color: #dce4c4; }
+@media (max-height: 520px) { .gaze-warning { top: 31%; } }

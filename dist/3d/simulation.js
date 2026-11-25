@@ -1,5 +1,6 @@
 import { BACKROOMS_LEVEL, BACKROOMS_TRACK, advancePursuit, beginPursuit, chaseBlocked, chaseFloor, runDistance } from './backrooms-track.js';
 import { LEVELS, TILE, decodeLevel } from './levels.js';
+import { updateMourningClerks } from './mourning-gaze.js';
 
 export const SAVE_KEY = 'last-light-3d-v1';
 export const STEP = 1 / 120;
@@ -78,6 +79,7 @@ export class Simulation3D {
     this.interactionTargets = [
       ...this.map.stations.map(tile => ({ type: 'station', tile })),
       ...this.map.clues.map(tile => ({ type: 'clue', tile })),
+      ...this.map.notes.map(tile => ({ type: 'note', tile })),
       ...this.map.lamps.map(tile => ({ type: 'lamp', tile })),
       ...(this.map.power ? [{ type: 'power', tile: this.map.power }] : []),
       { type: 'door', tile: this.map.exit }
@@ -91,6 +93,8 @@ export class Simulation3D {
     this.completed = new Set(this.progress.work[index] ?? []);
     this.checkpoint = this.map.lamps.find(lamp => this.tileKey(lamp) === this.progress.checkpoint) ?? this.map.spawn;
     this.visited = new Set();
+    this.mourningGuidePending = Boolean(this.level.mourning);
+    this.mourningNoteRead = false;
     this.spawnPlayer();
     this.emit(backrooms ? 'backrooms' : 'chapter', { index });
   }
@@ -101,10 +105,11 @@ export class Simulation3D {
       yaw: this.checkpoint === this.map.spawn ? (this.checkpoint.yaw ?? this.level.spawnYaw ?? this.startYaw()) : 0,
       pitch: 0, life: 'alive', lifeTimer: 0, hp: 3, shield: 0, grounded: true, coyote: .1,
       jumpBuffer: 0, moving: false, sprint: false, quiet: false, stamina: 1,
-      stepDistance: 0, hazardClock: 0, tension: 0, pursuer: null, atRisk: false
+      stepDistance: 0, hazardClock: 0, tension: 0, pursuer: null, atRisk: false, gaze: 0, watching: false
     });
     this.ghosts = this.map.ghosts.map((tile, i) => ({
       x: tile.x, z: tile.z, home: tile, key: this.tileKey(tile), index: i,
+      ...(tile.creature === 'mourning' ? { kind: 'mourning', gaze: 0, watching: false, nextCry: this.time } : {}),
       phase: tile.phase ?? (tile.kind === 'G' ? 'day' : tile.kind === 'H' ? 'night' : null),
       alert: 0, active: false, target: null, refresh: 0, roam: i
     }));
@@ -245,6 +250,10 @@ export class Simulation3D {
         this.emit('sound', { name: 'pickup', position: tile });
       }
       this.emit('story', { pair: tile.clue ?? this.level.clues?.[id], id: 'clueFound', clue: id });
+    } else if (type === 'note') {
+      this.mourningNoteRead = true;
+      this.emit('mourning-guide', { manual: true, position: tile });
+      return;
     } else if (type === 'lamp') {
       this.checkpoint = tile;
       this.hp = 3;
@@ -286,8 +295,14 @@ export class Simulation3D {
 
   updateGhosts(dt) {
     this.tension = 0;
-    const here = this.map.at(this.x, this.z);
     const sanctuary = this.map.lamps.some(tile => distance(tile, this) < 1.32) || distance(this.map.spawn, this) < 1.35;
+    if (this.level.mourning) {
+      this.gaze = 0;
+      this.watching = false;
+      updateMourningClerks(this, dt, TILE, sanctuary);
+      return;
+    }
+    const here = this.map.at(this.x, this.z);
     const difficulty = this.levelIndex;
     for (const ghost of this.ghosts) {
       if (!ghost.active) { ghost.alert = 0; ghost.target = null; continue; }
@@ -417,6 +432,11 @@ export class Simulation3D {
         }
       }
       return;
+    }
+    if (this.mourningGuidePending) {
+      this.mourningGuidePending = false;
+      this.emit('mourning-guide');
+      this.emit('notice', { id: 'mourningArrival' });
     }
     if (input.shift) this.togglePhase();
     if (input.interact) this.interact();

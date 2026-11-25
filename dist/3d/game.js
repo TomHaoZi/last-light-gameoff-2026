@@ -30,6 +30,14 @@ const strings = {
     firstSteps: 'Save at the emergency lamp. Switch to night for the first bridge.',
     exitReady: 'Take the lift beside the fire interlock.',
     archiveExit: 'Take the lift beyond Gary’s wing.',
+    mourningArrival: 'Someone is crying. There’s a gramophone by the lift.',
+    mourningNote: 'Play the gramophone',
+    mourningRule: 'The Mourning Clerk attacks if you stare. Look down or turn away, and give it space.',
+    mourningLook: 'LOOK AWAY',
+    mourningBreak: 'KEEP LOOKING AWAY',
+    mourningContact: 'YOU GOT TOO CLOSE',
+    gaze: 'IT CAUGHT YOUR EYE',
+    mourningRevival: 'Use the sound to find it. Keep your eyes low.',
     roofExit: 'The roof exit is open. Leave when you’re ready.',
     roofCircuit: 'The exit is open. Its independent light is still off.',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
@@ -68,6 +76,14 @@ const strings = {
     firstSteps: '在应急灯处存档。切到黑夜，就能看见第一座桥。',
     exitReady: '去消防联锁旁搭电梯。',
     archiveExit: '穿过 Gary 的办公区，去尽头搭电梯。',
+    mourningArrival: '有人在哭。电梯旁放着一台留声机。',
+    mourningNote: '播放留声机录音',
+    mourningRule: '默哀档案员受直视刺激。低头或转开视线，绕行时留一点距离。',
+    mourningLook: '移开视线',
+    mourningBreak: '继续避开视线',
+    mourningContact: '你离它太近了',
+    gaze: '它抓住了你的视线',
+    mourningRevival: '听哭声辨位。把视线放低。',
     roofExit: '屋顶出口已打开。准备好就可以离开。',
     roofCircuit: '屋顶出口已打开，门边的独立应急灯还没通电。',
     lampSteps: '切到黑夜，让前方的桥出现。',
@@ -191,7 +207,7 @@ function updateScreen(force = false) {
   $('intro').classList.toggle('compact', mode !== 'menu');
   if (active) return;
   const enteringBoiler = state.levelIndex === 0 && !state.completed.size && state.checkpoint === state.map.spawn;
-  screenText('guide-note', enteringBoiler ? copy.firstSteps : currentObjective());
+  screenText('guide-note', enteringBoiler ? copy.firstSteps : state.level.mourning ? copy.mourningRule : currentObjective());
   screenText('screen-strap', mode === 'won' ? copy.run : copy.handover);
   if (mode === 'menu' && lang === 'en') $('screen-title').replaceChildren('LAST ', document.createElement('br'), 'LIGHT');
   else screenText('screen-title', mode === 'paused' ? copy.paused : mode === 'won' ? (state.ending === 'complete' ? copy.fullTitle : copy.normalTitle) : copy.title);
@@ -253,6 +269,7 @@ function interactionPrompt({ type, id }) {
     return use + copy.work;
   }
   if (type === 'clue') return use + (state.hasRecord(id) ? copy.reviewRecord : copy.clue);
+  if (type === 'note') return use + copy.mourningNote;
   if (type === 'power') return state.progress.powered ? copy.lightOn : use + copy.powerAction;
   if (type === 'lamp') return use + copy.lampAction;
 
@@ -319,9 +336,21 @@ function updateHUD() {
       t()[coarsePointer.matches ? 'shortcutTouch' : 'shortcutKeys'] : '';
   if ($('interaction').textContent !== prompt) screenText('interaction', prompt);
   $('interaction').hidden = !prompt;
+  const gazeWarning = $('gaze-warning');
+  gazeWarning.hidden = state.mode !== 'playing' || state.life !== 'alive' || state.gaze < .08;
+  if (!gazeWarning.hidden) {
+    const command = state.watching ? t().mourningLook : t().mourningBreak;
+    if ($('gaze-command').textContent !== command) screenText('gaze-command', command);
+    gazeWarning.dataset.breaking = String(!state.watching);
+    $('gaze-fill').style.transform = 'scaleX(' + state.gaze + ')';
+    $('gaze-meter').setAttribute('aria-valuenow', Math.floor(state.gaze * 20) * 5);
+  }
   $('death').hidden = state.life === 'alive' || state.mode !== 'playing';
   if (!$('death').hidden) {
-    const deathCopy = state.life === 'dying' ? t()[state.deathCause] : state.chase ? (lang === 'zh' ? '回到中转层电梯' : 'Back at the transfer lift') : t().revival;
+    const deathCopy = state.life === 'dying'
+      ? (state.level.mourning && state.deathCause === 'ghost' ? t().mourningContact : t()[state.deathCause])
+      : state.chase ? (lang === 'zh' ? '回到中转层电梯' : 'Back at the transfer lift')
+        : state.level.mourning ? t().mourningRevival : t().revival;
     if ($('death-copy').textContent !== deathCopy) screenText('death-copy', deathCopy);
     $('death').style.opacity = state.life === 'dying' ? Math.min(1, .2 + state.lifeTimer) : Math.max(0, 1 - state.lifeTimer / .68);
   }
@@ -337,13 +366,17 @@ function processEvents() {
     if (event.type === 'warning') { sound.cue('warning', event.ghost); notice(t().warning, 2.6); }
     if (event.type === 'notice') {
       const firstLamp = event.id === 'lamp' && state.levelIndex === 0 && state.completed.size === 0 && !state.night;
-      notice(t()[event.id] + (firstLamp ? ' ' + t().lampSteps : ''), firstLamp ? 6 : 3);
+      notice(t()[event.id] + (firstLamp ? ' ' + t().lampSteps : ''), firstLamp || event.id === 'mourningArrival' ? 6 : 3);
     }
     if (event.type === 'story') {
       notice(event.pair?.[lang === 'zh' ? 1 : 0] ?? t()[event.id], 6);
     }
     if (event.type === 'save') saveProgress();
     if (event.type === 'chapter' || event.type === 'backrooms') loadChapter();
+    if (event.type === 'mourning-guide' && event.manual) {
+      noticeUntil = 0;
+      $('notice').hidden = true;
+    }
     if (event.type === 'death') { clearInput(); dialogue.stop(); }
     if (!state.chase) dialogue.onGameEvent(event, state);
   }
@@ -391,6 +424,7 @@ function start() {
   sound.start().catch(e => console.warn('Audio unavailable.', e));
   sound.update(soundState());
   dialogue.resume();
+  if (firstShift) dialogue.play('boilerGuide');
 }
 
 function focusResume() {
@@ -430,6 +464,13 @@ function showPanel(view) {
     const list = $('journal-list');
     list.replaceChildren();
     if (!records.length) screenText('journal-list', t().journalEmpty);
+    const guide = state.levels.find((level, i) => level.mourning && i <= state.levelIndex)?.guide;
+    if (guide) {
+      const article = document.createElement('p');
+      article.className = 'journal-guide';
+      article.textContent = guide[lang === 'zh' ? 1 : 0];
+      list.append(article);
+    }
     for (const record of records) {
       const [index, id] = record.split('/');
       const article = document.createElement('article');
@@ -669,6 +710,10 @@ window.lastLight3D = Object.freeze({
     work: [...state.completed], evidence: [...state.progress.evidence], life: state.life, deathCause: state.life === 'dying' ? state.deathCause : null,
     chase: state.chase ? { ...state.chase, length: BACKROOMS_TRACK.length, exiting: state.departing,
       pursuer: { x: state.ghosts[0].x, z: state.ghosts[0].z } } : null,
+    gaze: state.level.mourning ? {
+      amount: state.gaze, direct: state.watching, noteRead: state.mourningNoteRead,
+      figures: state.ghosts.map(({ key, x, z, active, watching }) => ({ key, x, z, active, watching }))
+    } : null,
     dialogue: { id: dialogue.active?.id ?? null, playing: Boolean(dialogue.active?.source) },
     fps: visual?.frameBudget.fps ?? null, resolutionScale: visual?.frameBudget.scale ?? 1,
     webgl: Boolean(visual && !error), ending: state.mode === 'won' ? state.ending : null

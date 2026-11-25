@@ -1,14 +1,19 @@
+import { SOB_FILES } from './mourning-audio.js';
 import { ChaseScore, softPeakCeiling } from './chase-score.js';
 import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
 
 const SILENCE = 0.0001;
 const MAX_VOICES = 70;
 const DIALOGUE_DUCK = [
-  { bus: 'dialogueMusic', gain: .34, attack: .08, release: .23 },
-  { bus: 'dialogueRoom', gain: .40, attack: .055, release: .28 },
+  { bus: 'dialogueMusic', gain: .25, attack: .045, release: .32 },
+  { bus: 'dialogueRoom', gain: .33, attack: .048, release: .30 },
   { bus: 'dialogueThreat', gain: .70, attack: .09, release: .21 }
 ];
-const CUE_COOLDOWN = { step: .105, warning: 1.38, howl: 7.8, snarl: 2.65, breath: 2.25 };
+const CUE_COOLDOWN = {
+  step: .105, warning: 1.38, howl: 7.8, snarl: 2.65, breath: 2.25,
+  'mourning-cry': 2.7, 'mourning-lock': .45, 'mourning-strike': 1.2
+};
+const MOURNING_SOUNDS = new Set(['mourning-cry', 'mourning-lock', 'mourning-strike']);
 const VOCAL_GAIN = {
   howl: .57,    // At range its reverb and shape carry before the peak level.
   scream: .69,  // The short alert must sit above the pursuit score.
@@ -31,9 +36,11 @@ const CREATURE_TIMBRES = [
 ];
 
 const VOICE_CHANNELS = {
-  stairwell: { low: 92, high: 7000, delay: .067, echo: .15, pan: -.29 },
-  archive: { low: 185, high: 4400, delay: .029, echo: .075, pan: .19 },
-  intercom: { low: 270, high: 3950, delay: .054, echo: .14, pan: .32 }
+  stairwell: { low: 92, high: 7900 },
+  archive: { low: 122, high: 5750 },
+  intercom: { low: 190, high: 5100 },
+  gramophone: { low: 176, high: 5100 },
+  warning: { low: 108, high: 7800 }
 };
 const RECORDED_STEPS = {
   concrete: { file: 'step-stone', gain: .50 },
@@ -49,7 +56,7 @@ const ROOM_RECORDINGS = [
 const RECORDING_FILES = [
   ...Object.values(RECORDED_VOCALS).map(clip => clip.file),
   ...new Set(Object.values(RECORDED_STEPS).map(clip => clip.file)),
-  'door-steel', ...ROOM_RECORDINGS.map(room => room.file)
+  'door-steel', ...SOB_FILES, ...ROOM_RECORDINGS.map(room => room.file)
 ];
 const STEP_CLIP = .45;
 const AAC_PRIMING = 2112 / 32_000;
@@ -204,6 +211,17 @@ export class HorrorAudio {
     this.dialogueRoom.connect(this.convolver);
     this.convolver.connect(this.wet).connect(this.master);
 
+    // Common voice treatment lifts quiet consonants and leaves the transients
+    // from the tinny cabinets or archival tape well below the final limiter.
+    const voiceCompressor = context.createDynamicsCompressor();
+    voiceCompressor.threshold.value = -19;
+    voiceCompressor.knee.value = 12;
+    voiceCompressor.ratio.value = 2.45;
+    voiceCompressor.attack.value = .009;
+    voiceCompressor.release.value = .13;
+    const voiceGain = context.createGain();
+    voiceGain.gain.value = 1.30;
+    voiceCompressor.connect(voiceGain).connect(this.master);
     this.voiceChannels = new Map();
     for (const [name, profile] of Object.entries(VOICE_CHANNELS)) {
       const input = context.createBiquadFilter();
@@ -212,14 +230,7 @@ export class HorrorAudio {
       const cabinet = context.createBiquadFilter();
       cabinet.type = 'lowpass';
       cabinet.frequency.value = profile.high;
-      input.connect(cabinet).connect(this.master);
-      const wall = context.createDelay(.15);
-      wall.delayTime.value = profile.delay;
-      const returnLevel = context.createGain();
-      returnLevel.gain.value = profile.echo;
-      const pan = context.createStereoPanner();
-      pan.pan.value = profile.pan;
-      cabinet.connect(wall).connect(returnLevel).connect(pan).connect(this.master);
+      input.connect(cabinet).connect(voiceCompressor);
       this.voiceChannels.set(name, input);
     }
 
@@ -311,18 +322,23 @@ export class HorrorAudio {
     return this.playBuffer(buffer, at, bus, gain, speed, (offset ?? 0) + delay, length);
   }
 
-  playDialogue(buffer, channel) {
+  playDialogue(buffer, channel, position) {
     if (!this.context || this.paused || this.muted || !buffer) return null;
     const at = this.context.currentTime + .008;
-    const bus = this.voiceChannels.get(channel) ?? this.master;
-    const source = this.playBuffer(buffer, at, bus, .90);
+    const channelBus = this.voiceChannels.get(channel) ?? this.master;
+    const bus = channel === 'gramophone' && position ?
+      this.positionBus(position, at, buffer.duration + .15, false, channelBus) : channelBus;
+    const source = this.playBuffer(buffer, at, bus, channel === 'warning' ? .83 : .90);
     if (source) {
       this.currentDialogue = source;
       if (channel === 'intercom') {
         // Contact bounce precedes the first consonant. Switching off or pausing
         // cuts the transmission without leaving a scheduled tail under the menu.
-        this.noise(at, .038, .045, 2750, .83, bus, .002, 930);
+        this.noise(at, .032, .030, 2750, .83, bus, .002, 930);
         this.tone(at + .017, 176, 82, .048, .034, bus, 'triangle');
+      }
+      if (channel === 'gramophone') {
+        this.noise(at, .043, .027, 1680, 1.55, bus, .002, 500);
       }
       for (const { bus, gain, attack, release } of DIALOGUE_DUCK) {
         const bed = this[bus].gain;
@@ -391,7 +407,10 @@ export class HorrorAudio {
 
   setMuted(value) {
     this.muted = Boolean(value);
-    if (this.muted) this.setChase(null);
+    if (this.muted) {
+      this.setChase(null);
+      this.stopDialogue(this.currentDialogue);
+    }
     this.syncMaster();
   }
 
@@ -483,7 +502,7 @@ export class HorrorAudio {
 
   updateCreatureSounds(now, ghosts) {
     const nearby = ghosts
-      .filter(ghost => ghost.active !== false && ghost.visible !== false)
+      .filter(ghost => ghost.kind !== 'mourning' && ghost.active !== false && ghost.visible !== false)
       .map(ghost => ({ ...this.spatial(ghost), ghost }))
       .filter(channel => channel.distance < 27)
       .sort((a, b) => a.distance - b.distance);
@@ -679,8 +698,7 @@ export class HorrorAudio {
     return clamp(10500 - distance * 525, 850, 10500);
   }
 
-  positionBus(position, at, length = 2.1, follow = false) {
-    const bus = follow ? this.dialogueThreat : this.worldBus;
+  positionBus(position, at, length = 2.1, follow = false, bus = follow ? this.dialogueThreat : this.worldBus) {
     if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) return bus;
     const context = this.context;
     const channel = this.spatial(position);
@@ -717,6 +735,27 @@ export class HorrorAudio {
     gain.linearRampToValueAtTime(1, at + release);
   }
 
+  cueMourning(name, at, position) {
+    if (this.muted) return;
+    const bus = this.positionBus(position, at, 3.65, name === 'mourning-cry');
+    if (name === 'mourning-cry') {
+      const file = SOB_FILES[Math.floor(this.random() * SOB_FILES.length)];
+      if (this.playRecording(file, at, bus, .91, .98 + this.random() * .08)) return;
+      for (const delay of [0, .25, .68]) {
+        this.noise(at + delay, .37, .12, 710, 2.15, bus, .067, 390);
+        this.tone(at + delay + .035, 324, 178, .27, .026, bus, 'triangle', .055);
+      }
+    } else if (name === 'mourning-lock') {
+      // Lead with an unmistakable intake rather than obscuring the warning's vowels.
+      this.noise(at, .16, .12, 1350, 1.9, bus, .012, 2850);
+      this.tone(at + .11, 90, 54, .23, .08, this.closeBus);
+    } else {
+      this.playRecording(SOB_FILES[1], at, bus, .68, .78, .05, 1.09);
+      this.noise(at, .35, .22, 1750, 1.35, bus, .009, 690);
+      this.duck(at, .35, 1.1);
+    }
+  }
+
   cue(name, position) {
     const context = this.context;
     if (!context || this.paused) return;
@@ -724,6 +763,10 @@ export class HorrorAudio {
     const cooldown = CUE_COOLDOWN[name] ?? .065;
     if (at - (this.lastCues.get(name) ?? -Infinity) < cooldown) return;
     this.lastCues.set(name, at);
+    if (MOURNING_SOUNDS.has(name)) {
+      this.cueMourning(name, at, position);
+      return;
+    }
     if (name === 'howl' || name === 'snarl' || name === 'breath') {
       this.creatureCue(name, at, position);
       return;
@@ -796,7 +839,9 @@ export class HorrorAudio {
         break;
       case 'death':
         for (const emitter of this.vocalEmitters) this.finishCreatureCall(emitter, at);
-        if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) this.creatureCue('grab', at, position);
+        if (position?.kind !== 'mourning' && Number.isFinite(position?.x) && Number.isFinite(position?.z)) {
+          this.creatureCue('grab', at, position);
+        }
         tone(0, 76, 22, 1.25, 0.23);
         tone(0.047, 142, 42, 0.76, 0.063, 'sawtooth', 0.021);
         noise(0.015, 1.28, 0.31, 740, 1.2, 0.105, 100);

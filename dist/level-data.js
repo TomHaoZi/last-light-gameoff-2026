@@ -11,7 +11,7 @@ export const FLOOR_HAZARDS=[
 ];
 export const FLOOR_GHOSTS=[
  [{x:1320,y:195,range:100,phase:'night',kind:'wanderer'},{x:2860,y:195,range:100,phase:'night',kind:'watcher',chaseRange:130}],
- [{x:1050,y:195,range:55,phase:'night',kind:'wanderer'},{x:2740,y:195,range:100,phase:'night',kind:'listener'},{x:3890,y:195,range:90,phase:null,kind:'watcher',moveSpeed:20}],
+ [{x:1050,y:195,range:55,phase:'night',kind:'mourner'},{x:2740,y:195,range:100,phase:'night',kind:'mourner'},{x:3890,y:195,range:90,phase:null,kind:'mourner',moveSpeed:20}],
  [{x:1950,y:195,range:65,phase:'day',kind:'listener'},{x:2380,y:195,range:100,phase:null,kind:'watcher',moveSpeed:20},{x:4140,y:195,range:55,phase:'night',kind:'wanderer'}]
 ];
 export const CHECKPOINTS=[

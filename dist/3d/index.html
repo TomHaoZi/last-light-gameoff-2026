@@ -67,6 +67,12 @@
         </div>
       </div>
       <div class="reticle" aria-hidden="true"></div>
+      <div class="gaze-warning" id="gaze-warning" hidden>
+        <p id="gaze-command" aria-live="assertive"></p>
+        <div id="gaze-meter" role="meter" aria-labelledby="gaze-command" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <i id="gaze-fill"></i>
+        </div>
+      </div>
       <div class="hud-bottom">
         <p class="interaction" id="interaction" hidden></p>
         <div class="feedback">

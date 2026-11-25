@@ -4,7 +4,7 @@ const BOOTS = ['#c19462', '#865d47', '#5b4438', '#3d3632'];
 const FACE = ['#f4d5a3', '#d7a779', '#aa7859', '#6e4b43'];
 const GHOST = ['#a6beb5', '#7397a0', '#4a6d82', '#2a4258'];
 
-export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir) {
+export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir, eyesDown = false) {
   const lag = a.capLag || 0;
   a.capLag = running ? Math.sin(a.t * 11) : 0;
   a.rect(0, 27, 15, 1, '#294342');
@@ -39,6 +39,10 @@ export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir)
   a.rect(12, 20 + nearArm, 3, 3, FACE[2]);
   a.line(12, 20 + nearArm, 2, FACE[1]);
 
+  if (eyesDown) {
+    a.c.save();
+    a.c.translate(1, 2);
+  }
   a.rect(3, 5, 9, 6, FACE[3]);
   a.rect(5, 4, 7, 7, FACE[1]);
   a.rect(8, 6, 5, 5, FACE[1]);
@@ -47,7 +51,8 @@ export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir)
   a.rect(7, 11, 6, 2, FACE[2]);
   a.line(8, 10, 5, FACE[0]);
   a.line(dir === 1 ? 6 : 9, 6, 3, FACE[0]);
-  if (!(frame === 3 && grounded && !running)) a.rect(10, 7, 2, 2, COAT[3]);
+  if (eyesDown) a.line(10, 9, 2, FACE[3]);
+  else if (!(frame === 3 && grounded && !running)) a.rect(10, 7, 2, 2, COAT[3]);
   else a.line(10, 8, 2, FACE[3]);
   a.line(10, 11, 2, FACE[3]);
 
@@ -60,6 +65,7 @@ export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir)
   a.rect(12 + lag, 3, 3, 3, BOOTS[2]);
   a.line(13 + lag, 3, 2, '#ecd597');
 
+  if (eyesDown) a.c.restore();
   const chain = Math.round(Math.sin(a.t * (running ? 11 : 4)));
   a.rect(4, 21 - squash, 1, 3, '#a49062');
   a.rect(4 + chain, 23 - squash, 2, 3, '#dac589');
@@ -69,7 +75,117 @@ export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir)
   a.line(-3, 21 + lag, 3, CAP[0]);
 }
 
+const LIMESTONE = ['#e8e1bf', '#c7c9ad', '#899c8f', '#34474a'];
+const SERGE = ['#929e92', '#718880', '#495d5e', '#2e4145'];
+const SLATE = ['#a8aca0', '#788486', '#515f66', '#36454d'];
+
+export function drawMourningClerk(a, ghost, x, y) {
+  const danger = ghost.gaze || 0;
+  const rise = Math.round(danger * 7);
+  const spread = Math.round(danger * 3);
+  const agitated = danger > .53;
+  const tremble = danger > .18 ? Math.round(Math.sin(a.t * 17) * danger) : 0;
+  const braidSwing = Math.round(Math.sin(a.t * 2.8 + (ghost.seed || 0)));
+  const faceX = x + tremble;
+  const faceY = y - 13 - rise;
+  a.glow(x, y - 6, 33, 32, agitated ? '#dba17b' : '#a7bab3', .085 + danger * .13);
+  a.c.save();
+
+  // The relief was once an arch of feathers. The right tip broke off.
+  a.rect(x - 19 - spread, y - 22 - spread, 5 + spread, 12 + spread, LIMESTONE[3]);
+  a.rect(x - 18 - spread, y - 21 - spread, 2, 11, LIMESTONE[1]);
+  a.line(x - 18 - spread, y - 21 - spread, 3, LIMESTONE[0]);
+  a.rect(x - 16 - spread, y - 17 - spread, 6 + spread, 17 + spread, LIMESTONE[2]);
+  a.rect(x - 16 - spread, y - 14 - spread, 2, 10 + spread, LIMESTONE[1]);
+  a.rect(x - 13 - spread, y - 12 - spread, 2, 14 + spread, LIMESTONE[2]);
+  a.rect(x - 15, y - 10, 9, 26, LIMESTONE[3]);
+  a.rect(x - 14, y - 9, 4, 18, LIMESTONE[2]);
+  a.rect(x - 14, y - 8, 1, 11, LIMESTONE[1]);
+  a.rect(x - 11, y - 4, 1, 8, LIMESTONE[3]);
+  a.rect(x - 13, y + 5, 4, 8, LIMESTONE[2]);
+  a.line(x - 16, y - 10, 3, LIMESTONE[0]);
+  a.rect(x - 11, y + 8, 2, 8, LIMESTONE[1]);
+  a.rect(x - 8, y + 6, 2, 7, LIMESTONE[2]);
+  a.rect(x + 6, y - 9 - spread, 8 + spread, 20 + spread, LIMESTONE[3]);
+  a.rect(x + 10, y - 13 - spread, 5, 8, LIMESTONE[3]);
+  a.rect(x + 11, y - 12 - spread, 3, 7, LIMESTONE[1]);
+  a.line(x + 12, y - 12 - spread, 2, LIMESTONE[0]);
+  a.rect(x + 8, y - 7, 5, 12, LIMESTONE[2]);
+  a.rect(x + 13, y - 4, 4 + spread, 9, LIMESTONE[2]);
+  a.rect(x + 14, y - 2, 1, 6, LIMESTONE[3]);
+  a.line(x + 12, y - 5, 3, LIMESTONE[0]);
+  a.rect(x + 15, y, 2 + spread, 5, LIMESTONE[3]);
+  a.rect(x + 9, y + 5, 3, 8, LIMESTONE[3]);
+  a.rect(x + 12, y + 5, 2, 4, LIMESTONE[1]);
+
+  // High collar, pinned archive badge and a single sculpted skirt.
+  a.rect(x - 9, y - 6 - rise / 2, 18, 14 + rise / 2, SERGE[3]);
+  a.rect(x - 7, y - 5 - rise / 2, 14, 11 + rise / 2, SERGE[2]);
+  a.rect(x - 6, y - 5, 4, 11, SERGE[1]);
+  a.line(x - 7, y - 6, 7, SERGE[0]);
+  a.rect(x - 6, y + 4, 12, 7, SERGE[3]);
+  a.rect(x - 7, y + 8, 14, 7, SERGE[2]);
+  a.rect(x - 9, y + 13, 18, 11, SERGE[3]);
+  a.rect(x - 8, y + 13, 7, 9, SERGE[2]);
+  a.rect(x - 5, y + 11, 3, 10, SERGE[1]);
+  a.rect(x + 2, y + 11, 4, 11, SERGE[2]);
+  a.line(x - 5, y + 7, 10, '#777463');
+  a.rect(x - 5, y + 23, 3, 2, SERGE[3]);
+  a.rect(x + 4, y + 23, 3, 2, SERGE[3]);
+  for (let i = 0; i < 4; i++) {
+    a.rect(x - 4 + i * 2, y - 5 - rise / 2, 1, 2, LIMESTONE[i > 1 ? 2 : 1]);
+  }
+  a.rect(x + 3, y + 1, 5, 3, '#97875c');
+  a.line(x + 3, y + 1, 4, '#c1ab75');
+
+  // Carved braid, bent chin and weathered tears track the raising head.
+  a.rect(faceX - 6, faceY - 8, 11, 13, SLATE[3]);
+  a.line(faceX - 4, faceY - 8, 6, SLATE[1]);
+  a.rect(faceX - 7, faceY - 5, 4, 12, SLATE[2]);
+  for (let lock = 0; lock < 4; lock++) {
+    const bx = faceX - 6 - lock % 2 + braidSwing * Number(lock > 1);
+    const by = faceY + 3 + lock * 3;
+    a.rect(bx, by, 4, 4, SLATE[3]);
+    a.rect(bx, by, 2, 3, SLATE[1 + lock % 2]);
+  }
+  a.rect(faceX - 3, faceY - 5, 8, 10, LIMESTONE[2]);
+  a.rect(faceX - 3, faceY - 4, 7, 7, LIMESTONE[1]);
+  a.line(faceX - 2, faceY - 4, 3, LIMESTONE[0]);
+  a.rect(faceX - 2, faceY - 1, 2, 1, LIMESTONE[3]);
+  a.rect(faceX + 2, faceY - 1, 2, 1, LIMESTONE[3]);
+  a.rect(faceX - 2, faceY, 1, 3, '#596c66');
+  a.rect(faceX + 2, faceY, 1, 3, '#596c66');
+  a.rect(faceX + 4, faceY - 3, 1, 4, LIMESTONE[3]);
+  a.line(faceX + 2, faceY - 2, 2, LIMESTONE[2]);
+  a.rect(faceX, faceY + 1, 1, 1, LIMESTONE[0]);
+
+  if (agitated) {
+    a.rect(faceX - 1, faceY + 3, 4, 2, LIMESTONE[3]);
+    a.rect(faceX - 2, faceY - 1, 2, 1, '#f1c3a0');
+    a.rect(faceX + 2, faceY - 1, 2, 1, '#ce8b70');
+    a.rect(x - 13, y - 3 - rise, 5, 15, SERGE[2]);
+    a.rect(x + 8, y - 2 - rise, 5, 14, SERGE[2]);
+    a.rect(x - 14, y - 6 - rise, 4, 7, LIMESTONE[2]);
+    a.rect(x + 11, y - 5 - rise, 4, 7, LIMESTONE[2]);
+    a.line(x - 14, y - 7 - rise, 4, LIMESTONE[0]);
+    a.line(x + 11, y - 6 - rise, 4, LIMESTONE[1]);
+  } else {
+    a.rect(x - 8, y - 3, 5, 9, SERGE[2]);
+    a.rect(x + 5, y - 4, 4, 9, SERGE[2]);
+    a.rect(faceX - 4, faceY + 3, 5, 4, LIMESTONE[3]);
+    a.rect(faceX - 4, faceY + 3, 4, 2, LIMESTONE[1]);
+    a.rect(faceX + 1, faceY + 4, 5, 3, LIMESTONE[2]);
+    a.line(faceX + 2, faceY + 4, 3, LIMESTONE[1]);
+  }
+
+  a.c.restore();
+}
+
 export function drawApparition(a, ghost, x, y) {
+  if (ghost.kind === 'mourner') {
+    drawMourningClerk(a, ghost, x, y);
+    return;
+  }
   const pulse = .73 + Math.sin(a.t * 4 + (ghost.seed || 0)) * .14;
   const chase = ghost.state === 'chase';
   const face = chase ? '#e8a286' : '#c5c5a3';

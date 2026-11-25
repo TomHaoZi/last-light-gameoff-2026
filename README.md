@@ -1,9 +1,9 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.17
+## 2D and 3D browser release · 3.0.0-rc.18
 
-[后室追逐实测 / Records Annex playtest](docs/backrooms-rc17.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
+[默哀档案员与语音 / The Mourning Clerk](docs/mourning-clerk-rc18.md) · [后室追逐实测 / Records Annex playtest](docs/backrooms-rc17.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
 
 [Play on itch.io](https://tomhao.itch.io/last-light). The first-person edition rebuilds the boiler rooms, offices and rooftop as connected 3D spaces. Switch between 17:59 and 18:00 to cross phase-specific bridges, finish nine handover tasks and piece together why Gary's name never made it into the register. Use corners, lamps and quiet movement to get past roaming ghosts. Machinery can cost a point of integrity. Ghost contact and falls send you straight back to the last lamp.
 
@@ -24,6 +24,10 @@ python3 scripts/package-3d.py
 - The visual update adds floor-specific fittings, practical fixtures and signs, a refined phase effect, and individual face, workwear and movement details for each 3D pursuer.
 - Hold the directional pad with one finger and drag the scene with another to move and look around together. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
 - The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows both editions.
+
+### The Mourning Clerk
+
+The offices are haunted by a limestone archivist in a fractured dress and repaired stone wings. When she raises her face, turn away before the gaze bar fills. In 3D, look down or keep her to one side while passing. In Classic, hold **C** to lower your eyes, or jump past her sightline. Leave space as you pass. Walls and doors can break eye contact. Press **E** at the phonograph near the office lift to replay the recorded warning, or read the note in the journal.
 
 ### The Records Annex
 

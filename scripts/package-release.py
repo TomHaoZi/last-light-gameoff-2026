@@ -11,7 +11,16 @@ def standalone_runtime(name, data):
   return data.replace(b'href="./3d/" id="play-3d"', b'href="https://tomhao.itch.io/last-light" id="play-3d"')
  return data
 runtime_files={p.name:standalone_runtime(p.name,p.read_bytes()) for p in runtime}
-runtime_files['3d/chase-score.js']=(ROOT/'dist/3d/chase-score.js').read_bytes()
+dist=ROOT/'dist'
+classic_audio_paths=[
+ dist/'3d/chase-score.js',
+ dist/'3d/mourning-audio.js',
+ dist/'3d/assets/dialogue/CREDITS.md',
+ dist/'3d/audio/CREDITS.md',
+ *sorted((dist/'3d/assets/dialogue').glob('mourning-*.m4a')),
+ *sorted((dist/'3d/audio').glob('mourning-sob-*.m4a')),
+]
+runtime_files.update({p.relative_to(dist).as_posix():p.read_bytes() for p in classic_audio_paths})
 hashes={name:hashlib.sha256(data).hexdigest() for name,data in runtime_files.items()}
 metadata={'version':version,'acceptance':'RELEASE CANDIDATE / FUNCTIONAL GATES VERIFIED; SUBJECTIVE AUDIO AND PHYSICAL DEVICE REVIEW PENDING','published':False,'runtimeSha256':hashes}
 html=folder/f'last-light-{version}-html5.zip';source=folder/f'last-light-{version}-source.zip'

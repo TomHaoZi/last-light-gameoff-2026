@@ -1,6 +1,8 @@
+import { GUIDANCE_LINES, MOURNING_LINES, SOB_FILES, decodeOfficeRecording, fileForVoice, mourningCryURL,
+  mourningVoiceURL } from './3d/mourning-audio.js';
 import { ChaseScore, softPeakCeiling } from './3d/chase-score.js';
 
-// All sound is synthesized locally. No samples, external media, or recorded voices.
+// Most effects and music are synthesized locally. Spoken guidance and the office sobs are bundled recordings.
 export const SFX_GAIN = Object.freeze({
   footstepConcrete:.12, // soft sole, beneath the melody
   footstepGrate:.18, // a thin resonant plate needs more presence
@@ -10,7 +12,15 @@ export const SFX_GAIN = Object.freeze({
 const MELODY=[0,4,7,11,7,4,2,4,7,9,7,4,0,2,4,7,5,9,12,9,7,5,4,2,0,4,7,4,2,0,-1,2];
 const midi=n=>440*2**((n-69)/12);
 export class Sound {
-  constructor(){this.ctx=null;this.muted=false;this.focus=true;this.night=false;this.floor=0;this.menu=true;this.notes=0;this.next=0;this.phoneRang=false;this.micro=0;this.audit=[];this.volumes={master:.8,music:.7,sfx:.85};this.voices=0;this.voiceEnds=[];this.maxVoices=48;this.tension=0;this.sector=0;this.sceneId='';this.resolution=false;this.narrativeKey='';this.lastEffect=new Map();}
+  constructor(){this.ctx=null;this.muted=false;this.focus=true;this.night=false;this.floor=0;this.menu=true;this.notes=0;this.next=0;this.phoneRang=false;this.micro=0;this.audit=[];this.volumes={master:.8,music:.7,sfx:.85};this.voices=0;this.voiceEnds=[];this.maxVoices=48;this.tension=0;this.sector=0;this.sceneId='';this.resolution=false;this.narrativeKey='';this.lastEffect=new Map();
+    this.guidanceReady = new Map();
+    this.guidanceAudio = new Map();
+    this.sobs = [];
+    this.sobVoices = new Set();
+    this.guidanceSeq = 0;
+    this.officeVoice = null;
+    this.lastWarning = -Infinity;
+  }
   async start(){
     if(this.ctx){await this.ctx.resume();return;}
     const C=globalThis.AudioContext||globalThis.webkitAudioContext;if(!C)return;
@@ -22,8 +32,10 @@ export class Sound {
     output.gain.value = .80; // Retain the same attack and makeup headroom as the first-person mixer.
     this.master.connect(compressor).connect(limiter).connect(output).connect(softPeakCeiling(c)).connect(c.destination);
     this.sfxVolume=c.createGain();this.sfxVolume.connect(this.master);this.sfx=c.createGain();this.sfx.connect(this.sfxVolume);
-    this.musicVolume=c.createGain();this.storyVolume=c.createGain();this.musicVolume.connect(this.storyVolume).connect(this.master);this.music=c.createGain();this.roomMusicGate=c.createGain();this.music.connect(this.roomMusicGate).connect(this.musicVolume);this.day=c.createGain();this.nite=c.createGain();this.day.connect(this.music);this.nite.connect(this.music);
-    this.ambDay=c.createGain();this.ambNight=c.createGain();this.ambDay.connect(this.master);this.ambNight.connect(this.master);
+    this.musicVolume=c.createGain();this.storyVolume=c.createGain();this.guidanceMusic=c.createGain();
+    this.musicVolume.connect(this.storyVolume).connect(this.guidanceMusic).connect(this.master);this.music=c.createGain();this.roomMusicGate=c.createGain();this.music.connect(this.roomMusicGate).connect(this.musicVolume);this.day=c.createGain();this.nite=c.createGain();this.day.connect(this.music);this.nite.connect(this.music);
+    this.ambDay=c.createGain();this.ambNight=c.createGain();this.guidanceRoom=c.createGain();
+    this.ambDay.connect(this.guidanceRoom);this.ambNight.connect(this.guidanceRoom);this.guidanceRoom.connect(this.master);
     this.noiseBuffer=c.createBuffer(1,c.sampleRate*3,c.sampleRate);const data=this.noiseBuffer.getChannelData(0);let seed=8137;for(let i=0;i<data.length;i++){seed=(seed*16807)%2147483647;data[i]=(seed/2147483647)*2-1;}
     // Keep the running strings and synthetic throat audible beside the floor's
     // contactor and footsteps at the classic edition's default master level.
@@ -31,7 +43,129 @@ export class Sound {
     chaseMusic.gain.value = 1.78; chaseEffects.gain.value = 1.36;
     chaseMusic.connect(this.musicVolume); chaseEffects.connect(this.sfxVolume);
     this.chaseScore = new ChaseScore(c, { music: chaseMusic, effects: chaseEffects, noise: this.noiseBuffer });
+    this.preloadGuidance();
     this.room();this.setPhase(this.night,true);this.next=c.currentTime+.07;this.timer=setInterval(()=>this.schedule(),40);this.setVolumes(this.volumes);await c.resume();
+  }
+  preloadGuidance() {
+    for (const line of [GUIDANCE_LINES.boiler, GUIDANCE_LINES.roof, ...Object.values(MOURNING_LINES)]) {
+      for (const language of ['en', 'zh']) this.loadGuidance(fileForVoice(line, language));
+    }
+    void Promise.all(SOB_FILES.map(file => decodeOfficeRecording(this.ctx, mourningCryURL(file))))
+      .then(buffers => { this.sobs = buffers.filter(Boolean); });
+  }
+
+  loadGuidance(file) {
+    if (!this.guidanceReady.has(file)) {
+      const ready = decodeOfficeRecording(this.ctx, mourningVoiceURL(file)).then(buffer => {
+        if (buffer) this.guidanceAudio.set(file, buffer);
+        return buffer;
+      });
+      this.guidanceReady.set(file, ready);
+    }
+    return this.guidanceReady.get(file);
+  }
+
+  playGuidance(cue, language) {
+    return this.playVoice(cue, GUIDANCE_LINES[cue], language);
+  }
+
+  warnMourning(cue, language) {
+    if (!this.ctx || this.floor !== 1) return;
+    const now = this.ctx.currentTime;
+    if (cue === 'glance') {
+      if (now - this.lastWarning < 6) return;
+      this.lastWarning = now;
+    }
+    return this.playVoice(cue, MOURNING_LINES[cue], language);
+  }
+
+  isMourningPlaying(cue = 'guide') {
+    return Boolean(this.officeVoice && this.officeVoice.cue === cue && !this.muted && this.focus);
+  }
+
+  async playVoice(cue, line, language) {
+    const context = this.ctx;
+    if (!context || !line || this.menu || this.muted || !this.focus || this.officeVoice?.cue === cue) return;
+    this.stopOfficeVoice();
+    const generation = this.guidanceSeq;
+    const floor = this.floor;
+    const file = fileForVoice(line, language);
+    const buffer = this.guidanceAudio.get(file) ?? await this.loadGuidance(file);
+    if (!buffer || generation !== this.guidanceSeq || this.floor !== floor || this.menu || this.muted || !this.focus) return;
+    const at = context.currentTime + .006;
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    const filter = context.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = line.channel === 'warning' ? 94 : 145;
+    const voice = context.createGain();
+    voice.gain.value = .88;
+    source.connect(filter).connect(voice).connect(this.master);
+    this.officeVoice = { cue, source };
+    const duckDuration = buffer.duration;
+    for (const [node, level] of [[this.guidanceMusic,.27],[this.guidanceRoom,.38]]) {
+      node.gain.cancelScheduledValues(at);
+      node.gain.setValueAtTime(node.gain.value,at);
+      node.gain.linearRampToValueAtTime(level,at+.045);
+      node.gain.setValueAtTime(level,at+duckDuration);
+      node.gain.linearRampToValueAtTime(1,at+duckDuration+.29);
+    }
+    if (line.channel !== 'warning') this.noise(at,.040,.022,1600,this.sfx,1.2);
+    source.onended = () => {
+      if (this.officeVoice?.source === source) this.officeVoice = null;
+      source.disconnect();
+      filter.disconnect();
+      voice.disconnect();
+    };
+    this.audit.push('voice-'+cue);
+    if (this.audit.length > 80) this.audit.shift();
+    source.start(at);
+  }
+
+  stopOfficeVoice() {
+    this.guidanceSeq++;
+    if (!this.officeVoice) return;
+    const { source } = this.officeVoice;
+    this.officeVoice = null;
+    source.stop();
+    const at = this.ctx.currentTime;
+    for (const node of [this.guidanceMusic,this.guidanceRoom]) {
+      node.gain.cancelScheduledValues(at);
+      node.gain.setValueAtTime(node.gain.value,at);
+      node.gain.linearRampToValueAtTime(1,at+.15);
+    }
+  }
+
+  stopSobs() {
+    for (const slot of this.sobVoices) {
+      const at = this.ctx.currentTime;
+      slot.gain.gain.setTargetAtTime(.0001, at, .02);
+      slot.source.stop(at + .08);
+    }
+    this.sobVoices.clear();
+  }
+
+  playSob(at, attack) {
+    if (!this.focus || this.muted || !this.sobs.length) return false;
+    const speed = attack ? .81 : .97 + Math.random() * .08;
+    const buffer = this.sobs[Math.floor(Math.random() * this.sobs.length)];
+    const duration = attack ? Math.min(1.3, buffer.duration) : buffer.duration;
+    if (!this.reserveVoice(at,duration/speed)) return false;
+    const source = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = speed;
+    gain.gain.value = attack ? .52 : .67;
+    source.connect(gain).connect(this.sfx);
+    const slot = { source, gain };
+    this.sobVoices.add(slot);
+    source.onended = () => {
+      this.sobVoices.delete(slot);
+      source.disconnect();
+      gain.disconnect();
+    };
+    source.start(at,0,duration);
+    return true;
   }
   gain(bus,t,g,d,a=.008){const n=this.ctx.createGain();n.gain.setValueAtTime(.00001,t);n.gain.exponentialRampToValueAtTime(Math.max(.0001,g),t+a);n.gain.exponentialRampToValueAtTime(.00001,t+d);n.connect(bus);return n;}
   reserveVoice(t,d){this.voiceEnds=this.voiceEnds.filter(end=>end>t);if(this.voiceEnds.length>=this.maxVoices)return false;this.voiceEnds.push(t+d+.03);return true;}
@@ -49,8 +183,8 @@ export class Sound {
     const n=c.createBufferSource();n.buffer=this.noiseBuffer;n.loop=true;this.wind=c.createBiquadFilter();this.wind.type='lowpass';this.wind.frequency.value=260;const v=c.createGain();v.gain.value=.06;n.connect(this.wind).connect(v).connect(this.ambNight);n.start();this.roomNodes.push(n);
     this.micro=c.currentTime+3;
   }
-  setPhase(n,immediate=false){this.night=n;if(!this.ctx)return;const t=this.ctx.currentTime,d=immediate?0:.18;for(const [node,val] of [[this.day,n?0:.24],[this.nite,n?.29:0],[this.ambDay,n?.08:1],[this.ambNight,n?1:.06]]){node.gain.cancelScheduledValues(t);if(immediate){node.gain.setValueAtTime(val,t);}else{node.gain.setValueAtTime(node.gain.value,t);node.gain.linearRampToValueAtTime(val,t+d);}}}
-  setFloor(f){this.floor=f;this.phoneRang=false;if(this.ctx){const t=this.ctx.currentTime;this.hum.gain.cancelScheduledValues(t);this.hum.gain.setValueAtTime(this.hum.gain.value,t);this.hum.gain.linearRampToValueAtTime([.035,.018,.009][f],t+.5);this.wind.frequency.setValueAtTime(this.wind.frequency.value,t);this.wind.frequency.linearRampToValueAtTime(f===2?900:260,t+.4);}}
+  setPhase(n,immediate=false){if(n!==this.night)this.stopSobs();this.night=n;if(!this.ctx)return;const t=this.ctx.currentTime,d=immediate?0:.18;for(const [node,val] of [[this.day,n?0:.24],[this.nite,n?.29:0],[this.ambDay,n?.08:1],[this.ambNight,n?1:.06]]){node.gain.cancelScheduledValues(t);if(immediate){node.gain.setValueAtTime(val,t);}else{node.gain.setValueAtTime(node.gain.value,t);node.gain.linearRampToValueAtTime(val,t+d);}}}
+  setFloor(f){if(f!==this.floor){this.stopOfficeVoice();this.stopSobs();}this.floor=f;this.phoneRang=false;if(this.ctx){const t=this.ctx.currentTime;this.hum.gain.cancelScheduledValues(t);this.hum.gain.setValueAtTime(this.hum.gain.value,t);this.hum.gain.linearRampToValueAtTime([.035,.018,.009][f],t+.5);this.wind.frequency.setValueAtTime(this.wind.frequency.value,t);this.wind.frequency.linearRampToValueAtTime(f===2?900:260,t+.4);}}
   duck(d=.8){if(!this.ctx)return;const t=this.ctx.currentTime,b=this.music;b.gain.cancelScheduledValues(t);b.gain.setValueAtTime(.70794578,t);b.gain.setValueAtTime(.70794578,t+d);b.gain.linearRampToValueAtTime(1,t+d+.18);}
   nearSilence(){if(!this.ctx)return;const t=this.ctx.currentTime;this.master.gain.cancelScheduledValues(t);this.master.gain.setValueAtTime(this.master.gain.value,t);this.master.gain.linearRampToValueAtTime(.018,t+.008);this.master.gain.setValueAtTime(.018,t+.295);this.master.gain.linearRampToValueAtTime(this.muted||!this.focus?0:.72*this.volumes.master,t+.305);}
   effect(name,amount=1,surface='concrete'){
@@ -60,6 +194,11 @@ export class Sound {
     if(name==='land'){const g=SFX_GAIN.land*Math.min(1,Math.max(.2,amount));this.kick(t,g);this.noise(t,.13,g*.55,650);}
     if(name==='hurt'){this.clunk(t,SFX_GAIN.hurt);this.tone(180,72,t,.3,.08,'sawtooth');this.noise(t,.18,.07,900);}
     if(name==='valve'){this.noise(t,.6,.075,2200);this.clunk(t+.15,.14);this.tone(88,48,t,.55,.05,'triangle');}
+    if(name==='mourning-cry'&&!this.playSob(t,false)){
+      for(const offset of [0,.29,.66]){this.noise(t+offset,.34,.078,710,this.sfx,2.05);this.tone(334,173,t+offset+.05,.22,.026,'triangle');}
+    }
+    if(name==='mourning-lock'){this.noise(t,.14,.085,1390,this.sfx,1.55);this.tone(82,43,t+.09,.20,.075,'sine');}
+    if(name==='mourning-strike'){this.stopSobs();this.playSob(t,true);this.noise(t,.23,.15,1520,this.sfx,1.1);this.duck(.62);}
     if(name==='ghostAlert'){this.tone(320,220,t,.48,.035,'sine');this.noise(t,.5,.025,950);this.duck(.35);}
     if(name==='handle'){this.tick(t,.065);this.clunk(t+.12,.07);}
     if(name==='evidence'){[0,7,12].forEach((v,i)=>this.tone(midi(65+v),midi(65+v),t+i*.1,.5,.04,'sine'));}
@@ -101,11 +240,11 @@ export class Sound {
     if(c.currentTime>this.micro){if(this.floor===0)this.effect(this.notes%3?'drip':'knock');else if(this.floor===1&&!this.phoneRang&&!this.menu){this.effect('phone');this.phoneRang=true;}else if(this.floor===2){this.noise(c.currentTime,1.7,.03,600,this.ambNight);}this.micro=c.currentTime+6.8+(this.notes%4)*.3;}
     if(this.night&&this.notes%16===0&&this.cricket!==this.notes){this.cricket=this.notes;for(let i=0;i<3;i++)this.tone(4100,4000,c.currentTime+i*.09,.045,.008,'sine',this.ambNight);}
   }
-  effectAt(name,worldX,listenerX,amount=1,surface='concrete'){if(!this.ctx)return;const delta=worldX-listenerX,distance=Math.abs(delta);if(distance>650)return;const c=this.ctx,bus=c.createGain();bus.gain.value=1/(1+distance/240);const pan=c.createStereoPanner();pan.pan.value=Math.max(-.85,Math.min(.85,delta/320));const original=this.sfx;bus.connect(pan).connect(original);this.sfx=bus;try{this.effect(name,amount,surface);}finally{this.sfx=original;}const cleanup=c.createOscillator(),silent=c.createGain();silent.gain.value=0;cleanup.connect(silent).connect(this.master);cleanup.onended=()=>{cleanup.disconnect();silent.disconnect();bus.disconnect();pan.disconnect();};cleanup.start();cleanup.stop(c.currentTime+2.6);}
+  effectAt(name,worldX,listenerX,amount=1,surface='concrete'){if(!this.ctx)return;const delta=worldX-listenerX,distance=Math.abs(delta);if(distance>650)return;const c=this.ctx,bus=c.createGain();bus.gain.value=1/(1+distance/240);const pan=c.createStereoPanner();pan.pan.value=Math.max(-.85,Math.min(.85,delta/320));const original=this.sfx;bus.connect(pan).connect(original);this.sfx=bus;try{this.effect(name,amount,surface);}finally{this.sfx=original;}const cleanup=c.createOscillator(),silent=c.createGain();silent.gain.value=0;cleanup.connect(silent).connect(this.master);cleanup.onended=()=>{cleanup.disconnect();silent.disconnect();bus.disconnect();pan.disconnect();};cleanup.start();cleanup.stop(c.currentTime+(name==='mourning-cry'?3.6:2.6));}
   setVolumes(v){this.volumes={...this.volumes,...v};if(this.ctx){this.applyVolume();const t=this.ctx.currentTime;for(const [node,value] of [[this.musicVolume,this.volumes.music],[this.sfxVolume,this.volumes.sfx]]){node.gain.cancelScheduledValues(t);node.gain.setValueAtTime(node.gain.value,t);node.gain.linearRampToValueAtTime(value,t+.04);}}}
   setNarrative({sector=0,scene='',pursuit=false,resolution=false}){this.sector=sector;this.sceneId=scene;this.resolution=resolution;const key=`${sector}:${scene}:${pursuit}:${resolution}`;if(!this.ctx||key===this.narrativeKey)return;this.narrativeKey=key;const t=this.ctx.currentTime;this.storyVolume.gain.cancelScheduledValues(t);this.storyVolume.gain.setValueAtTime(this.storyVolume.gain.value,t);this.storyVolume.gain.linearRampToValueAtTime(scene?.62:pursuit?.83:1,t+.7);}
   setTension(value){this.tension=value;}
-  mute(value=!this.muted){this.muted=value;if(value)this.setChase(null);this.applyVolume();return value;}
-  setFocus(v){this.focus=v;if(!v)this.setChase(null);this.applyVolume();}
+  mute(value=!this.muted){this.muted=value;if(value){this.setChase(null);this.stopOfficeVoice();this.stopSobs();}this.applyVolume();return value;}
+  setFocus(v){this.focus=v;if(!v){this.setChase(null);this.stopOfficeVoice();this.stopSobs();}this.applyVolume();}
   applyVolume(){if(this.ctx){const t=this.ctx.currentTime;this.master.gain.cancelScheduledValues(t);this.master.gain.setValueAtTime(this.master.gain.value,t);this.master.gain.linearRampToValueAtTime(this.muted||!this.focus?0:.72*this.volumes.master,t+.025);}}
 }

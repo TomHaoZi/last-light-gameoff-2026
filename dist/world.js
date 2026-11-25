@@ -57,8 +57,12 @@ export function buildSector(chapter,sector,mechanisms=[]){
  doors.push({id:`${prefix}/exit-door`,x:1772,y:1536,w:18,h:42,locked:!done,requires:prefix});
  // Safe upper detours in the furnished tiles, and neutral stairwells, are actual
  // geometry around these encounters. No contact-damage grace period is added.
- if(sector>0){const a=tilePosition((sector+1)%4,2);ghosts.push({id:`${prefix}/patrol`,x:a.x+392,y:a.y-33,range:16,phase:'night',kind:'wanderer',spawnCondition:'always',moveSpeed:18});}
- if(sector>1){const a=tilePosition(sector%4,4);ghosts.push({id:`${prefix}/observer`,x:a.x+392,y:a.y-33,range:16,phase:chapter===1?null:'night',kind:chapter===0?'listener':'watcher',spawnCondition:'always',moveSpeed:18,chaseRange:120,alertDelay:.9});}
+ if(chapter===1&&sector===0){
+  // The lobby lamp teaches the gaze rule next to a flat, neutral test lane.
+  ghosts.push({id:`${prefix}/mourning-demo`,x:248,y:195,patrolPath:[{x:248,y:195}],phase:'night',kind:'mourner',spawnCondition:'always'});
+ }
+ if(sector>0){const a=tilePosition((sector+1)%4,2);ghosts.push({id:`${prefix}/patrol`,x:a.x+392,y:a.y-33,range:16,phase:'night',kind:chapter===1?'mourner':'wanderer',spawnCondition:'always',moveSpeed:18});}
+ if(sector>1){const a=tilePosition(sector%4,4);ghosts.push({id:`${prefix}/observer`,x:a.x+392,y:a.y-33,range:16,phase:chapter===1?null:'night',kind:chapter===0?'listener':chapter===1?'mourner':'watcher',spawnCondition:'always',moveSpeed:18,chaseRange:120,alertDelay:.9});}
  const evidence=[];if(sector===2||sector===4){const p=tilePosition(sector===2?1:2,3);evidence.push({id:EVIDENCE_IDS[chapter][sector===2?0:1],x:p.x+65,y:p.y-14});}
  return {revision:WORLD_REVISION,id:prefix,spec,sector,width:SECTOR_WIDTH,height:SECTOR_HEIGHT,platforms,walls,hazards,checkpoints,props,doors,ghosts,station,evidence,relay,entry:{x:55,y:200},exit:{x:1830,y:1550},done};
 }

@@ -1,4 +1,5 @@
 import {phaseActive} from './phase.js';
+import {updateMourningGaze} from './mourning-clerk.js';
 export function createGhost(config,index=0){
  const x=config.x,y=config.y;return {...config,id:config.id||`ghost-${index}`,kind:config.kind||['wanderer','watcher','listener'][index%3],phase:config.phase??null,
  patrolPath:config.patrolPath||[{x:x-(config.range||90),y},{x:x+(config.range||90),y}],speed:config.moveSpeed||24,alertDelay:config.alertDelay??.7,chaseRange:config.chaseRange||150,collisionShape:config.collisionShape||{w:12,h:16},spawnCondition:config.spawnCondition||'after-tutorial',
@@ -11,8 +12,13 @@ export function updateGhost(g,world,dt,noise=0){
  g.prevX=g.xNow;g.prevY=g.yNow;g.cooldown=Math.max(0,g.cooldown-dt);
  const p=world.player;g.spawned=g.spawnCondition==='always'||p.x>500||world.events.includes('tutorial');
  const atLamp=world.checkpoints.some(c=>Math.hypot(p.x-c.x,p.y-c.y)<66);
- if(!g.spawned||!phaseActive(g,world.night)||g.cooldown>0){g.state='dormant';g.stateTime=0;return false;}
+ if(!g.spawned||!phaseActive(g,world.night)||g.cooldown>0){
+  g.state='dormant';g.stateTime=0;
+  if(g.kind==='mourner'){g.gaze=0;g.gazeWarned=false;g.looking=false;}
+  return false;
+ }
  if(g.state==='dormant')g.state='patrol';g.stateTime+=dt;
+ if(g.kind==='mourner'&&updateMourningGaze(g,world,dt,atLamp))return true;
  const dx=p.x+7-g.xNow,dy=p.y+14-g.yNow,range=Math.hypot(dx,dy);
  // Watchers look along their patrol direction; close peripheral detection stays
  // active. They cannot keep a player locked behind their back across the room.
@@ -20,7 +26,7 @@ export function updateGhost(g,world,dt,noise=0){
  const visible=inView&&range<g.chaseRange&&Math.abs(dy)<60&&!sightBlocked(g,p,world.walls||[],world.night);
  const noticed=!atLamp&&['alive','hurt'].includes(p.lifeState)&&(g.kind==='watcher'?visible:g.kind==='listener'?visible&&noise>.4:false);
  if(noticed&&['patrol','return','search'].includes(g.state)){g.state='alert';g.stateTime=0;g.target={x:p.x+7,y:g.kind==='watcher'?g.home.y:p.y+14};}
- if(g.state==='alert'&&g.stateTime>=g.alertDelay){g.state='chase';g.stateTime=0;}
+ if(g.kind!=='mourner'&&g.state==='alert'&&g.stateTime>=g.alertDelay){g.state='chase';g.stateTime=0;}
  if(g.state==='chase'){
   if(atLamp||!visible||g.kind==='listener'&&noise<.2){g.state='search';g.stateTime=0;}else g.target={x:p.x+7,y:g.kind==='watcher'?g.home.y:p.y+14};
  }

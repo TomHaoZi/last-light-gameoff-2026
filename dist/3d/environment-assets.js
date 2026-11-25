@@ -12,12 +12,17 @@ function plans(visual) {
     { file: 'compressor', place: [x - 3.74, 0, z - 4.34, Math.PI / 2, 1.15], footprint: [2.42, 1.07] },
     { file: 'fire-alarm', place: [x - 1.70, 1.37, z - 5.96, 0, 1.20] }
   ];
-  if (visual.theme === 1) return [
+  if (visual.theme === 1) {
+    const note = visual.decoded.notes?.find(tile => tile.kind === 'N');
+    return [
+    ...(note ? [{ file: 'office-phonograph', place: [note.x - .38, 0, note.z, .12, 1.04],
+      optional: true, footprint: [.98, .76] }] : []),
     { file: 'ticketcase', place: [x - 5.83, .93, z + .90, Math.PI / 2, 1.1] },
     { file: 'records-desk', place: [x - 2.52, 0, z - 4.63, 0, 1.10], replaces: 'F4 records desk', footprint: [2.55, 1.33] },
     { file: 'dispatch-radio', place: [x - 2.72, .866, z - 4.54, -.13, 1.44] },
     { file: 'records-lamp', place: [x - 1.79, .80, z - 4.82, Math.PI, .86] }
-  ];
+    ];
+  }
   return [
     { file: 'rainhead', place: [x + 6.20, 0, z - 4.30, -.14, 1.02], footprint: [.90, .50] },
     { file: 'roof-condenser', place: [x + 4.26, -.24, z - 5.30, -.14, 1.32], replaces: 'Rooftop exhaust HVAC-03', footprint: [1.45, .80] }
@@ -113,7 +118,7 @@ export async function mountEnvironment(visual) {
   const results = await Promise.allSettled(placements.map(plan => loader.loadAsync(modelPath(plan.file))));
   // Keep the desk, radio and clamped lamp together if a file is missing.
   const usable = stage === visual.stage &&
-    (visual.theme !== 1 || results.every(result => result.status === 'fulfilled'));
+    (visual.theme !== 1 || results.every((result, index) => placements[index].optional || result.status === 'fulfilled'));
 
   for (const [index, result] of results.entries()) {
     if (result.status !== 'fulfilled') continue;

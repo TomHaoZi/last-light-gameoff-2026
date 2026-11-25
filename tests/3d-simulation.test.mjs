@@ -57,7 +57,7 @@ function nextCell(sim, direction, sprint = false) {
   const current = sim.map.at(sim.x, sim.z);
   const target = sim.map.get(current.col + dx, current.row + dz);
   assert.ok(target, `A route leaves ${sim.level.id} at ${current.col},${current.row}`);
-  sim.look(Math.atan2(target.x - sim.x, sim.z - target.z) - sim.yaw, 0);
+  sim.look(Math.atan2(target.x - sim.x, sim.z - target.z) - sim.yaw, (sim.level.mourning ? -.41 : 0) - sim.pitch);
   for (let i = 0; i < Math.ceil(1.6 / STEP); i++) {
     const distance = Math.hypot(target.x - sim.x, target.z - sim.z);
     if (distance < .054 || sim.life !== "alive") break;
@@ -72,6 +72,71 @@ function interact(sim, marker) {
   assert.equal(sim.getInteraction()?.tile.kind, marker, `${sim.level.id}: expected ${marker} in range`);
   sim.step({ interact: true });
 }
+
+test("office eye contact builds only on a face, and a brief glance can be broken", () => {
+  const sim = start([corridor("gaze", "#SN.L..G...E#", { mourning: true, guide: ["Low eyes", "低头"] })]);
+  const face = sim.ghosts[0];
+  nextCell(sim, "E");
+  interact(sim, "N");
+  assert.equal(sim.mourningNoteRead, true);
+  assert.equal(sim.progress.evidence.length, 0);
+  assert.ok(sim.drain().some(event => event.type === "mourning-guide" && event.manual));
+  nextCell(sim, "E");
+  nextCell(sim, "E");
+  interact(sim, "L");
+  sim.look(Math.PI / 2 - sim.yaw, -sim.pitch);
+  advance(sim, 1);
+  assert.equal(sim.gaze, 0, "the emergency lamp protects the player");
+
+  nextCell(sim, "E");
+  sim.look(0, -sim.pitch);
+  advance(sim, .24);
+  assert.ok(sim.watching && sim.gaze > .2 && sim.gaze < .5);
+  const warning = sim.drain();
+  assert.ok(warning.some(event => event.type === "mourning-glance"));
+  assert.ok(warning.every(event => event.type !== "death"));
+  sim.look(0, -.46);
+  advance(sim, .7);
+  assert.equal(sim.gaze, 0);
+  assert.equal(sim.life, "alive");
+  assert.deepEqual([face.x, face.z], [face.home.x, face.home.z], "the statue holds its post");
+
+  sim.look(-.23, .46);
+  advance(sim, .9);
+  assert.equal(sim.gaze, 0, "peripheral vision stays clear");
+  sim.look(.23, 0);
+  advance(sim, .24);
+  sim.step({ shift: true });
+  assert.equal(sim.gaze, 0, "an inactive phase clears the warning");
+  assert.equal(face.active, false);
+  advance(sim, .35);
+  sim.step({ shift: true });
+  advance(sim, .8);
+  assert.equal(sim.deathCause, "gaze");
+  assert.equal(sim.pursuer, face);
+  assert.equal(sim.progress.deaths, 1);
+  advance(sim, 1.9);
+  assert.equal(sim.life, "alive");
+  assert.equal(sim.gaze, 0);
+  assert.equal(sim.x, sim.checkpoint.x);
+  assert.equal(sim.z, sim.checkpoint.z);
+});
+
+test("office gaze does not see through a wall, but touching an active figure still kills", () => {
+  const separate = start([corridor("gaze", "#S..#..G..E#", { mourning: true })]);
+  nextCell(separate, "E");
+  nextCell(separate, "E");
+  separate.look(Math.PI / 2 - separate.yaw, -separate.pitch);
+  advance(separate, 1.3);
+  assert.equal(separate.gaze, 0);
+  assert.equal(separate.life, "alive");
+
+  const open = start([corridor("gaze", "#S.G.E#", { mourning: true })]);
+  nextCell(open, "E");
+  for (let i = 0; i < 140 && open.life === "alive"; i++) open.step({ forward: 1 });
+  assert.equal(open.deathCause, "ghost");
+  assert.equal(open.gaze, 0);
+});
 
 test("a shift flips support, and station interaction respects the active phase", () => {
   const sim = start([corridor("phase", "#Sd.An.E#", { requiredPhase: { A: "night" } })]);

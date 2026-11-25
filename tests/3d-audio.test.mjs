@@ -123,7 +123,12 @@ test('packaged recordings decode and play in place of procedural effects on the 
   sound.initialize(context);
   const folder = new URL('../dist/3d/audio/', import.meta.url);
   const clips = (await readdir(folder)).filter(name => name.endsWith('.m4a'));
-  assert.equal(clips.length, 12, 'recorded effect pack is incomplete');
+  const essential = [
+    'creature-alert', 'creature-exhale', 'creature-grab', 'creature-growl', 'creature-howl',
+    'door-steel', 'room-boiler', 'room-office', 'room-roof', 'step-carpet', 'step-grate',
+    'step-stone', 'mourning-sob-soft', 'mourning-sob-held'
+  ];
+  for (const name of essential) assert.ok(clips.includes(name + '.m4a'), name + ' is missing');
   for (const clip of clips) {
     const bytes = await readFile(new URL(clip, folder));
     const buffer = await context.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
@@ -200,4 +205,63 @@ test('room audio ducks under speech and recovers when the line is interrupted', 
   assert.ok(before > .02, 'the recorded room should be audible');
   assert.ok(during < before * .5, 'room bed still masks the dialogue');
   assert.ok(after > before * .9, 'room bed remained ducked after interruption');
+});
+
+test('a short voice transient has no repeated tap in any channel', async () => {
+  for (const channel of ['stairwell', 'archive', 'intercom', 'gramophone', 'warning']) {
+    const rate = 48_000;
+    const context = new OfflineAudioContext(2, rate / 4, rate);
+    const sound = new HorrorAudio();
+    sound.initialize(context);
+    sound.roomBus.disconnect();
+    sound.wet.disconnect();
+    const voice = context.createBuffer(1, rate / 20, rate);
+    for (let i = 0; i < 140; i++) {
+      voice.getChannelData(0)[i] = Math.sin(Math.PI * i / 140) * Math.sin(i * .31) * .40;
+    }
+    // Remove the contact and needle sounds to isolate the dry voice.
+    sound.noise = () => {};
+    sound.tone = () => {};
+    sound.playDialogue(voice, channel);
+    const rendered = await context.startRendering();
+    const left = rendered.getChannelData(0);
+    let peak = 0;
+    let index = 0;
+    for (let i = 0; i < left.length; i++) {
+      if (Math.abs(left[i]) <= peak) continue;
+      peak = Math.abs(left[i]);
+      index = i;
+    }
+    const tail = left.subarray(index + rate * .015, index + rate * .120)
+      .reduce((max, value) => Math.max(max, Math.abs(value)), 0);
+    assert.ok(peak > .055, channel + ' voice did not play');
+    assert.ok(tail < peak * .005, channel + ' emitted a repeat tap');
+  }
+});
+
+test('the same human sob localizes to opposite ears when the listener turns', async () => {
+  const rate = 24_000;
+  const context = new OfflineAudioContext(2, 7 * rate, rate);
+  const audio = new HorrorAudio();
+  audio.initialize(context);
+  audio.roomBus.disconnect();
+  audio.wet.disconnect();
+  audio.scoreBus.gain.value = 0;
+  const path = new URL('../dist/3d/audio/mourning-sob-held.m4a', import.meta.url);
+  const raw = await readFile(path);
+  const sample = await context.decodeAudioData(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+  audio.recordings.set('mourning-sob-soft', sample);
+  audio.recordings.set('mourning-sob-held', sample);
+  const mourner = { x: 3, z: -1, active: true, kind: 'mourning' };
+  const timings = [[.15, 0], [3.22, Math.PI]].map(([seconds, yaw]) => context.suspend(seconds).then(() => {
+    audio.player.yaw = yaw;
+    audio.cue('mourning-cry', mourner);
+    return context.resume();
+  }));
+  const [rendered] = await Promise.all([context.startRendering(), ...timings]);
+  const power = (channel, start) => rendered.getChannelData(channel)
+    .subarray(Math.round(start * rate), Math.round((start + 1.3) * rate))
+    .reduce((sum, sample) => sum + sample ** 2, 0);
+  assert.ok(power(1, .20) > power(0, .20) * 3, 'first sob did not favor the right ear');
+  assert.ok(power(0, 3.27) > power(1, 3.27) * 3, 'the turn did not move the sob to the left ear');
 });

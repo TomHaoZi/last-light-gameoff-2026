@@ -1,5 +1,9 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.18 · Eye contact and guidance
+
+Exposure accumulates only under a clear direct gaze at an active office spectre. A short warning gives the player time to look elsewhere. Ordinary collision remains dangerous. Render the new figure and repaired wings from original independent Blender assemblies. Keep rule instructions playable from the phonograph and readable in the journal. Give directional creature sounds their own path and keep speech free of parallel delayed copies.
+
 ## 3.0.0-rc.17 · Chase pacing and interiors
 
 Raise chase speeds in both editions and extend the route to retain roughly 45 seconds of uninterrupted running. Classic uses linked runs of jumps, steps and drops, while the first-person route alternates rack openings and follows them with paired jumps. Keep the old checkpoint identifiers and the phase switch as the single source of collision and platform visibility.

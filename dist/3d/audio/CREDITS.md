@@ -15,3 +15,5 @@ These recordings are bundled under [CC0 1.0](https://creativecommons.org/publicd
 - `room-roof.m4a` comes from PostProdDog's outdoor stereo field recording. [traffic passes and wind gusts blow the autumn leaves ambience](https://freesound.org/people/PostProdDog/sounds/537329/)
 
 Each pursuer uses the credited actor and field recordings above. Live playback varies the attack, breath, pitch and foley for the individual pursuer. The howl layers in a lower throat take. The lunge has a cloth drag and a short metal fitting rattle, and the close attack adds two movements of fabric. These additional layers and the three knocks behind the boiler service hatch are synthesized in the game.
+
+- `mourning-sob-soft.m4a` and `mourning-sob-held.m4a` are two excerpts of AlucardsBride’s [crying woman.wav](https://freesound.org/people/AlucardsBride/sounds/172738/), published under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The verified [Wikimedia source copy](https://commons.wikimedia.org/wiki/File:Cry_of_woman.ogg) was trimmed, level matched and encoded as mono AAC so the game can position the breaths.

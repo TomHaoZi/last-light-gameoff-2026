@@ -1,5 +1,6 @@
 import { CHASE_DOOR, CHASE_LAMP, CHASE_OBSTACLES } from '../dist/backrooms.js';
 import {playAnnex} from './play-annex.mjs';
+import {playOfficeGaze} from './play-office-gaze.mjs';
 import {freshSave} from '../dist/save.js';
 import {join,resolve,dirname} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -13,6 +14,7 @@ import {ExpandedEvidence} from './expanded-evidence.mjs';
 import {playExpandedRelay} from './play-expanded-relay.mjs';
 const complete=process.env.ENDING==='complete',limit=Number(process.env.MAX_SECTORS||18),out=process.env.EVIDENCE_DIR||`docs/evidence/expanded/${complete?'complete':'normal'}-${limit}`;
 const replayAnnex=process.env.CHECK_ANNEX_REPLAY==='1',checkAnnex=replayAnnex||process.env.CHECK_ANNEX==='1';
+const checkOfficeGaze=process.env.CHECK_OFFICE_GAZE==='1';
 const checkRelays=process.env.CHECK_RELAYS==='1';
 const checkRecovery=process.env.CHECK_RELAY_RECOVERY==='1';
 if(!Number.isInteger(limit)||limit<1||limit>18)throw Error('MAX_SECTORS must be between 1 and 18');
@@ -23,7 +25,7 @@ const hashes={};for(const name of (await readdir(assetDir,{withFileTypes:true}))
 // Plan against the served build, not the old local audit. Prepare before Chrome
 // starts so planner CPU time never advances ghosts while input is suspended.
 const graphs=new Map(),expectedRooms=[];
-for(let index=0;index<(checkAnnex?0:process.env.CHROME_PROFILE?18:limit);index++){
+for(let index=0;index<(checkAnnex||checkOfficeGaze?0:process.env.CHROME_PROFILE?18:limit);index++){
  const floor=Math.floor(index/6),sector=index%6,world=buildSector(floor,sector);
  expectedRooms.push(world.id);
  const worked=buildSector(floor,sector,[world.id]);
@@ -35,7 +37,7 @@ const port=Number(process.env.PORT||8793),debug=Number(process.env.DEBUG_PORT||9
 const server=spawn('python3',['-m','http.server',String(port),'-d',servedRoot],{stdio:'ignore'});
 const profile=process.env.CHROME_PROFILE||await mkdtemp(join(tmpdir(),'last-light-expanded-'));
 const continuation=!!process.env.CHROME_PROFILE&&await access(profile).then(()=>true,error=>{if(error.code!=='ENOENT')throw error;return false;});
-const chrome=spawn(process.env.CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu','--autoplay-policy=no-user-gesture-required',`--remote-debugging-port=${debug}`,`--user-data-dir=${profile}`,'--window-size=1280,1100',`http://127.0.0.1:${port}`],{stdio:'ignore'});
+const chrome=spawn(process.env.CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-gpu','--mute-audio','--autoplay-policy=no-user-gesture-required',`--remote-debugging-port=${debug}`,`--user-data-dir=${profile}`,'--window-size=1280,1100',`http://127.0.0.1:${port}`],{stdio:'ignore'});
 let ws,id=0,error,passed=false;const wait=new Map(),keys=new Set(),actions=[],log=[],errors=[],shots=new Set(),routeEvidence=new ExpandedEvidence(),completedRelays=new Set();
 const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id,timer=setTimeout(()=>{wait.delete(n);reject(Error(`CDP timeout ${method}`));},7000);wait.set(n,{resolve,reject,timer});ws.send(JSON.stringify({id:n,method,params}));});
 const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
@@ -45,18 +47,27 @@ const stop=async()=>{for(const k of [...keys])await key(k,false);};
 const snapshot=async()=>{const state=await evaluate('window.lastLight.snapshot()');routeEvidence.observe(state);return state;};
 const readSave=()=>evaluate("JSON.parse(localStorage.getItem('last-light-v3'))");
 const click=async(selector='#start')=>{const p=await evaluate(`(()=>{let e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'center'});let r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);await send('Input.dispatchMouseEvent',{type:'mousePressed',...p,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',...p,button:'left',clickCount:1});};
-const screenshot=async name=>{if(shots.has(name))return;shots.add(name);const s=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});await writeFile(`${out}/${name}.png`,Buffer.from(s.data,'base64'));};
+const screenshot=async name=>{
+ if(shots.has(name))return;
+ shots.add(name);
+ const image=checkOfficeGaze
+  ?(await evaluate("document.getElementById('game').toDataURL('image/png')")).split(',')[1]
+  :(await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true})).data;
+ await writeFile(out+'/'+name+'.png',Buffer.from(image,'base64'));
+};
 const adjacency=new WeakMap(),distanceCache=new WeakMap();
 function adjacencyFor(edges){if(!adjacency.has(edges)){const m=new Map();for(const e of edges){if(!m.has(e.from))m.set(e.from,[]);m.get(e.from).push(e);}adjacency.set(edges,m);}return adjacency.get(edges);}
 function distances(edges,goal){let cache=distanceCache.get(edges);if(!cache){cache=new Map();distanceCache.set(edges,cache);}if(cache.has(goal))return cache.get(goal);const reverse=new Map();for(const e of edges){if(!reverse.has(e.to))reverse.set(e.to,new Set());reverse.get(e.to).add(e.from);}const dist=new Map([[goal,0]]),q=[goal];for(let i=0;i<q.length;i++)for(const from of reverse.get(q[i])||[])if(!dist.has(from)){dist.set(from,dist.get(q[i])+1);q.push(from);}cache.set(goal,dist);return dist;}
 function shortest(edges,start,goal){if(start===goal)return [];const queue=[start],prior=new Map([[start,null]]),incoming=new Map();for(let i=0;i<queue.length;i++){for(const e of adjacencyFor(edges).get(queue[i])||[])if(!prior.has(e.to)){prior.set(e.to,e.from);incoming.set(e.to,e);queue.push(e.to);if(e.to===goal){const path=[];let x=goal;while(prior.get(x)!=null){path.unshift(incoming.get(x));x=prior.get(x);}return path;}}}return null;}
 function predicts(s,data,target,dir,jump,desiredNight,walk=false){
  const p={...s.player},night=s.phase==='night';const platforms=data.platforms.map(q=>({...q,motion:q.motion?{...q.motion}:undefined}));const index=new CollisionIndex(platforms);let airborne=false;
+ const solids=[...data.walls,...doorColliders(s.doors)];
+ p.eyesDown=s.floor===1&&walk;
  const ghosts=data.ghosts.map((config,i)=>{const actual=s.ghosts.find(g=>g.id===config.id),g=createGhost(config,i);if(actual)Object.assign(g,actual,{xNow:actual.x,yNow:actual.y,prevX:actual.x,prevY:actual.y});return g;});
  for(let t=0;t<300;t++){
   updateMovingPlatforms(platforms,s.time+t/120,1/120);if(t===0)for(const q of platforms)q.dx=q.dy=0;
-  stepPlayer(p,{left:dir<0,right:dir>0,jump:jump&&t===0,walk},index.query(p.x-40,p.y-20,p.x+60,p.y+65),t>10?desiredNight:night,1/120,{width:data.width,solids:[...data.walls,...doorColliders(s.doors)]});
-  const predictionWorld={player:p,night:t>10?desiredNight:night,events:s.events,checkpoints:data.checkpoints,walls:data.walls};
+  stepPlayer(p,{left:dir<0,right:dir>0,jump:jump&&t===0,walk},index.query(p.x-40,p.y-20,p.x+60,p.y+65),t>10?desiredNight:night,1/120,{width:data.width,solids});
+  const predictionWorld={player:p,night:t>10?desiredNight:night,events:s.events,checkpoints:data.checkpoints,walls:data.walls,gazeBlockers:solids,time:s.time+t/120};
   if(ghosts.some(g=>updateGhost(g,predictionWorld,1/120,walk?.1:.7)))return false;
   if(!p.grounded)airborne=true;if(p.grounded&&p.supportId!==s.player.supportId)return p.supportId===target;if(jump&&airborne&&p.grounded||p.y>1740)return false;
  }
@@ -67,14 +78,15 @@ try{
  ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j;});ws.onmessage=e=>{const m=JSON.parse(e.data),w=wait.get(m.id);if(w){clearTimeout(w.timer);wait.delete(m.id);m.error?w.reject(Error(JSON.stringify(m.error))):w.resolve(m.result);}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);};
  await send('Runtime.enable');await send('Page.enable');
  for(let n=0;n<40;n++){try{if((await fetch(`http://127.0.0.1:${port}/`)).ok)break;}catch{}await sleep(100);}
- await send('Page.navigate',{url:`http://127.0.0.1:${port}${pagePath}`});await sleep(200);let ready=false;for(let n=0;n<90;n++){if(n===25||n===55){log.push({event:'startup-reload',retry:n});await send('Page.reload');await sleep(250);}ready=await evaluate("document.readyState==='complete'&&typeof window.lastLight?.snapshot==='function'&&!!document.getElementById('start')");if(ready)break;await sleep(100);}if(!ready){log.push({event:'startup-diagnostic',page:await evaluate("({url:location.href,ready:document.readyState,title:document.title,body:document.body?.textContent?.slice(0,180)})")});throw Error('Game module readiness timed out');}if(checkAnnex){
+ await send('Page.navigate',{url:`http://127.0.0.1:${port}${pagePath}`});await sleep(200);let ready=false;for(let n=0;n<90;n++){if(n===25||n===55){log.push({event:'startup-reload',retry:n});await send('Page.reload');await sleep(250);}ready=await evaluate("document.readyState==='complete'&&typeof window.lastLight?.snapshot==='function'&&!!document.getElementById('start')");if(ready)break;await sleep(100);}if(!ready){log.push({event:'startup-diagnostic',page:await evaluate("({url:location.href,ready:document.readyState,title:document.title,body:document.body?.textContent?.slice(0,180)})")});throw Error('Game module readiness timed out');}if(checkAnnex||checkOfficeGaze){
   const fixture=freshSave();
-  if(replayAnnex)Object.assign(fixture,{floor:2,sector:5,finished:true,ending:'complete',mechanisms:['1/archive'],evidence:['night-letter']});
+  if(checkOfficeGaze)Object.assign(fixture,{floor:1,sector:0,lang:'en'});
+  else if(replayAnnex)Object.assign(fixture,{floor:2,sector:5,finished:true,ending:'complete',mechanisms:['1/archive'],evidence:['night-letter']});
   else Object.assign(fixture,{floor:1,sector:2,mechanisms:['1/archive'],events:['backrooms-entered']});
   await send('DOMStorage.enable');
   await send('DOMStorage.setDOMStorageItem',{storageId:{securityOrigin:'http://127.0.0.1:'+port,isLocalStorage:true},key:'last-light-v3',value:JSON.stringify(fixture)});
   await send('Page.reload');await sleep(300);
-  if(!replayAnnex&&!(await snapshot()).backrooms)throw Error('Entry lamp save did not load');
+  if(checkAnnex&&!replayAnnex&&!(await snapshot()).backrooms)throw Error('Entry lamp save did not load');
  }
  await click();await sleep(100);
  if(replayAnnex){
@@ -84,7 +96,11 @@ try{
  }
  let room='',data,graph,action=null,lastDeath=0,lastScene='',lastAdvance=0,lastProgress=Date.now(),lastSupport='',stuck=0,goalWatch=null,navigation=null;
  const deadline=Date.now()+Number(process.env.PLAYTEST_MS||900000);
- while(Date.now()<deadline){
+ if(checkOfficeGaze){
+  const receipt=await playOfficeGaze({snapshot,key,tap,stop,sleep,screenshot,evaluate});
+  log.push({event:'office-gaze-complete',receipt});passed=true;
+ }
+ while(!checkOfficeGaze&&Date.now()<deadline){
   const s=await snapshot();
   if(s.backrooms){
    if(checkAnnex)await screenshot('start');
@@ -198,5 +214,5 @@ try{
  }
  if(!passed)throw Error('Bounded timeout before requested ending/section goal');if(errors.length)throw Error('Runtime exceptions recorded');
 }catch(e){error=String(e);passed=false;console.error(error);if(ws?.readyState===1){try{log.push({event:'stopped',snapshot:await evaluate('window.lastLight.snapshot()')});await screenshot('stopped');}catch{}}}
-finally{if(ws?.readyState===1){try{const stored=await readSave();log.push({event:'stored-save-readback',data:stored});if(passed&&checkAnnex&&(!stored?.events.includes('backrooms-escaped')||stored.sector!==3)){passed=false;error='Chase exit was not committed to localStorage';}if(passed&&!checkAnnex&&limit===18&&(!stored?.finished||(!continuation&&!expectedRooms.every(id=>stored?.mechanisms.includes(id))))){passed=false;error='The completed route was not committed to localStorage';}await send('Browser.close');for(let n=0;n<100&&chrome.exitCode==null&&chrome.signalCode==null;n++)await sleep(100);log.push({event:'browser-exit',exitCode:chrome.exitCode,signal:chrome.signalCode});}catch(e){log.push({event:'browser-close',detail:String(e)});}}
- await writeFile(`${out}/attempt.json`,JSON.stringify({kind:replayAnnex?'old ending chapter selection and chase keyboard test':checkAnnex?'saved entrance chase keyboard test':limit<18?'bounded partial expanded-section keyboard test':'whole expanded-game keyboard test',limit,complete,checkRelays,checkRecovery,profile,port,continuation,passed,error,hashes,errors,rooms:routeEvidence.rooms,log,actions},null,2));ws?.close();if(chrome.exitCode==null&&chrome.signalCode==null)chrome.kill();server.kill();if(!process.env.CHROME_PROFILE)await rm(profile,{recursive:true,force:true,maxRetries:3,retryDelay:100});if(!passed)process.exitCode=1;}
+finally{if(ws?.readyState===1){try{const stored=await readSave();log.push({event:'stored-save-readback',data:stored});if(passed&&checkAnnex&&(!stored?.events.includes('backrooms-escaped')||stored.sector!==3)){passed=false;error='Chase exit was not committed to localStorage';}if(passed&&!checkAnnex&&!checkOfficeGaze&&limit===18&&(!stored?.finished||(!continuation&&!expectedRooms.every(id=>stored?.mechanisms.includes(id))))){passed=false;error='The completed route was not committed to localStorage';}await send('Browser.close');for(let n=0;n<100&&chrome.exitCode==null&&chrome.signalCode==null;n++)await sleep(100);log.push({event:'browser-exit',exitCode:chrome.exitCode,signal:chrome.signalCode});}catch(e){log.push({event:'browser-close',detail:String(e)});}}
+ await writeFile(`${out}/attempt.json`,JSON.stringify({kind:checkOfficeGaze?'office gaze real keyboard test':replayAnnex?'old ending chapter selection and chase keyboard test':checkAnnex?'saved entrance chase keyboard test':limit<18?'bounded partial expanded-section keyboard test':'whole expanded-game keyboard test',limit,complete,checkRelays,checkRecovery,profile,port,continuation,passed,error,hashes,errors,rooms:routeEvidence.rooms,log,actions},null,2));ws?.close();if(chrome.exitCode==null&&chrome.signalCode==null)chrome.kill();server.kill();if(!process.env.CHROME_PROFILE)await rm(profile,{recursive:true,force:true,maxRetries:3,retryDelay:100});if(!passed)process.exitCode=1;}
