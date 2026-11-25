@@ -2,6 +2,7 @@ import { BACKROOMS_LEVEL, BACKROOMS_TRACK, advancePursuit, beginPursuit, chaseBl
 import { LEVELS, TILE, decodeLevel } from './levels.js';
 import { updateMourningClerks } from './mourning-gaze.js';
 import { CLERK_CAPTURE_CUES, CLERK_CAPTURE_TIME, CLERK_REVIVAL_TIME } from './mourning-capture.js';
+import { hazardBeat, hazardDischarging, hazardInPhase } from './machinery-motion.js';
 import { difficultyRules } from '../player-settings.js';
 
 export const SAVE_KEY = 'last-light-3d-v1';
@@ -393,7 +394,9 @@ export class Simulation3D {
       this.stepDistance += Math.hypot(dx, dz);
       if (this.grounded && this.stepDistance >= (this.quiet ? 1.65 : this.sprint ? 1.12 : 1.48)) {
         this.stepDistance = 0;
-        this.emit('sound', { name: 'step', position: { surface: ['concrete', 'carpet', 'grate'][this.levelIndex] ?? 'concrete' } });
+        const kind = this.map.at(this.x, this.z)?.kind;
+        const surface = this.chase ? 'carpet' : kind === 'd' || kind === 'n' ? 'grate' : 'concrete';
+        this.emit('sound', { name: 'step', position: { surface } });
       }
     } else {
       this.stepDistance = 0;
@@ -428,10 +431,7 @@ export class Simulation3D {
     }
     if (this.y < -2.55) this.startDeath('fall');
     this.atRisk = !supported && this.y < .46;
-    const phase = this.night ? 'night' : 'day';
-    const liveHazard = tile && (tile.kind === '~' ? phase === 'day' : tile.kind === '!' && phase === 'night');
-    const beat = (this.time + (tile?.col ?? 0) * .27 + (tile?.row ?? 0) * .19) % 3;
-    if (liveHazard && beat > 1.24 && beat < 2.53 && this.grounded) this.hurt();
+    if (this.grounded && hazardInPhase(tile, this.night) && hazardDischarging(hazardBeat(tile, this.time))) this.hurt();
   }
 
   step(input = {}, dt = STEP) {

@@ -5,8 +5,9 @@ import { Dialogue } from './dialogue.js';
 import { Simulation3D, SAVE_KEY, STEP } from './simulation.js';
 import { clerkCaptureFrame } from './mourning-capture.js';
 import { loadRun, storeRun, restartRun } from './save.js';
-import { createPlayerSettings } from '../player-settings.js';
+import { bindRightMouse, createPlayerSettings } from '../player-settings.js';
 import { mountPlayerSettings } from '../settings-panel.js';
+import { clearMobileMotion, isMobilePlay, mobileMotion } from '../mobile-play.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -251,7 +252,7 @@ function labels() {
     ['panel-edition', lang === 'zh' ? '第一人称版' : 'First-person edition'],
     ['system-settings-title', lang === 'zh' ? '画面、音频与鼠标' : 'Display, audio and mouse']
   ].forEach(([id, value]) => screenText(id, value));
-  const touch = coarsePointer.matches;
+  const touch = isMobilePlay();
   const keyCap = key => Object.assign(document.createElement('kbd'), { textContent: key });
   $('guide-phase-key').replaceChildren(touch ? copy.tapDayNight : keyCap(bindings('shift')));
   $('primer-key').replaceChildren(touch ? copy.tapDayNight : keyCap(binding('shift')));
@@ -307,11 +308,11 @@ function interactionPrompt({ type, id }) {
 }
 
 function promptKey(action) {
-  return coarsePointer.matches ? '' : `[${binding(action)}] `;
+  return isMobilePlay() ? '' : `[${binding(action)}] `;
 }
 
 function pursuitPrompt() {
-  const zh = lang === 'zh', touch = coarsePointer.matches;
+  const zh = lang === 'zh', touch = isMobilePlay();
   if (!state.chase.started) {
     if (touch) return zh ? '按住前进奔跑 · 跳过断口 · 左右绕架 · 切换长桥' : 'Hold forward to run · Jump gaps · Dodge shelving · Switch bridges';
     const [forward, jump, left, right, shift] = ['forward', 'jump', 'left', 'right', 'shift'].map(binding);
@@ -361,7 +362,7 @@ function updateHUD() {
   const atShortcut = state.mode === 'playing' && state.life === 'alive' && shortcut &&
     state.map.at(state.x, state.z) === shortcut.pads[0];
   const prompt = state.chase && state.life === 'alive' && !state.departing && state.mode === 'playing' ? pursuitPrompt() : target ? interactionPrompt(target) :
-    atShortcut ? shortcut.title[Number(lang === 'zh')] + ' · ' + (coarsePointer.matches ? t().shortcutTouch :
+    atShortcut ? shortcut.title[Number(lang === 'zh')] + ' · ' + (isMobilePlay() ? t().shortcutTouch :
       t().shortcutKeys(binding('sprint'), binding('jump'), binding('shift'))) : '';
   if ($('interaction').textContent !== prompt) screenText('interaction', prompt);
   $('interaction').hidden = !prompt;
@@ -426,6 +427,7 @@ function processEvents() {
 
 function clearInput() {
   keys.clear();
+  clearMobileMotion();
   for (const { button } of touchKeys.values()) button.removeAttribute('data-held');
   touchKeys.clear();
   edges = {};
@@ -437,14 +439,14 @@ function focusScene() { canvas.focus({ preventScroll: true }); }
 
 function updateMouseLook() {
   const locked = document.pointerLockElement === canvas;
-  $('mouse-sensitivity-row').hidden = !finePointer.matches;
-  $('mouse-look').hidden = Boolean(error) || state.mode !== 'playing' || !finePointer.matches || !canvas.requestPointerLock || locked;
+  $('mouse-sensitivity-row').hidden = !finePointer.matches || isMobilePlay();
+  $('mouse-look').hidden = Boolean(error) || state.mode !== 'playing' || isMobilePlay() || !finePointer.matches || !canvas.requestPointerLock || locked;
   const showPause = locked ? ` · ${t().pauseLegend(binding('pause'))}` : '';
   screenText('key-legend', t().legend(movementKeys(), binding('interact')) + showPause);
 }
 
 function requestMouseLook() {
-  if (state.mode !== 'playing' || !finePointer.matches ||
+  if (state.mode !== 'playing' || isMobilePlay() || !finePointer.matches ||
     !canvas.requestPointerLock || document.pointerLockElement === canvas) return;
   // Request during the trusted click, before audio startup or other async work.
   // Older implementations signal a failure through pointerlockerror only.
@@ -559,6 +561,7 @@ $('language').onclick = () => {
 };
 coarsePointer.addEventListener('change', labels);
 finePointer.addEventListener('change', updateMouseLook);
+window.addEventListener('lastlightmobileplay', labels);
 function toggleSound() { muted = !muted; sound.setMuted(muted); labels(); savePrefs(); }
 $('mute').onclick = toggleSound;
 $('volume').value = String(volume);
@@ -633,41 +636,47 @@ function held(action) {
 function releaseJump(action) {
   if (action === 'jump' && !held(action)) edges.release = true;
 }
+function pressBinding(code, repeat = false) {
+  if ($('panel').open) return false;
+  const action = preferences.actionFor(code);
+  if (action === 'mute' || action === 'journal') {
+    if (!repeat) {
+      if (action === 'mute') toggleSound();
+      else showPanel('journal');
+    }
+    return true;
+  }
+  if (action === 'pause' && (state.mode === 'playing' || state.mode === 'paused')) {
+    if (!repeat) (state.mode === 'playing' ? pause : start)();
+    return true;
+  }
+  if (state.mode !== 'playing' || !action) return false;
+  if (!repeat && !keys.has(code)) {
+    if (!held(action) && edgeActions.has(action)) edges[action] = true;
+    keys.set(code, action);
+  }
+  return true;
+}
+function releaseBinding(code) {
+  const action = keys.get(code);
+  if (keys.delete(code)) releaseJump(action);
+}
 window.addEventListener('keydown', event => {
   const { code, repeat, target } = event;
   if (event.defaultPrevented || $('panel').open || event.isComposing || event.metaKey || event.altKey ||
     (event.ctrlKey && code !== 'ControlLeft' && code !== 'ControlRight') ||
     target.closest?.('input,select,textarea,[contenteditable]')) return;
   if ((code === 'Space' || code === 'Enter' || code === 'NumpadEnter') && target.closest?.('button,a,summary')) return;
-  const action = preferences.actionFor(code);
-  if (action === 'mute' || action === 'journal') {
+  if (pressBinding(code, repeat)) {
     event.preventDefault();
-    if (!repeat) {
-      if (action === 'mute') toggleSound();
-      else showPanel('journal');
-    }
-    return;
-  }
-  if (action === 'pause' && (state.mode === 'playing' || state.mode === 'paused')) {
-    event.preventDefault();
-    if (!repeat) (state.mode === 'playing' ? pause : start)();
-    return;
-  }
-  if (!action && event.key === 'Enter' && !repeat && state.mode === 'paused' && (target === canvas || target === document.body)) {
+  } else if (!preferences.actionFor(code) && event.key === 'Enter' && !repeat &&
+    state.mode === 'paused' && (target === canvas || target === document.body)) {
     event.preventDefault();
     start();
-    return;
   }
-  if (state.mode !== 'playing' || !action) return;
-  event.preventDefault();
-  if (repeat || keys.has(code)) return;
-  if (!held(action) && edgeActions.has(action)) edges[action] = true;
-  keys.set(code, action);
 });
-window.addEventListener('keyup', event => {
-  const action = keys.get(event.code);
-  if (keys.delete(event.code)) releaseJump(action);
-});
+window.addEventListener('keyup', event => releaseBinding(event.code));
+bindRightMouse($('stage'), pressBinding, releaseBinding);
 window.addEventListener('blur', transitionToMenuWhenUnfocused);
 document.addEventListener('visibilitychange', () => { if (document.hidden) transitionToMenuWhenUnfocused(); });
 
@@ -728,9 +737,10 @@ for (const type of ['pointerup','pointercancel','lostpointercapture']) {
 function keyboardInput() {
   state.look((Number(held('lookRight')) - Number(held('lookLeft'))) * STEP * 1.92,
     (Number(held('lookUp')) - Number(held('lookDown'))) * STEP * 1.2);
+  const { x, z } = mobileMotion();
   const input = {
-    forward: Number(held('forward')) - Number(held('back')),
-    side: Number(held('right')) - Number(held('left')),
+    forward: Math.max(-1, Math.min(1, Number(held('forward')) - Number(held('back')) + z)),
+    side: Math.max(-1, Math.min(1, Number(held('right')) - Number(held('left')) + x)),
     sprint: held('sprint'), quiet: held('walk'), ...edges
   };
   edges = {};

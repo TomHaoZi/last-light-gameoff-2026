@@ -55,14 +55,14 @@ try{
   if(index>=route.length){await key('ArrowRight',true);if(p.x>worldWidth(floor)-115){if(!s.items.every(i=>i.got))throw Error('Exit reached with missing tasks');await tap('KeyE');await sleep(200);}await sleep(30);continue;}
   const target=map[route[index]];
   if(p.x>target.x+target.w+15)throw Error(`Missed required waypoint ${floor}:${route[index]}`);
-  if(shiftAfter&&Date.now()>=shiftAfter){if((s.phase==='night')!==desiredNight)await tap('KeyX');shiftAfter=0;}
+  if(shiftAfter&&Date.now()>=shiftAfter){if((s.phase==='night')!==desiredNight)await tap('ShiftLeft');shiftAfter=0;}
   const phase=s.phase==='night';let want=target.phase?target.phase==='night':phase;
   const onNeutral=map.some(q=>q.phase===null&&p.grounded&&Math.abs(p.y+28-q.y)<2&&p.x+10>q.x&&p.x<q.x+q.w);
   if(onNeutral&&target.phase==='night'&&target.y===p.y+28&&target.x-p.x>65)want=phase;
   if(onNeutral&&s.ghosts.some(g=>g.phase!=null&&g.phase===(phase?'night':'day')&&g.x>p.x&&g.x-p.x<130))want=!phase;
   if(s.ghosts.some(g=>g.spawned&&(g.phase===null||g.phase===(phase?'night':'day'))&&g.x>p.x&&g.x-p.x<42)&&p.grounded&&!jumping){await key('Space',true);jumping=true;jumpStart=Date.now();}
   if(!target.phase&&p.x>target.x&&floor===0&&[930,1540,2280,3120,3480].some(x=>x-p.x>0&&x-p.x<90))want=true;
-  if(want!==phase&&!jumping&&onNeutral&&target.y>=p.y+27)await tap('KeyX');
+  if(want!==phase&&!jumping&&onNeutral&&target.y>=p.y+27)await tap('ShiftLeft');
   if(p.grounded&&!jumping&&target.x-p.x<135){
    // Predict an honest full jump from the observed player state. Prediction is
    // outside the browser; only key events are sent to the game.

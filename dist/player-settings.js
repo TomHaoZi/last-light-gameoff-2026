@@ -1,4 +1,7 @@
 // Control preferences live separately from progression and autosave data.
+export const MOUSE_RIGHT = 'MouseRight';
+const BINDINGS_VERSION = 1;
+
 const options = [
   ['left', ['Move left', '向左移动'], ['ArrowLeft', 'KeyA'], ['KeyA'], 'move'],
   ['right', ['Move right', '向右移动'], ['ArrowRight', 'KeyD'], ['KeyD'], 'move'],
@@ -9,7 +12,7 @@ const options = [
   ['lookUp', ['Look up', '向上看'], null, ['ArrowUp'], 'look'],
   ['lookDown', ['Look down', '向下看'], null, ['ArrowDown'], 'look'],
   ['jump', ['Jump', '跳跃'], ['Space', 'ArrowUp', 'KeyW'], ['Space'], 'act'],
-  ['shift', ['Switch day / night', '切换昼夜'], ['ShiftLeft', 'ShiftRight', 'KeyX'], ['KeyX'], 'act'],
+  ['shift', ['Switch day / night', '切换昼夜'], [MOUSE_RIGHT, 'ShiftLeft', 'ShiftRight'], [MOUSE_RIGHT], 'act'],
   ['interact', ['Interact / read', '互动 / 阅读'], ['KeyE', 'ArrowDown'], ['KeyE'], 'act'],
   ['sprint', ['Sprint', '冲刺'], null, ['ShiftLeft', 'ShiftRight'], 'move'],
   ['walk', ['Walk quietly / lower eyes', '轻步 / 低头'], ['KeyC'], ['KeyC'], 'move'],
@@ -43,6 +46,7 @@ export function difficultyRules(id) {
 const pair = (en, zh = en) => [en, zh];
 const keyNames = {
   ArrowLeft: pair('←'), ArrowRight: pair('→'), ArrowUp: pair('↑'), ArrowDown: pair('↓'),
+  MouseRight: pair('Right mouse', '鼠标右键'),
   Escape: pair('Esc'), Space: pair('Space', '空格'), Enter: pair('Enter', '回车'),
   ShiftLeft: pair('L Shift', '左 Shift'), ShiftRight: pair('R Shift', '右 Shift'),
   ControlLeft: pair('L Ctrl', '左 Ctrl'), ControlRight: pair('R Ctrl', '右 Ctrl'),
@@ -60,7 +64,7 @@ export function keyLabel(code, language = 'en') {
 }
 
 function usable(code, action) {
-  return typeof code === 'string' && (GAME_CODES.test(code) || (action === 'pause' && code === 'Escape'));
+  return typeof code === 'string' && (code === MOUSE_RIGHT || GAME_CODES.test(code) || (action === 'pause' && code === 'Escape'));
 }
 
 function defaultMap(actions) {
@@ -88,6 +92,18 @@ function readBindings(actions, raw = {}) {
   return bindings;
 }
 
+function migrateDefaultShift(saved, is3d) {
+  if (saved?.bindingsVersion || !Array.isArray(saved?.bindings?.shift)) return saved?.bindings;
+  const priorDefault = is3d ? ['KeyX', null, null] : ['ShiftLeft', 'ShiftRight', 'KeyX'];
+  const {shift} = saved.bindings;
+  if (shift.length <= BINDING_SLOTS && priorDefault.every((code, index) => code === (shift[index] ?? null))) {
+    const custom = {...saved.bindings};
+    delete custom.shift;
+    return custom;
+  }
+  return saved.bindings;
+}
+
 export function createPlayerSettings(edition, storage) {
   const is3d = edition === '3d';
   const key = 'last-light-' + edition + '-player-settings';
@@ -102,7 +118,7 @@ export function createPlayerSettings(edition, storage) {
     // The game stays usable when private browsing or an iframe denies storage.
   }
   let difficulty = Object.hasOwn(DIFFICULTIES, saved?.difficulty) ? saved.difficulty : 'normal';
-  let bindings = readBindings(actions, saved?.bindings);
+  let bindings = readBindings(actions, migrateDefaultShift(saved, is3d));
   let byCode = new Map();
   function indexCodes() {
     byCode = new Map();
@@ -112,7 +128,7 @@ export function createPlayerSettings(edition, storage) {
   }
   function persist() {
     try {
-      storage?.setItem(key, JSON.stringify({difficulty, bindings: Object.fromEntries(bindings)}));
+      storage?.setItem(key, JSON.stringify({difficulty, bindingsVersion: BINDINGS_VERSION, bindings: Object.fromEntries(bindings)}));
     } catch {
       // Keep the current preferences for the rest of this session.
     }
@@ -162,4 +178,22 @@ export function createPlayerSettings(edition, storage) {
       persist();
     }
   };
+}
+
+export function bindRightMouse(surface, press, release) {
+  let ownedGesture = false;
+  window.addEventListener('mousedown', event => {
+    if (event.button !== 2) return;
+    ownedGesture = !event.defaultPrevented && surface.contains(event.target) &&
+      !event.target.closest?.('button,a,input,select,textarea,[contenteditable],dialog') && press(MOUSE_RIGHT);
+    if (ownedGesture) event.preventDefault();
+  });
+  window.addEventListener('mouseup', event => {
+    if (event.button === 2) release(MOUSE_RIGHT);
+  });
+  window.addEventListener('contextmenu', event => {
+    if (event.button !== 2 || !ownedGesture) return;
+    ownedGesture = false;
+    event.preventDefault();
+  });
 }

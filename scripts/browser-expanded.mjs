@@ -165,7 +165,7 @@ try{
   if(closeGhost&&(!action||!action.emergency)){await key('Space',false);await key('KeyC',false);await key('ArrowLeft',travel<0);await key('ArrowRight',travel>0);await key('Space',true);action={from:p.supportId,to:null,dir:travel,emergency:true,started:Date.now(),night:s.phase==='night',shiftAt:0};log.push({event:'ghost-evasion',room,x:p.x,ghost:closeGhost.id});await sleep(25);continue;}
   if(action){
    if(action.emergency&&p.grounded&&Date.now()-action.started>430){await stop();action=null;continue;}
-   if(action.shiftAt&&Date.now()>=action.shiftAt){if((s.phase==='night')!==action.night)await tap('KeyX');action.shiftAt=0;}
+   if(action.shiftAt&&Date.now()>=action.shiftAt){if((s.phase==='night')!==action.night)await tap('ShiftLeft');action.shiftAt=0;}
    if(keys.has('Space')&&(p.vy>-65||Date.now()-action.started>460))await key('Space',false);
    if(p.grounded&&p.supportId!==action.from){log.push({event:'landing',room,to:p.supportId,expected:action.to,x:p.x,y:p.y});await stop();action=null;continue;}
    if(Date.now()-action.started>2700){await stop();action=null;stuck++;if(stuck>2)throw Error('Three failed controller launches at one support');continue;}
@@ -201,7 +201,7 @@ try{
   const edge=path[0],target=data.platforms.find(q=>q.id===edge.to)||data.walls.find(q=>q.id===edge.to);if(!target)throw Error('Unknown graph target');
   const source=data.platforms.find(q=>q.id===support)||data.walls.find(q=>q.id===support);
   const want=edge.change?!edge.night:edge.night;
-  if(source.phase==null&&(s.phase==='night')!==edge.night){await stop();await tap('KeyX');await sleep(270);continue;}
+  if(source.phase==null&&(s.phase==='night')!==edge.night){await stop();await tap('ShiftLeft');await sleep(270);continue;}
   const distance=distances(navEdges,goalPlatform.id),remaining=distance.get(support);
   const candidates=(adjacencyFor(navEdges).get(support)||[]).filter(e=>distance.get(e.to)===remaining-1).sort((a,b)=>Math.abs(a.x-p.x)-Math.abs(b.x-p.x)).slice(0,16).map(edge=>({edge}));
   let chosen=null;for(const c of candidates){const e=c.edge;if(e.night!==(s.phase==='night'))continue;if(predicts(s,data,e.to,e.dir,e.jump,e.change?!e.night:e.night,e.walk)){chosen=e;break;}}

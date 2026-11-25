@@ -56,7 +56,7 @@ export async function playExpandedRelay(data,{snapshot,key,tap,stop,sleep,readSa
      if(state.shifts>firstShifts&&state.phase===target.phase)shiftedInAir=true;
      if(needsShift&&!allowMissingPhase&&state.phase!==target.phase&&p.vy<0&&state.time-shiftAttemptAt>=.12){
       shiftAttemptAt=state.time;
-      await tap('KeyX');
+      await tap('ShiftLeft');
      }
      await move(airDirection(p));
     }
@@ -86,7 +86,7 @@ export async function playExpandedRelay(data,{snapshot,key,tap,stop,sleep,readSa
  if(checkRecovery){
   const first=steps[1];
   if((await snapshot()).phase===first.phase){
-   await tap('KeyX');
+   await tap('ShiftLeft');
    await until(state=>state.phase!==first.phase,'wrong-phase control');
   }
   const dropped=await jumpTo(first,true);

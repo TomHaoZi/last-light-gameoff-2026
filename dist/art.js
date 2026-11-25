@@ -83,7 +83,7 @@ export class Art{
    const route=s.sectorData.relay;
    if(!route)return;
    const takeoff=route.steps[0],landing=route.steps.at(-1),zh=s.lang==='zh';
-   const jump=s.controlKeys?.jump??'Space',shift=s.controlKeys?.shift??'X';
+   const jump=s.controlKeys?.jump??'Space',shift=s.controlKeys?.shift??'RMB';
    this.servicePlaque(takeoff.x-28,takeoff.y-58,76,zh?'↑ 检修捷径':'↑ UPPER ROUTE',`${jump} / ${shift}`);
    this.servicePlaque(landing.x+51,landing.y-54,43,zh?'捷径灯':'RELAY');
  }

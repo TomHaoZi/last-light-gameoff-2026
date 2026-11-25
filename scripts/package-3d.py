@@ -8,9 +8,9 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.20"
+VERSION = "3.0.0-rc.21"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
-SHARED_SETTINGS = {"player-settings.js", "settings-panel.js", "player-settings.css"}
+SHARED_RUNTIME = {"player-settings.js", "settings-panel.js", "player-settings.css", "mobile-play.js", "mobile-play.css"}
 HISTORIC_MODEL = "assets/creature/mourning-clerk.glb"
 REQUIRED_FILES = {
     "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
@@ -36,9 +36,15 @@ REQUIRED_FILES = {
     "assets/dialogue/CREDITS.md", "assets/surfaces/CREDITS.md",
     "audio/CREDITS.md", "air-effects.js", "service-lift.js", "station-traces.js", "workstation-models.js", "janitor-hands.js",
     "assets/janitor/janitor.glb", "assets/janitor/CREDITS.md", "assets/env/service-lift.glb",
+    "plant-sets.js", "machinery-motion.js", "field-foley.js", "assets/env/boiler-plant.glb", "assets/env/roof-plant.glb",
 }
-REQUIRED_FILES.update(SHARED_SETTINGS)
-REQUIRED_FILES.update(f"classic/{name}" for name in SHARED_SETTINGS)
+REQUIRED_FILES.update(SHARED_RUNTIME)
+REQUIRED_FILES.update(f"classic/{name}" for name in SHARED_RUNTIME)
+REQUIRED_FILES.update(
+    f"audio/{name}.m4a" for name in ("eli-catch", "eli-breath", "eli-recover",
+        "boiler-release", "office-ballast", "archive-mechanism", "roof-rain",
+        "step-stone", "step-grate", "step-carpet", "door-steel")
+)
 
 
 REQUIRED_FILES.update(
@@ -77,11 +83,11 @@ def collect_runtime():
         if path.is_file() and not path.is_symlink() and path.suffix in {".html", ".css", ".js"}:
             content = path.read_bytes()
             files[f"classic/{path.name}"] = content
-            if path.name in SHARED_SETTINGS:
+            if path.name in SHARED_RUNTIME:
                 files[path.name] = content
 
     files["classic/backrooms-props.png"] = (dist / "backrooms-props.png").read_bytes()
-    for module in ("chase-score.js", "mourning-audio.js"):
+    for module in ("chase-score.js", "mourning-audio.js", "field-foley.js"):
         absolute_import = f"'./3d/{module}'".encode()
         sibling_import = f"'../{module}'".encode()
         classic_audio = files["classic/audio.js"]
@@ -98,6 +104,8 @@ def collect_runtime():
         ("game.js", "player-settings.js"),
         ("game.js", "settings-panel.js"),
         ("simulation.js", "player-settings.js"),
+        ("index.html", "mobile-play.css"),
+        ("game.js", "mobile-play.js"),
     ):
         parent = f"../{name}".encode()
         if files[scene_file].count(parent) != 1:

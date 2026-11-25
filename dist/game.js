@@ -5,8 +5,9 @@ import {Simulation,FIXED_DT} from './simulation.js';
 import {loadSave,storeSave,restartSave,freshSave} from './save.js';
 import {STORY} from './story.js';
 import {CHAPTERS} from './chapters.js';
-import {createPlayerSettings} from './player-settings.js';
+import {MOUSE_RIGHT,bindRightMouse,createPlayerSettings} from './player-settings.js';
 import {mountPlayerSettings} from './settings-panel.js';
+import {isMobilePlay} from './mobile-play.js';
 const $=id=>document.getElementById(id),canvas=$('game'),art=new Art(canvas),sound=new Sound();
 let storage;try{storage=window.localStorage;}catch{}
 let loaded=storage?loadSave(storage):{data:freshSave(),warnings:['storage-unavailable'],readOnly:true};
@@ -15,13 +16,17 @@ const heldInputs=new Map(),settingsDialog=$('settings');
 let state=new Simulation(loaded.data),edges={},lastTime=null,accumulator=0,starting=false;
 state.difficulty=preferences.difficulty;
 const text=()=>STORY[state.lang];
-const touchMode=matchMedia("(pointer: coarse)"),useTouchCue=()=>touchMode.matches;
+const touchMode=matchMedia("(pointer: coarse)"),useTouchCue=isMobilePlay;
 function clearInput(){heldInputs.clear();edges={};}
 function held(action){
  for(const current of heldInputs.values())if(current===action)return true;
  return false;
 }
 function hint(action){return preferences.label(action,state.lang,true);}
+function canvasHint(action){
+ if(preferences.keys(action).find(Boolean)===MOUSE_RIGHT)return state.lang==='zh'?'右键':'RMB';
+ return hint(action);
+}
 function instruction(copy){return copy.replace(/\{(\w+)\}/g,(_,action)=>hint(action));}
 function storageNotice(){
  notify(state.lang==='zh'?'当前无法保存进度，原存档已保留。可在页面底部重开并备份原档。':'Progress cannot be saved. Your existing save is safe. Restart shift below to back it up and begin again.',6);
@@ -52,14 +57,14 @@ function controlLabels(){
  const t=text(),zh=state.lang==='zh';
  document.documentElement.lang=state.lang;
  document.title=t.title;
- state.controlKeys=useTouchCue()?{right:'→',jump:'↑',shift:'◐',interact:'↵'}:{right:hint('right'),jump:hint('jump'),shift:hint('shift'),interact:hint('interact')};
+ state.controlKeys=useTouchCue()?{right:'→',jump:'↑',shift:'◐',interact:'↵'}:{right:canvasHint('right'),jump:canvasHint('jump'),shift:canvasHint('shift'),interact:canvasHint('interact')};
  $('language').textContent=zh?'EN':'中文';
  $('play-3d').textContent=zh?'玩 3D 版':'Play 3D';
  $('tagline').innerHTML=zh?'大楼没有下班。<br>给最后一个人留门。':'The shift never ended.<br>Leave a door for the last person.';
  $('under-title').textContent=zh?'不是杀光所有鬼，是让所有人离开。':'Not every shadow is your enemy.';
  $('under-copy').textContent=instruction(t.hint);
  $('aside-key').textContent=hint('shift');
- const controlNames=zh?{move:'移动',jump:'跳跃',shift:'切换昼夜',interact:'操作 / 阅读',walk:'低头',pause:'暂停'}:{move:'MOVE',jump:'JUMP',shift:'CHANGE THE BUILDING',interact:'DOOR / READ',walk:'LOWER EYES',pause:'PAUSE'};
+ const controlNames=zh?{move:'移动',jump:'跳跃',shift:'切换昼夜',interact:'操作 / 阅读',walk:'低头',pause:'暂停'}:{move:'MOVE',jump:'JUMP',shift:'SWITCH DAY / NIGHT',interact:'DOOR / READ',walk:'LOWER EYES',pause:'PAUSE'};
  for(const label of document.querySelectorAll('[data-control-name]'))label.textContent=controlNames[label.dataset.controlName];
  for(const key of document.querySelectorAll('[data-binding]'))key.textContent=hint(key.dataset.binding);
  const touchNames=zh?{left:'向左移动',right:'向右移动',jump:'跳跃',walk:'低头',shift:'切换昼夜',interact:'互动'}:{left:'Move left',right:'Move right',jump:'Jump',walk:'Lower eyes',shift:'Switch day and night',interact:'Interact'};
@@ -235,19 +240,26 @@ function inputUp(source){
  heldInputs.delete(source);
  if(action==='jump'&&!held(action))edges.release=true;
 }
+function pressBinding(code,repeat=false,mouse=false){
+ if(document.querySelector('dialog[open]'))return false;
+ const action=preferences.actionFor(code);
+ if(!action)return false;
+ if(action!=='pause'&&action!=='mute'&&action!=='journal'){
+  if(state.mode!=='playing')return false;
+  if(mouse)canvas.focus({preventScroll:true});
+  if(document.activeElement!==canvas)return false;
+ }
+ inputDown(code,action,repeat);
+ return true;
+}
 window.addEventListener('keydown',event=>{
- if(event.defaultPrevented||event.isComposing||event.metaKey||(event.ctrlKey&&event.code!=='ControlLeft'&&event.code!=='ControlRight')||event.altKey||document.querySelector('dialog[open]'))return;
+ if(event.defaultPrevented||event.isComposing||event.metaKey||(event.ctrlKey&&event.code!=='ControlLeft'&&event.code!=='ControlRight')||event.altKey)return;
  if(event.target.closest?.('input,select,textarea,[contenteditable]'))return;
  if((event.code==='Space'||event.code==='Enter')&&event.target.closest?.('button,a'))return;
- const action=preferences.actionFor(event.code);
- if(!action)return;
- if(action!=='pause'&&action!=='mute'&&action!=='journal'){
-  if(state.mode!=='playing'||document.activeElement!==canvas)return;
- }
- event.preventDefault();
- inputDown(event.code,action,event.repeat);
+ if(pressBinding(event.code,event.repeat))event.preventDefault();
 });
 window.addEventListener('keyup',event=>inputUp(event.code));
+bindRightMouse(canvas.parentElement,code=>pressBinding(code,false,true),inputUp);
 canvas.addEventListener('blur',clearInput);
 for(const button of document.querySelectorAll('[data-action]')){
  const release=event=>{event.preventDefault();inputUp(`touch-${event.pointerId}`);};
@@ -269,5 +281,6 @@ function frame(timestamp){const elapsed=lastTime==null?0:Math.min(.1,(timestamp-
  sound.setNarrative?.({sector:state.sector||0,scene:state.scene?.id||'',pursuit:!!state.pursuit?.active,resolution:state.scene?.id==='ending-complete'||state.mode==='won'&&state.ending==='complete'});sound.setTension(state.pursuit?.active||state.ghosts.some(g=>g.state==='chase')?1:state.backrooms?0:state.officeGaze.amount);art.render(state,elapsed);requestAnimationFrame(frame);
 }
 touchMode.addEventListener('change',controlLabels);
+window.addEventListener('lastlightmobileplay',controlLabels);
 syncAudioSettings();controlLabels();showCard();requestAnimationFrame(frame);
 window.lastLight={snapshot:()=>({...state.snapshot(),difficulty:preferences.difficulty,warnings:loaded.warnings.slice(),audio:sound.ctx?{state:sound.ctx.state,muted:sound.muted,focus:sound.focus,phase:sound.night?'night':'day',voices:sound.voices,recentEffects:sound.audit.slice(-15)}:null})};

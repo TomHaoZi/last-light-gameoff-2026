@@ -269,6 +269,36 @@ export function sceneryBackdrop(a, s) {
       a.rect(cx + 18, cy + 7, 41 + i * 4, 2, clouds[2]);
     }
   }
+  if (s.reducedEffects) return;
+
+  // These silhouettes live behind the platforms and keep the playfield clear.
+  const c = a.c;
+  c.save();
+  if (openRoof && mix > .12) {
+    const wind = Math.sin(a.t * .61);
+    c.globalAlpha = mix * .44;
+    for (let i = 0; i < 21; i++) {
+      const time = a.t * (86 + i % 4 * 11) + i * 71;
+      const y = time % 202 - 12;
+      const x = Math.floor(((i * 73 - a.cam * .12 + 2 * y + y * wind * .26) % 510 + 510) % 510) - 14;
+      a.rect(x, y, 2, 2, '#7394a4');
+      a.rect(x + 1, y + 2, 2, 3, '#4a6e80');
+    }
+  } else if (s.floor === 0) {
+    const warm = mix < .65;
+    for (let i = 0; i < 4; i++) {
+      const vent = (i * 139 + 520 - ((a.cam * .31) % 550)) % 550 - 36;
+      for (let puff = 0; puff < 3; puff++) {
+        const age = (a.t * .27 + i * .21 + puff / 3) % 1;
+        const px = vent + Math.floor(age * age * 26), py = 188 - Math.floor(52 * age);
+        const w = 4 + Math.floor(age * 17);
+        c.globalAlpha = Math.sin(age * Math.PI) * (warm ? .24 : .17);
+        a.rect(px, py, w, 4, warm ? '#a99875' : '#6a8c99');
+        a.rect(px + 3, py - 3, w - 3, 3, warm ? '#c9bd9d' : '#8babb0');
+      }
+    }
+  }
+  c.restore();
 }
 
 export function sceneryCanopy(a, s) {

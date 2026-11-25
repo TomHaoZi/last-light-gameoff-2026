@@ -1,5 +1,5 @@
-import { MathUtils } from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
+import { liftMotion } from './machinery-motion.js';
 
 const file = new URL('./assets/env/service-lift.glb', import.meta.url).href;
 const leafWidth = .379;
@@ -38,8 +38,7 @@ export async function mountServiceLift(visual, mount, oldGate) {
 }
 
 export function poseServiceLift(leaves, opening) {
-  const turn = MathUtils.smootherstep(opening, .20, .96) * 1.46;
-  const latch = MathUtils.smootherstep(opening, .035, .19);
+  const { turn, latch } = liftMotion(opening);
   for (const { side, outer, inner, bolt, boltRest, pivot } of leaves) {
     // One end of each pair is pinned to the jamb, the free end runs in
     // the sill groove. Both panels retain their full width throughout.

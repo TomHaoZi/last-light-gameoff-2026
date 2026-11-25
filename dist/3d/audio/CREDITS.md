@@ -17,3 +17,13 @@ These recordings are bundled under [CC0 1.0](https://creativecommons.org/publicd
 Each pursuer uses the credited actor and field recordings above. Live playback varies the attack, breath, pitch and foley for the individual pursuer. The howl layers in a lower throat take. The lunge has a cloth drag and a short metal fitting rattle, and the close attack adds two movements of fabric. These additional layers and the three knocks behind the boiler service hatch are synthesized in the game.
 
 - `mourning-sob-soft.m4a` and `mourning-sob-held.m4a` are two excerpts of AlucardsBride’s [crying woman.wav](https://freesound.org/people/AlucardsBride/sounds/172738/), published under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The verified [Wikimedia source copy](https://commons.wikimedia.org/wiki/File:Cry_of_woman.ogg) was trimmed, level matched and encoded as mono AAC so the game can position the breaths.
+
+Both editions use three non-verbal human recordings for Eli's gasp, chase breathing and return to the checkpoint. Named game dialogue is credited separately in the [dialogue credits](../assets/dialogue/CREDITS.md).
+
+- `eli-catch.m4a` · ckvoiceover. [Original recording](https://freesound.org/people/ckvoiceover/sounds/401333/)
+- `eli-breath.m4a` · Sheyvan (Jakob Jenderek). [Original recording](https://freesound.org/people/Sheyvan/sounds/831389/)
+- `eli-recover.m4a` · u3190. [Original recording](https://freesound.org/people/u3190/sounds/169931/)
+- `boiler-release.m4a` · Engineer_815. [Original pressure release](https://freesound.org/people/Engineer_815/sounds/493558/)
+- `office-ballast.m4a` · kentspublicdomain. [Original electrical recording](https://freesound.org/people/kentspublicdomain/sounds/777053/)
+- `archive-mechanism.m4a` · qubodup. [Original mechanism recording](https://freesound.org/people/qubodup/sounds/187853/)
+- `roof-rain.m4a` · xkeril. [Original field recording](https://freesound.org/people/xkeril/sounds/669484/)

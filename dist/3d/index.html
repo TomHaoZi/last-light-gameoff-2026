@@ -8,9 +8,10 @@
   <title>LAST LIGHT — One More Shift | 3D</title>
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="../player-settings.css">
+  <link rel="stylesheet" href="../mobile-play.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
-<body>
+<body class="first-person-mobile">
   <main id="stage">
     <canvas id="scene" aria-label="Last Light first-person game" tabindex="0"></canvas>
     <div id="veil" aria-hidden="true"></div>
@@ -30,9 +31,10 @@
         <h1 id="screen-title">LAST<br>LIGHT</h1>
         <p class="subtitle" id="screen-subtitle">ONE MORE SHIFT</p>
         <p class="story" id="screen-story">At 17:59, Gary went back for the people still inside. The register says he was gone. You're here to close the building. The building has other plans.</p>
-        <p class="phase-primer" id="phase-primer"><strong id="primer-action">Switch day / night</strong><span id="primer-key"><kbd>X</kbd></span></p>
+        <p class="phase-primer" id="phase-primer"><strong id="primer-action">Switch day / night</strong><span id="primer-key"><kbd>Right mouse</kbd></span></p>
         <div class="menu-actions">
           <button class="primary" id="start">Play 3D</button>
+          <button id="play-mobile" class="mobile-launch" type="button">Play in Mobile</button>
           <a class="edition-choice" href="../" id="classic-link">Play 2D</a>
           <button id="settings-button">Settings</button>
         </div>
@@ -41,7 +43,7 @@
       <aside class="quick-guide" id="quick-guide" aria-labelledby="guide-title">
         <h2 id="guide-title">Controls</h2>
         <dl>
-          <div class="guide-phase"><dt id="guide-phase">Switch day / night</dt><dd id="guide-phase-key"><kbd>X</kbd></dd></div>
+          <div class="guide-phase"><dt id="guide-phase">Switch day / night</dt><dd id="guide-phase-key"><kbd>Right mouse</kbd></dd></div>
           <div><dt id="guide-move">Move</dt><dd id="guide-move-key"><kbd>WASD</kbd></dd></div>
           <div><dt id="guide-look">Look around</dt><dd id="guide-look-key">Move the mouse</dd></div>
           <div><dt id="guide-use">Interact</dt><dd id="guide-use-key"><kbd>E</kbd></dd></div>
@@ -62,7 +64,7 @@
           <button class="phase-badge" id="phase-badge">
             <span id="phase-time">17:59</span>
             <span id="phase-label">DAY · BEFORE THE FIRE</span>
-            <span class="phase-action"><kbd id="phase-key">X</kbd><span id="phase-action">Switch to night</span></span>
+            <span class="phase-action"><kbd id="phase-key">RMB</kbd><span id="phase-action">Switch to night</span></span>
           </button>
           <span class="fps-readout" id="fps-readout" aria-hidden="true" hidden></span>
         </div>
@@ -81,6 +83,7 @@
           <p class="notice" id="notice" aria-live="polite" hidden></p>
         </div>
         <div class="touch" aria-label="Touch controls">
+          <div id="mobile-stick" class="mobile-stick" role="group" aria-label="Movement joystick"><span class="mobile-thumb" aria-hidden="true"></span></div>
           <div class="pad"><button data-touch="forward" aria-label="Forward">↑</button><button data-touch="left" aria-label="Left">←</button><button data-touch="back" aria-label="Back">↓</button><button data-touch="right" aria-label="Right">→</button></div>
           <div class="touch-actions"><button data-touch="sprint" id="touch-sprint">Sprint</button><button data-touch="walk" id="touch-quiet">Quiet</button><button data-touch="jump" id="touch-jump">Jump</button><button data-touch="interact" id="touch-use">Use</button><button data-touch="shift" id="touch-shift">Day / Night</button></div>
         </div>

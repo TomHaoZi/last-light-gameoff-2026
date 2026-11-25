@@ -21,3 +21,15 @@ The Records Annex and its fixtures are original LAST LIGHT assets, authored in B
 The archive phonograph is an original LAST LIGHT prop. The spun brass bell, shellac grooves and desk notice are modeled in `art/blender/office-phonograph.blend`.
 
 The archive kit is an original LAST LIGHT scene, authored in Blender 4.5. It includes a chamfered floor slab, two recessed fluorescent fittings, a red fire bulkhead, a steel register cabinet, a return grille, a cast floor drain and curled ledger sheets. Open `art/blender/archive-interior.blend` or rebuild it with `art/blender/build_archive_interior.py`. In the game, the kit instances share source geometry. Its ceramic and plaster scans are credited in the surfaces directory.
+
+## RC21 pressure and roof sets
+
+`boiler-plant.glb` and `roof-plant.glb` contain original Blender geometry, including the B2 gauge bank, pipe return, caged lamps, pressure gantry and sump grates, plus the RAIN 03 tanks, zinc glazing, guarded intake and its impeller, rain scuppers and raised beds. Placement and contact areas were authored against the current game tiles. Each assembly's static parts share one material, with a second emissive primitive for cages that have powered lenses.
+
+The painted-metal atlas incorporates [Metal Plate 02 by Amal Kumar, Poly Haven](https://polyhaven.com/a/metal_plate_02) under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Its diffuse, GL normal and ARM maps were recolored, resampled and packed with individual wear levels for each finish. The GLBs include the resulting atlas.
+
+The editable source is `art/blender/pressure-and-roof.blend`. The builder takes the three 1K JPEG maps from Poly Haven in a local directory.
+
+```sh
+blender -b --python-exit-code 1 -P art/blender/build_plant_sets.py -- /path/to/metal-plate-maps
+```

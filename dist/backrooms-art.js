@@ -228,7 +228,7 @@ function crossing(a,s,o){
   const y=o.y, entrance=x-4, landing=x+w;
   a.rect(x,Math.min(y,o.landingY),w,253-Math.min(y,o.landingY),'#263234');
   const heading=phased?(zh?'相位桥':'PHASE RELAY'):(zh?'跳过断口':o.landingY<y?'STEP UP':o.landingY>y?'DROP':'FLOOR OPEN');
-  const shift=s.controlKeys?.shift??'X',jump=s.controlKeys?.jump??'Space';
+  const shift=s.controlKeys?.shift??'RMB',jump=s.controlKeys?.jump??'Space';
   const phase=o.phase==='night'?(zh?'夜':'NIGHT'):(zh?'日':'DAY');
   board(a,x-79,Math.min(113,y-69),heading,phased?`${shift} / ${phase}`:`${jump} / ${zh?'跳':'JUMP'}`,night);
   a.rect(entrance-4,y-2,7,3,'#e3c78e');
@@ -336,7 +336,7 @@ export function drawBackrooms(a,s){
   a.rect(343,5,124,3,'#5b685c');a.rect(343,5,124*progress,3,'#dcbb79');
   a.rect(0,246,480,24,'#203236');a.line(0,246,480,'#aa9866');
   a.label(zh?'后室 · 一直向右跑':'THE BACKROOMS / KEEP RUNNING',9,260,'#f1d18e',8);
-  const jump=s.controlKeys?.jump??'Space',shift=s.controlKeys?.shift??'X',right=s.controlKeys?.right??'→';
+  const jump=s.controlKeys?.jump??'Space',shift=s.controlKeys?.shift??'RMB',right=s.controlKeys?.right??'→';
   a.label(zh?`${jump} 跳  ·  ${shift} 换相`:`${jump} jump   ${shift} shift`,214,260,'#d6dbc1',8);
   a.label(zh?'出口 →':'EXIT →',433,260,'#e1c787',8);
   if(!chase.active&&p.lifeState==='alive'){

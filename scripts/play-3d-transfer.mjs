@@ -62,11 +62,11 @@ export async function runTransfer({snapshot,input,onCrossing,onShift,miss,testSi
       await set('KeyA',controls.side < 0);
       await set('KeyD',controls.side > 0);
       await set('Space',controls.jump);
-      if (controls.shift && !held.has('KeyX')) {
+      if (controls.shift && !held.has('MouseRight')) {
         assert.ok(state.y > .25, 'Phase-switch input was airborne');
         onShift?.(state);
       }
-      await set('KeyX',controls.shift);
+      await set('MouseRight',controls.shift);
       if (state.chase.started) minimumLead = Math.min(minimumLead,state.chase.headStart);
       for (const part of BACKROOMS_TRACK.obstacles) {
         if (!passed.has(part.id) && state.chase.distance >= part.at) {

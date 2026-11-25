@@ -1,8 +1,9 @@
 import { GUIDANCE_LINES, MOURNING_LINES, SOB_FILES, decodeOfficeRecording, fileForVoice, mourningCryURL,
   mourningVoiceURL } from './3d/mourning-audio.js';
 import { ChaseScore, softPeakCeiling } from './3d/chase-score.js';
+import { FIELD_FOLEY, FIELD_STEPS, fieldFoleyURL } from './3d/field-foley.js';
 
-// Most effects and music are synthesized locally. Spoken guidance and the office sobs are bundled recordings.
+// Music is synthesized locally. Physical actions also use bundled field recordings.
 export const SFX_GAIN = Object.freeze({
   footstepConcrete:.12, // soft sole, beneath the melody
   footstepGrate:.18, // a thin resonant plate needs more presence
@@ -20,6 +21,9 @@ export class Sound {
     this.guidanceSeq = 0;
     this.officeVoice = null;
     this.lastWarning = -Infinity;
+    this.foley = new Map();
+    this.lastStep = -1;
+    this.nextRunBreath = 0;
   }
   async start(){
     if(this.ctx){await this.ctx.resume();return;}
@@ -44,6 +48,12 @@ export class Sound {
     chaseMusic.connect(this.musicVolume); chaseEffects.connect(this.sfxVolume);
     this.chaseScore = new ChaseScore(c, { music: chaseMusic, effects: chaseEffects, noise: this.noiseBuffer });
     this.preloadGuidance();
+    const files = new Set([...FIELD_FOLEY, ...Object.values(FIELD_STEPS), 'door-steel']);
+    for (const file of files) {
+      void decodeOfficeRecording(c, fieldFoleyURL(file)).then(buffer => {
+        if (buffer) this.foley.set(file, buffer);
+      });
+    }
     this.room();this.setPhase(this.night,true);this.next=c.currentTime+.07;this.timer=setInterval(()=>this.schedule(),40);this.setVolumes(this.volumes);await c.resume();
   }
   preloadGuidance() {
@@ -187,36 +197,59 @@ export class Sound {
   setFloor(f){if(f!==this.floor){this.stopOfficeVoice();this.stopSobs();}this.floor=f;this.phoneRang=false;if(this.ctx){const t=this.ctx.currentTime;this.hum.gain.cancelScheduledValues(t);this.hum.gain.setValueAtTime(this.hum.gain.value,t);this.hum.gain.linearRampToValueAtTime([.035,.018,.009][f],t+.5);this.wind.frequency.setValueAtTime(this.wind.frequency.value,t);this.wind.frequency.linearRampToValueAtTime(f===2?900:260,t+.4);}}
   duck(d=.8){if(!this.ctx)return;const t=this.ctx.currentTime,b=this.music;b.gain.cancelScheduledValues(t);b.gain.setValueAtTime(.70794578,t);b.gain.setValueAtTime(.70794578,t+d);b.gain.linearRampToValueAtTime(1,t+d+.18);}
   nearSilence(){if(!this.ctx)return;const t=this.ctx.currentTime;this.master.gain.cancelScheduledValues(t);this.master.gain.setValueAtTime(this.master.gain.value,t);this.master.gain.linearRampToValueAtTime(.018,t+.008);this.master.gain.setValueAtTime(.018,t+.295);this.master.gain.linearRampToValueAtTime(this.muted||!this.focus?0:.72*this.volumes.master,t+.305);}
+  playFoley(file, at, gain, speed = 1, offset = 0, duration) {
+    const buffer = this.foley.get(file);
+    if (!buffer || offset >= buffer.duration || this.muted || !this.focus) return false;
+    const source = this.ctx.createBufferSource();
+    const level = this.ctx.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = speed;
+    level.gain.value = gain;
+    source.connect(level).connect(this.sfx);
+    source.onended = () => { source.disconnect(); level.disconnect(); };
+    source.start(at, offset, duration ?? buffer.duration - offset);
+    return true;
+  }
   effect(name,amount=1,surface='concrete'){
     if(!this.ctx)return;const t=this.ctx.currentTime;if(t-(this.lastEffect.get(name)??-10)<.05)return;this.lastEffect.set(name,t);this.audit.push(name);if(this.audit.length>80)this.audit.shift();
-    if(name==='step'){const variation=(.92+Math.random()*.16),gain=(.9+Math.random()*.2);const g=SFX_GAIN[{concrete:'footstepConcrete',grate:'footstepGrate',carpet:'footstepCarpet'}[surface]]*gain;this.noise(t,surface==='carpet'?.07:.045,g,surface==='carpet'?450:surface==='grate'?2500:1000);this.tone((surface==='grate'?330:115)*variation,70*variation,t,.065,g*.6,'triangle');if(surface==='grate')this.tone(890*variation,850*variation,t,.12,g*.18);}
+    if(name==='step'){
+      const file=FIELD_STEPS[surface]??FIELD_STEPS.concrete, step=(this.lastStep+1+Math.floor(Math.random()*2))%3;
+      this.lastStep=step;
+      const variation=.92+Math.random()*.16,gain=.9+Math.random()*.2;
+      const g=(SFX_GAIN[{concrete:'footstepConcrete',grate:'footstepGrate',carpet:'footstepCarpet'}[surface]]??SFX_GAIN.footstepConcrete)*gain;
+      const priming=this.foley.get(file)?.duration>1.4?2112/32000:0;
+      if(this.playFoley(file,t,g*2.0,variation,step*.45+priming,.43))return;
+      this.noise(t,surface==='carpet'?.07:.045,g,surface==='carpet'?450:surface==='grate'?2500:1000);
+      this.tone((surface==='grate'?330:115)*variation,70*variation,t,.065,g*.6,'triangle');
+      if(surface==='grate')this.tone(890*variation,850*variation,t,.12,g*.18);
+    }
     if(name==='jump'){this.noise(t,.13,SFX_GAIN.jump*.6,1000);this.tone(190,360,t,.18,SFX_GAIN.jump*.45);}
     if(name==='land'){const g=SFX_GAIN.land*Math.min(1,Math.max(.2,amount));this.kick(t,g);this.noise(t,.13,g*.55,650);}
     if(name==='hurt'){this.clunk(t,SFX_GAIN.hurt);this.tone(180,72,t,.3,.08,'sawtooth');this.noise(t,.18,.07,900);}
-    if(name==='valve'){this.noise(t,.6,.075,2200);this.clunk(t+.15,.14);this.tone(88,48,t,.55,.05,'triangle');}
+    if(name==='valve'){if(!this.playFoley('boiler-release',t+.055,.32,.96,0,1.82))this.noise(t,.6,.075,2200);this.clunk(t+.15,.14);this.tone(88,48,t,.55,.05,'triangle');}
     if(name==='mourning-cry'&&!this.playSob(t,false)){
       for(const offset of [0,.29,.66]){this.noise(t+offset,.34,.078,710,this.sfx,2.05);this.tone(334,173,t+offset+.05,.22,.026,'triangle');}
     }
     if(name==='mourning-lock'){this.noise(t,.14,.085,1390,this.sfx,1.55);this.tone(82,43,t+.09,.20,.075,'sine');}
-    if(name==='mourning-strike'){this.stopSobs();this.playSob(t,true);this.noise(t,.23,.15,1520,this.sfx,1.1);this.duck(.62);}
+    if(name==='mourning-strike'){this.stopSobs();this.playSob(t,true);this.playFoley('eli-catch',t+.04,.30,.98);this.noise(t,.23,.15,1520,this.sfx,1.1);this.duck(.62);}
     if(name==='mourning-release'){this.noise(t,.17,.064,1300,this.sfx,1.5);this.tone(159,71,t+.02,.16,.035,'triangle');}
     if(name==='mourning-impact'){this.stopSobs();this.kick(t,.12,.18);this.noise(t+.01,.16,.047,510);}
     if(name==='ghostAlert'){this.tone(320,220,t,.48,.035,'sine');this.noise(t,.5,.025,950);this.duck(.35);}
-    if(name==='handle'){this.tick(t,.065);this.clunk(t+.12,.07);}
+    if(name==='handle'){if(!this.playFoley('archive-mechanism',t,.29,1.12,0,.72))this.tick(t,.065);this.clunk(t+.12,.07);}
     if(name==='evidence'){[0,7,12].forEach((v,i)=>this.tone(midi(65+v),midi(65+v),t+i*.1,.5,.04,'sine'));}
     if(name==='checkpoint'){[0,4,7,12].forEach((v,i)=>this.tone(midi(60+v),midi(60+v),t+i*.13,.65,.04,'triangle'));}
     if(name==='fallDeath'){this.tone(320,38,t,.65,.09,'triangle');this.noise(t+.1,.4,.06,450);}
     if(name==='death'){this.buzz(t,.14);this.tone(440,58,t,.6,.08,'triangle');this.tick(t+.18,.08);this.tick(t+.37,.04);}
     if(name==='ghost'){this.noise(t,1.15,SFX_GAIN.ghost,520,this.sfx,2.4);this.tone(92,38,t,1.2,.16,'sawtooth');this.tone(730,190,t+.15,.85,.045,'triangle');this.duck(1.05);}
-    if(name==='revive'){[0,3,7,12].forEach((v,i)=>this.tone(midi(48+v),midi(48+v),t+i*.08,.55,SFX_GAIN.revive/(i+1),'sine'));}
-    if(name==='shift'){this.tick(t,.11);this.tick(t+.045,.09);this.clunk(t+.09,SFX_GAIN.shift);this.whirr(t+.13,.035,!this.night);this.noise(t,.25,.05,2800);if(this.night){this.tone(680,540,t+.3,.2,.02);this.tone(540,480,t+.48,.2,.016);}this.duck(.55);}
+    if(name==='revive'){this.playFoley('eli-recover',t+.04,.38,1.1);[0,3,7,12].forEach((v,i)=>this.tone(midi(48+v),midi(48+v),t+i*.08,.55,SFX_GAIN.revive/(i+1),'sine'));}
+    if(name==='shift'){if(this.floor===1)this.playFoley('office-ballast',t,.18,this.night ? .92 : 1.1,0,.82);this.tick(t,.11);this.tick(t+.045,.09);this.clunk(t+.09,SFX_GAIN.shift);this.whirr(t+.13,.035,!this.night);this.noise(t,.25,.05,2800);if(this.night){this.tone(680,540,t+.3,.2,.02);this.tone(540,480,t+.48,.2,.016);}this.duck(.55);}
     if(name==='collect'){this.slurp(t,.045);[0,4,7].forEach((v,i)=>this.tone(midi(72+v),midi(72+v),t+i*.06,.35,.08,'triangle'));}
-    if(name==='doorOpen'){this.clunk(t,.2);this.whirr(t+.05,.045,true);this.noise(t+.08,.45,.08,380);}
+    if(name==='doorOpen'){if(!this.playFoley('door-steel',t,.41,.97))this.noise(t+.08,.45,.08,380);this.clunk(t,.17);this.whirr(t+.05,.035,true);}
     if(name==='door'){this.clunk(t,SFX_GAIN.door);this.whirr(t+.1,.025,true);this.tick(t+.6,.05);this.duck(.65);}
     if(name==='drip'){this.tone(1450,700,t,.11,.045);this.noise(t,.06,.025,3200);[.16,.29,.43].forEach((delay,i)=>this.tone(950,700,t+delay,.2,.016/(i+1)));}
     if(name==='knock'){this.clunk(t,.06);this.kick(t+.13,.035);}
     if(name==='warningBell'){[0,.65,1.3].forEach(delay=>{this.tone(622,620,t+delay,.48,.055,'sine');this.tone(934,930,t+delay,.35,.025,'sine');});this.duck(1.6);}
-    if(name==='water'){for(let i=0;i<5;i++){this.tone(690+i*113,380+i*57,t+i*.18,.3,.022,'sine');this.noise(t+i*.18,.12,.014,1800);}}
+    if(name==='water'&&!this.playFoley('roof-rain',t,.21,1.02,.96,1.7)){for(let i=0;i<5;i++){this.tone(690+i*113,380+i*57,t+i*.18,.3,.022,'sine');this.noise(t+i*.18,.12,.014,1800);}}
     if(name==='phone'&&!this.phoneNear){this.tone(740,738,t,.35,.035,'triangle');this.tone(940,945,t+.08,.35,.022);}
   }
   stopPhone(){// The one-off ring never repeats, approaching cuts its short tail.
@@ -226,6 +259,10 @@ export class Sound {
     const wasActive = Boolean(this.chaseScore.live);
     this.chaseScore.update(this.focus && !this.muted ? state : null);
     const active = Boolean(this.chaseScore.live);
+    if (active && state?.elapsed > 4 && this.ctx.currentTime >= this.nextRunBreath) {
+      this.playFoley('eli-breath', this.ctx.currentTime, .22, .99, Math.random()*.68, 2.74);
+      this.nextRunBreath = this.ctx.currentTime + 7;
+    }
     if (active === wasActive) return;
     const now = this.ctx.currentTime;
     this.roomMusicGate.gain.setTargetAtTime(active ? 0 : 1, now, .04);

@@ -20,13 +20,19 @@ try{
  const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
  const shot=async name=>{const r=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});await writeFile(`${out}/${name}.png`,Buffer.from(r.data,'base64'));};
  const tap=async code=>{await send('Input.dispatchKeyEvent',{type:'keyDown',code,key:code==='Space'?' ':code});await delay(80);await send('Input.dispatchKeyEvent',{type:'keyUp',code,key:code==='Space'?' ':code});};
+ const phaseClick=async()=>{
+  const point=await evaluate("(()=>{const r=document.getElementById('game').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'right',buttons:2,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'right',buttons:0,clickCount:1});
+ };
  await send('Runtime.enable');await send('Page.enable');await delay(700);await shot('01-menu');
  const box=await evaluate("(()=>{const b=document.getElementById('start');b.scrollIntoView({block:'center'});const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
  await send('Input.dispatchMouseEvent',{type:'mousePressed',...box,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',...box,button:'left',clickCount:1});await delay(400);
  logs.push({step:'start',snapshot:await evaluate('window.lastLight.snapshot()')});
  if(logs[0].snapshot.mode!=='playing')throw Error('Start did not enter playing');
  for(let n=0;n<14;n++){if(!(await evaluate('window.lastLight.snapshot().scene')))break;await delay(1000);}if((await evaluate('window.lastLight.snapshot().scene')))throw Error('Opening scene exceeded its bounded duration');
- await shot('02-day');await tap('KeyX');await delay(60);await shot('03-phase-transition');await delay(300);logs.push({step:'night',snapshot:await evaluate('window.lastLight.snapshot()')});if(logs.at(-1).snapshot.phase!=='night')throw Error('Phase hotkey failed');await shot('04-night');
+ await shot('02-day');await tap('KeyX');if((await evaluate('window.lastLight.snapshot()')).phase!=='day')throw Error('X should be unbound by default');
+ await phaseClick();await delay(60);await shot('03-phase-transition');await delay(300);logs.push({step:'night',snapshot:await evaluate('window.lastLight.snapshot()')});if(logs.at(-1).snapshot.phase!=='night')throw Error('Right-click phase input failed');await shot('04-night');
  await tap('Escape');logs.push({step:'pause',snapshot:await evaluate('window.lastLight.snapshot()')});if(logs.at(-1).snapshot.mode!=='paused')throw Error('Pause failed');await shot('05-paused');await tap('Escape');await delay(200);
  await send('Input.dispatchKeyEvent',{type:'keyDown',code:'ArrowRight',key:'ArrowRight'});await delay(600);await send('Input.dispatchKeyEvent',{type:'keyUp',code:'ArrowRight',key:'ArrowRight'});logs.push({step:'movement',snapshot:await evaluate('window.lastLight.snapshot()')});if(logs.at(-1).snapshot.mode!=='playing'||logs.at(-1).snapshot.player.x<=logs[0].snapshot.player.x)throw Error('Resume/movement failed');
  const timing=await send('Runtime.evaluate',{expression:"new Promise(resolve=>{const ds=[];let prev;function sample(t){if(prev!=null)ds.push(t-prev);prev=t;if(ds.length>=180){const a=ds.slice().sort((a,b)=>a-b);resolve({samples:a.length,medianMs:a[Math.floor(a.length/2)],p95Ms:a[Math.floor(a.length*.95)],maxMs:a.at(-1),over33ms:ds.filter(x=>x>33.4).length,scope:'active entrance scene, desktop headless Chrome; not full-map/physical-device profiling'});}else requestAnimationFrame(sample);}requestAnimationFrame(sample);})",awaitPromise:true,returnByValue:true});logs.push({step:'entrance-frame-sampling',timings:timing.result.value});

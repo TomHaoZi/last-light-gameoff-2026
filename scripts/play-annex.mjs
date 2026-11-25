@@ -43,7 +43,7 @@ export async function playAnnex({snapshot,key,tap,stop,sleep}, {capture, failFir
         await key('Space',true);jumped=o.id;jumps.push(o.id);
       }
       if(!p.grounded&&o?.phase&&jumped===o.id&&flipped!==o.id&&state.phase!==o.phase&&p.y+38<o.y){
-        await tap('KeyX');flipped=o.id;switches.push(o.id);
+        await tap('ShiftLeft');flipped=o.id;switches.push(o.id);
       }
       if(capture)await capture(state);
       await sleep(15);

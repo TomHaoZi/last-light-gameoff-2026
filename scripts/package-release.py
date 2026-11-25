@@ -15,10 +15,15 @@ dist=ROOT/'dist'
 classic_audio_paths=[
  dist/'3d/chase-score.js',
  dist/'3d/mourning-audio.js',
+ dist/'3d/field-foley.js',
  dist/'3d/assets/dialogue/CREDITS.md',
  dist/'3d/audio/CREDITS.md',
  *sorted((dist/'3d/assets/dialogue').glob('mourning-*.m4a')),
  *sorted((dist/'3d/audio').glob('mourning-sob-*.m4a')),
+ *(dist/f'3d/audio/{name}.m4a' for name in (
+  'eli-catch','eli-breath','eli-recover','boiler-release','office-ballast',
+  'archive-mechanism','roof-rain','step-stone','step-grate','step-carpet','door-steel'
+ )),
 ]
 runtime_files.update({p.relative_to(dist).as_posix():p.read_bytes() for p in classic_audio_paths})
 hashes={name:hashlib.sha256(data).hexdigest() for name,data in runtime_files.items()}

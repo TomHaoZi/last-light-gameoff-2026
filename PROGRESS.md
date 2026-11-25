@@ -1,5 +1,11 @@
 # Progress · 2.0.0-rc.1
 
+## RC21 · Mobile controls and modeled facilities
+
+Both editions offer **Play in Mobile** and use right-click for the default phase switch. Classic also keeps Shift. Settings can rebind the phase switch to X or another key. Existing custom bindings are preserved.
+
+Original Blender assemblies dress the boiler gallery and roof plant. Steam, water, latches and service doors follow their physical timings. Recorded breathing and field effects enter both mixes, and Classic gains additional depth from boiler haze and rooftop rain. [RC21 changes and verification](docs/mobile-and-production-rc21.md).
+
 ## RC20 · Archive interior and synchronized capture
 
 The 3D office now has eight editable Blender assemblies and new photographic ceramic and plaster. Its practical fluorescent and emergency fixtures provide localized highlights, with darker intervening hallways. The Clerk wears layered, six-joint wings fitted to her body. Contact starts a synchronized capture, defense, wing sweep, fall, blackout and lamp recovery. Classic has its own pixel-art sequence. [Archive and capture verification](docs/archive-and-capture-rc20.md).

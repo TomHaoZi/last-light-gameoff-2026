@@ -126,13 +126,16 @@ test('packaged recordings decode and play in place of procedural effects on the 
   const essential = [
     'creature-alert', 'creature-exhale', 'creature-grab', 'creature-growl', 'creature-howl',
     'door-steel', 'room-boiler', 'room-office', 'room-roof', 'step-carpet', 'step-grate',
-    'step-stone', 'mourning-sob-soft', 'mourning-sob-held'
+    'step-stone', 'mourning-sob-soft', 'mourning-sob-held',
+    'eli-catch', 'eli-breath', 'eli-recover', 'archive-mechanism', 'boiler-release',
+    'office-ballast', 'roof-rain'
   ];
   for (const name of essential) assert.ok(clips.includes(name + '.m4a'), name + ' is missing');
   for (const clip of clips) {
     const bytes = await readFile(new URL(clip, folder));
     const buffer = await context.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
-    assert.ok(buffer.duration > .7, clip);
+    // The attack gasp is an intentionally short, dry intake.
+    assert.ok(buffer.duration > (clip === 'eli-catch.m4a' ? .45 : .7), clip);
     sound.recordings.set(clip.replace('.m4a', ''), buffer);
   }
   ['room-boiler', 'room-office', 'room-roof'].forEach((file, level) => {

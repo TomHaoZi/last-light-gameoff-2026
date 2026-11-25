@@ -26,7 +26,7 @@ export async function playOfficeGaze({snapshot, key, tap, stop, sleep, screensho
     s.audio.recentEffects.includes('voice-guide'));
   await screenshot('office-recording');
 
-  await tap('KeyX');
+  await tap('ShiftLeft');
   await wait('night Clerk', s => s.phase === 'night' &&
     s.ghosts.some(g => g.kind === 'mourner' && g.spawned && g.state !== 'dormant'));
   await key('KeyC', true);
@@ -70,7 +70,7 @@ export async function playOfficeGaze({snapshot, key, tap, stop, sleep, screensho
   assert.equal(revival.officeGaze.amount, 0);
   assert.equal(revival.checkpoint, '1/lift-lobby/arrival');
 
-  await tap('KeyX');
+  await tap('ShiftLeft');
   await wait('Clerk visible again after shift', s => s.phase === 'night');
   await key('KeyC', true);
   await key('ArrowRight', true);

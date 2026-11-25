@@ -8,9 +8,9 @@ const mouth = new Vector3();
 const vertex = `
 attribute vec3 origin;
 attribute vec4 plume;
-attribute vec3 ink;
+attribute vec4 ink;
 varying vec2 point;
-varying vec3 tint;
+varying vec4 tint;
 varying float opacity;
 void main() {
   point = position.xy;
@@ -24,14 +24,16 @@ void main() {
 }`;
 const fragment = `
 varying vec2 point;
-varying vec3 tint;
+varying vec4 tint;
 varying float opacity;
 void main() {
   vec2 p = point;
   p.y += .16*sin(p.x*4.1 + .8);
   float core = dot(p,p) + .19*sin(6.*p.x-2.*p.y)*sin(p.y*4.+.2);
   float feather = 1.-smoothstep(.05,.94,core);
-  gl_FragColor = vec4(tint, feather*feather*opacity);
+  float bead = 1.-smoothstep(.20,.91,dot(point,point));
+  float glint = (1.-smoothstep(.0,.31,length(point-vec2(-.11,.29)))) * tint.w;
+  gl_FragColor = vec4(tint.xyz + glint*.29, mix(feather*feather,bead,tint.w)*opacity);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -51,10 +53,10 @@ export class AirEffects {
     geometry.setIndex([0,1,2,0,2,3]);
     this.centers = stream(geometry, 'origin', 3);
     this.shapes = stream(geometry, 'plume', 4);
-    this.colors = stream(geometry, 'ink', 3);
+    this.colors = stream(geometry, 'ink', 4);
     this.mesh = new Mesh(geometry, new ShaderMaterial({vertexShader:vertex, fragmentShader:fragment,
       transparent:true, depthWrite:false}));
-    this.mesh.name = 'Breath and lift dust';
+    this.mesh.name = 'Vent steam, runoff, breath and lift dust';
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
     this.mesh.renderOrder = 4;
@@ -64,10 +66,27 @@ export class AirEffects {
     this.lastDoor = 0;
   }
 
-  release(x, y, z, yaw, time, dust, seed, source = null) {
+  release(x, y, z, yaw, time, dust, seed, source = null, motion = '', force = 1) {
     const p = this.slots[this.cursor];
     this.cursor = (this.cursor + 1) % capacity;
-    Object.assign(p, { x, y, z, yaw, time, dust, seed, source, life: dust ? .72 : .94 });
+    const life = motion === 'water' ? .49 : dust ? .72 : .94;
+    Object.assign(p, { x, y, z, yaw, time, dust, seed, source, motion, force, life });
+  }
+
+  discharge(record, state, motion, force) {
+    if (force < .045) return;
+    const { x, y, z, yaw, source } = record.outlet;
+    if ((x - state.x) ** 2 + (z - state.z) ** 2 > 58) return;
+    const water = motion === 'water';
+    const interval = water ? .095 : .152;
+    if (state.time - (record.lastDischarge ?? -Infinity) < interval) return;
+    record.lastDischarge = state.time;
+    for (let i = 0; i < (water ? 4 : 3); i++) {
+      const seed = i * 2.27 + state.time * 1.93;
+      const span = (i - 1.3) * (water ? .047 : .19);
+      this.release(x + Math.cos(yaw) * span, y, z - Math.sin(yaw) * span,
+        yaw + .31 * Math.sin(seed), state.time + i * .024, false, seed, source, motion, force);
+    }
   }
 
   breathe(actor, distance, state, theme, reduced) {
@@ -105,7 +124,8 @@ export class AirEffects {
     const changed = this.phase !== state.night;
     this.phase = state.night;
     const door = state.door || 0;
-    if (mount && !reduced && door > .22 && door < .58 && door-this.lastDoor >= .049) {
+    if (mount && !reduced && door > .22 && (door < .58 || (door > .86 && this.lastDoor < .86)) &&
+        door - this.lastDoor >= .049) {
       this.lastDoor = door;
       for (const side of [-1,1]) {
         mouth.set(side*(.22+door*.5),.082,-.14);
@@ -122,13 +142,25 @@ export class AirEffects {
       const age = (state.time-p.time)/p.life;
       if (age < 0) continue;
       if (age >= 1) { p.life = 0; continue; }
-      const growth = .032 + age * (p.dust ? .17 : .13);
-      const drift = (p.dust ? .31 : .27) * age;
-      this.centers.setXYZ(count,p.x+Math.sin(p.yaw)*drift,p.y+age*(p.dust ? .07 : .13),p.z+Math.cos(p.yaw)*drift);
-      this.shapes.setXYZW(count,growth*1.42,growth,p.seed+.53*age,
-        Math.sin(age*Math.PI)*(p.dust ? .21 : .17)*(1-.45*age));
-      if (p.dust) this.colors.setXYZ(count,.50,.38,.25);
-      else this.colors.setXYZ(count,.44,.55,.58);
+      const steam = p.motion === 'steam';
+      const water = p.motion === 'water';
+      const growth = steam ? .053 + age * .215 * p.force : .032 + age * (p.dust ? .17 : .13);
+      const drift = steam ? age * .35 * p.force : (water ? .26 : p.dust ? .31 : .27) * age;
+      const rise = steam ? (.19 + p.force * .69) * age * (2 - age) :
+        water ? .091 * age - 1.04 * age * age : age * (p.dust ? .07 : .13);
+      if (water && p.y + rise <= .08) { p.life = 0; continue; }
+      this.centers.setXYZ(count,p.x+Math.sin(p.yaw)*drift,p.y+rise,p.z+Math.cos(p.yaw)*drift);
+      const alpha = Math.sin(age*Math.PI) * (1 - .45*age);
+      if (water) {
+        this.shapes.setXYZW(count, .013, .03 + .052 * age, -.12, .67 * alpha * p.force);
+        this.colors.setXYZW(count, .52, .72, .75, 1);
+      } else {
+        this.shapes.setXYZW(count, growth * 1.42, growth, p.seed + .53 * age,
+          alpha * (steam ? .37 * p.force : p.dust ? .21 : .17));
+        if (p.dust) this.colors.setXYZW(count,.50,.38,.25,0);
+        else if (steam) this.colors.setXYZW(count,.64,.70,.69,0);
+        else this.colors.setXYZW(count,.44,.55,.58,0);
+      }
       count++;
     }
     this.mesh.visible = count > 0;

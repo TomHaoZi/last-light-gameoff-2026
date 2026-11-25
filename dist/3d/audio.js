@@ -1,6 +1,7 @@
 import { SOB_FILES } from './mourning-audio.js';
 import { ChaseScore, softPeakCeiling } from './chase-score.js';
 import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
+import { FIELD_FOLEY, fieldFoleyURL } from './field-foley.js';
 
 const SILENCE = 0.0001;
 const MAX_VOICES = 70;
@@ -56,7 +57,7 @@ const ROOM_RECORDINGS = [
 const RECORDING_FILES = [
   ...Object.values(RECORDED_VOCALS).map(clip => clip.file),
   ...new Set(Object.values(RECORDED_STEPS).map(clip => clip.file)),
-  'door-steel', ...SOB_FILES, ...ROOM_RECORDINGS.map(room => room.file)
+  'door-steel', ...SOB_FILES, ...ROOM_RECORDINGS.map(room => room.file), ...FIELD_FOLEY
 ];
 const STEP_CLIP = .45;
 const AAC_PRIMING = 2112 / 32_000;
@@ -256,6 +257,7 @@ export class HorrorAudio {
     this.nextRoomEvent = this.nextScore + 3.5;
     this.nextHowl = context.currentTime + 3.4;
     this.nextSnarl = context.currentTime + 1.0;
+    this.nextEliBreath = context.currentTime;
     this.syncMaster();
   }
 
@@ -264,7 +266,7 @@ export class HorrorAudio {
     const context = this.context;
     this.recordingReady = Promise.all(RECORDING_FILES.map(async file => {
       try {
-        const response = await fetch(new URL('./audio/' + file + '.m4a', import.meta.url));
+        const response = await fetch(fieldFoleyURL(file));
         if (!response.ok) return;
         const buffer = await context.decodeAudioData(await response.arrayBuffer());
         this.recordings.set(file, buffer);
@@ -482,6 +484,11 @@ export class HorrorAudio {
     if (paused || now - this.lastFrame < 0.045) return;
     this.lastFrame = now;
 
+    if (chase?.elapsed > 4 && !this.muted && now >= this.nextEliBreath) {
+      this.playRecording('eli-breath', now, this.closeBus, .18, .96 + this.random() * .09,
+        this.random() * .74, 2.8);
+      this.nextEliBreath = now + 7 + this.random() * 1.6;
+    }
     this.updateCreatureSounds(now, this.chaseScore.live ? [] : ghosts);
     if (this.chaseScore.live) return;
     if (now + 0.09 >= this.nextScore) {
@@ -681,14 +688,16 @@ export class HorrorAudio {
   roomEvent(at) {
     const theta = this.random() * Math.PI * 2;
     const position = { x: this.player.x + Math.cos(theta) * 5, z: this.player.z + Math.sin(theta) * 5 };
-    const bus = this.positionBus(position, at, 1.9);
+    const bus = this.positionBus(position, at, this.level === 2 ? 2.8 : 1.9);
     if (this.level === 0) {
       this.bell(at, 1145, 0.075, bus, 0.3);
       this.noise(at + 0.03, 0.42, 0.09, 2100, 1.25, bus, 0.12, 350);
     } else if (this.level === 1) {
+      if (this.playRecording('office-ballast', at, bus, this.night ? .26 : .14, .92 + this.random() * .22)) return;
       this.tone(at, 490, 272, 0.27, 0.051, bus, 'triangle', 0.03);
       this.noise(at + 0.16, 0.3, 0.08, 760, 1.6, bus);
     } else {
+      if (this.night && this.playRecording('roof-rain', at, bus, .24, 1, this.random() * 2.6, 2.4)) return;
       this.noise(at, 1.3, 0.23, 520, 0.47, bus, 0.51, 190);
       this.tone(at + 0.35, 438, 323, 0.85, 0.036, bus, 'triangle', 0.13);
     }
@@ -754,6 +763,7 @@ export class HorrorAudio {
       this.noise(at, .35, .22, 1750, 1.35, bus, .009, 690);
       this.duck(at, .35, 1.1);
     } else if (name === 'mourning-bind') {
+      this.playRecording('eli-catch', at, this.closeBus, .45, 1.01);
       this.noise(at, .33, .152, 2700, 1.1, bus, .007, 880);
       this.tone(at + .045, 390, 167, .42, .047, bus, 'triangle', .020);
       this.tone(at, 102, 55, .37, .052, this.closeBus);
@@ -812,6 +822,7 @@ export class HorrorAudio {
         break;
       }
       case 'shift':
+        if (this.level === 1) this.playRecording('office-ballast', at, bus, .25, this.night ? .92 : 1.10, 0, .82);
         noise(0, 0.073, 0.20, 3900, 1.1, 0.003, 1380);
         tone(0.028, 114, 34, 0.58, 0.21);
         noise(0.038, 0.61, 0.28, this.night ? 2300 : 240, 0.72, 0.052, this.night ? 120 : 3450);
@@ -824,6 +835,13 @@ export class HorrorAudio {
         noise(0.025, 0.11, 0.083, 629, 1.2);
         break;
       case 'interact':
+        if (this.level === 0 && position?.kind === 'A') {
+          this.playRecording('boiler-release', at + .17, bus, .45, .98);
+        } else if (this.level === 1 && ['A', 'B'].includes(position?.kind)) {
+          this.playRecording('archive-mechanism', at, bus, .38, position.kind === 'A' ? 1.03 : .83);
+        } else if (this.level === 2 && /^[ABCP]$/.test(position?.kind ?? '')) {
+          this.playRecording('roof-rain', at + .12, bus, .26, 1.02, .53, 1.7);
+        }
         noise(0, 0.13, 0.14, 1870, 1.2, 0.009, 670);
         tone(0.045, 183, 94, 0.25, 0.12, 'triangle');
         break;
@@ -857,6 +875,7 @@ export class HorrorAudio {
         if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) {
           this.creatureCue('grab', at, position);
         }
+        this.playRecording('eli-catch', at, this.closeBus, .32, .93 + this.random() * .16);
         tone(0, 76, 22, 1.25, 0.23);
         tone(0.047, 142, 42, 0.76, 0.063, 'sawtooth', 0.021);
         noise(0.015, 1.28, 0.31, 740, 1.2, 0.105, 100);
@@ -864,6 +883,7 @@ export class HorrorAudio {
         this.duck(at, 0.28, 1.55);
         break;
       case 'revive':
+        this.playRecording('eli-recover', at + .06, this.closeBus, .43, 1.05);
         [0, 2, 7, 9].forEach((note, i) => this.bell(at + i * 0.11, freq(53 + note), 0.045, bus, 1.22));
         noise(0, 0.64, 0.102, 210, 0.7, 0.16, 1290);
         break;

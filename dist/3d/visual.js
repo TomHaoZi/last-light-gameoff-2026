@@ -18,8 +18,10 @@ import { AirEffects } from './air-effects.js';
 import { mountServiceLift, poseServiceLift } from './service-lift.js';
 import { mountStationTrace } from './station-traces.js';
 import { mountWorkstations, updateWorkstation } from './workstation-models.js';
+import { hazardBeat, hazardInPhase, hazardPressure, rotorStep, stationAge, stationPose } from './machinery-motion.js';
 import { mountWallSigns } from './set-dressing.js';
 import { mountArchiveInterior } from './archive-interior.js';
+import { mountPlantSets, updatePlantSets } from './plant-sets.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -599,7 +601,7 @@ export class Visual {
     Object.values(this.batches).forEach(batch => batch.build());
     this.makeParticles();
     this.workstationsReady = mountWorkstations(this);
-    this.environmentReady = Promise.all([mountEnvironment(this), mountArchiveInterior(this)]);
+    this.environmentReady = Promise.all([mountEnvironment(this), mountArchiveInterior(this), mountPlantSets(this)]);
     this.surfacesReady = mountPhotoSurfaces(this);
     const stage = this.stage;
     const redraw = () => { if (this.stage === stage) this.overlayFrame = null; };
@@ -691,7 +693,7 @@ export class Visual {
     for (const texture of this.localTextures) texture.dispose();
     this.scene.remove(this.stage);
     this.sky = null;
-    this.particles = null;
+    this.particles = this.rain = null;
   }
 
   makeMaterials() {
@@ -977,12 +979,6 @@ export class Visual {
             b.box(m.brass, x - dx * .268, .22 + d * .27, z - dz * .268, .12, .036, .028, angle);
           }
         }
-      } else if (n < 7) {
-        b.box(m.dark, x, .31, z, 1.24, .62, .48, angle);
-        b.box(m.steel, x, .64, z, 1.30, .08, .53, angle);
-        for (let i = 0; i < 6; i++) {
-          b.box(m.dark, x - dx * .26, .12 + i * .075, z - dz * .26, 1.13, .025, .018, angle);
-        }
       } else if (n > 10) {
         this.planter(x, z, angle, n);
       }
@@ -1010,28 +1006,7 @@ export class Visual {
       mesh(this.stage, unitPlane, new THREE.MeshBasicMaterial({ map: label }),
         [wallX, 1.97, wallZ], [1.68, .42, 1]);
       this.lightSource(wallX + .18, 2.20, wallZ + .47, 10, 'general', .46);
-    } else {
-      const tank = this.decoded.get(20, 6);
-      if (tank) this.makeTank(tank.x, tank.z);
     }
-  }
-
-  makeTank(x, z) {
-    const m = this.materials;
-    const b = this.batches.neutral;
-    for (const dx of [-.65, .65]) for (const dz of [-.65, .65]) {
-      b.box(m.dark, x + dx, 1.18, z + dz, .125, 2.36, .125);
-      b.box(m.steel, x + dx, .075, z + dz, .31, .15, .31);
-      b.pipe(m.steel, new THREE.Vector3(x + dx, .29, z + dz), new THREE.Vector3(x - dx, 1.83, z + dz), .053);
-    }
-    b.add(unitCylinder, m.steel, [x, 2.87, z], [1.85, 1.64, 1.85]);
-    b.add(unitSphere, m.steel, [x, 3.67, z], [1.84, .57, 1.84]);
-    for (const y of [2.23, 2.42, 3.36, 3.57]) {
-      b.add(unitCylinder, m.dark, [x, y, z], [1.90, .047, 1.90]);
-    }
-    b.add(unitCylinder, m.dark, [x, 3.97, z], [.09, .23, .09]);
-    b.add(unitSphere, m.unsafe, [x, 4.12, z], [.11, .14, .11]);
-    this.lightSource(x, 4.13, z, 2.8, 'alarm', .38);
   }
 
   makeFan(x, y, z, radius) {
@@ -1130,7 +1105,7 @@ export class Visual {
     group.position.set(x - dx * .24, .93, z - dz * .24);
     group.rotation.y = angle;
     this.stage.add(group);
-    let action;
+    let action, doorLeaf = null;
     if (this.theme === 0) {
       b.box(m.steel, x, .53, z, .42, 1.06, .48, angle);
       b.box(m.copper, x, .80, z, .5, .27, .52, angle);
@@ -1159,12 +1134,16 @@ export class Visual {
         const desk = new THREE.Group();
         desk.position.set(x + .24, 0, z + .24);
         this.stage.add(desk);
-        mesh(desk, unitBox, m.accent, [0, 1.01, .38], [1.18, 2.01, .12]);
-        mesh(desk, unitBox, m.steel, [0, 1.06, .307], [.93, 1.81, .031]);
-        mesh(desk, unitBox, m.brass, [.33, .90, .265], [.085, .09, .072]);
+        doorLeaf = new THREE.Group();
+        doorLeaf.name = 'Gary office door on a spring hinge';
+        doorLeaf.position.set(-.59, 0, .38);
+        desk.add(doorLeaf);
+        mesh(doorLeaf, unitBox, m.accent, [.59, 1.01, 0], [1.18, 2.01, .12]);
+        mesh(doorLeaf, unitBox, m.steel, [.59, 1.06, -.073], [.93, 1.81, .031]);
+        mesh(doorLeaf, unitBox, m.brass, [.92, .90, -.115], [.085, .09, .072]);
         const plaque = spriteText('GARY', '#e6d5ab');
         this.localTextures.push(plaque);
-        const name = mesh(desk, unitPlane, new THREE.MeshBasicMaterial({ map: plaque }), [.10, 1.53, .279], [.42, .105, 1]);
+        const name = mesh(doorLeaf, unitPlane, new THREE.MeshBasicMaterial({ map: plaque }), [.69, 1.53, -.101], [.42, .105, 1]);
         name.rotation.y = Math.PI;
       }
     } else {
@@ -1187,7 +1166,13 @@ export class Visual {
     const plate = mesh(this.stage, unitPlane, new THREE.MeshBasicMaterial({ map: label }),
       [x - dx * front, .863, z - dz * front], [.424, .106, 1]);
     plate.rotation.y = Math.atan2(-dx, -dz);
-    this.objects.set(id, { indicator, action, kind: power ? 'power' : 'station' });
+    const record = { indicator, action, doorLeaf, motion: {}, kind: power ? 'power' : 'station' };
+    if (!power && (this.theme === 2 || (this.theme === 0 && id !== 'C'))) {
+      const outletSide = this.theme === 2 ? .272 : .16;
+      record.outlet = { x: x - dx * .26 + dz * outletSide, y: this.theme === 2 ? .67 : .69,
+        z: z - dz * .26 - dx * outletSide, yaw: Math.atan2(-dx, -dz), source: null };
+    }
+    this.objects.set(id, record);
   }
 
   makePhonographMarker(tile) {
@@ -1231,7 +1216,10 @@ export class Visual {
     pulse.position.set(x, .48, z);
     pulse.scale.set(.95, 1.36, 1);
     group.add(pulse);
-    this.objects.set(`hazard-${tile.col}-${tile.row}`, { indicator: pulse, kind: 'hazard', seed: tile.col * 2 + tile.row });
+    this.objects.set(`hazard-${tile.col}-${tile.row}`, {
+      indicator: pulse, kind: 'hazard', tile,
+      outlet: { x, y: .093, z, yaw: (tile.col * .27 + tile.row * .22) % (Math.PI * 2), source: pulse }
+    });
   }
 
   makeDoor(tile) {
@@ -1374,6 +1362,15 @@ export class Visual {
     }));
     this.particles.frustumCulled = false;
     this.stage.add(this.particles);
+    if (this.theme === 2) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(48 * 6), 3));
+      this.rain = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
+        color: '#bedcf0', transparent: true, opacity: 0, depthWrite: false
+      }));
+      this.rain.frustumCulled = false;
+      this.stage.add(this.rain);
+    }
   }
 
   updateGhosts(state, dt, reduced, execution = null) {
@@ -1650,7 +1647,6 @@ export class Visual {
     const door = Math.min(1, Math.max(0, state.door || 0));
     const slide = door * door * (3 - 2 * door);
     if (this.liftLeaves) poseServiceLift(this.liftLeaves, door);
-    this.air.update(state, this.doorMount, reduced);
     if (this.door) {
       this.door.position.y = slide * 2.28;
       this.door.scale.y = 1 - slide * .91;
@@ -1658,7 +1654,9 @@ export class Visual {
       this.doorLight.scale.setScalar(.78 + slide * .12);
     }
     this.backroomsSet?.update(state, dt);
-    this.updateProps(state, time);
+    updatePlantSets(this, time, state.night, reduced);
+    this.updateProps(state, time, reduced);
+    this.air.update(state, this.doorMount, reduced);
     if (this.sky) {
       this.sky.position.copy(this.camera.position);
       this.sky.material.uniforms.night.value = night;
@@ -1667,8 +1665,10 @@ export class Visual {
       this.materials.windows.color.setRGB(.29 + night * .95, .21 + night * .66, .11 + night * .25);
       this.materials.distant.color.copy(this.scene.background).lerp(COLD, .15 + .08 * night);
     }
-    for (const { rotor, speed } of this.kinetics) rotor.rotateZ(dt * speed * (1 - night * .92));
-    this.updateParticles(state, time, quality);
+    for (const motor of this.kinetics) {
+      motor.rotor.rotateZ(rotorStep(motor, dt, state.night, reduced));
+    }
+    this.updateParticles(state, time, quality, night, reduced);
     if (quality !== this.renderQuality) {
       this.renderQuality = quality;
       this.renderer.shadowMap.enabled = quality === 'high';
@@ -1723,31 +1723,60 @@ export class Visual {
     if (cinematic) this.preparePhasePrograms();
   }
 
-  updateProps(state, time) {
+  updateProps(state, time, reduced) {
     for (const [key, object] of this.objects) {
       if (object.kind === 'hazard') {
-        const pulse = Math.max(0, Math.sin(time * 2.62 + object.seed));
-        object.indicator.material.opacity = .075 + pulse * .22;
-        object.indicator.scale.y = .67 + pulse * .95;
+        const visible = hazardInPhase(object.tile, state.night);
+        object.indicator.visible = visible;
+        if (!visible) continue;
+        const pressure = hazardPressure(hazardBeat(object.tile, time));
+        object.indicator.material.opacity = .058 + pressure * (reduced ? .12 : .24);
+        object.indicator.position.y = .21 + pressure * .26;
+        object.indicator.scale.y = .59 + pressure * .78;
+        if (!reduced && object.tile.kind === '~') this.air.discharge(object, state, 'steam', pressure);
       } else if (object.kind === 'clue') {
         object.indicator.visible = !(state.hasRecord?.(key) || state.clues?.has?.(key) || state.evidence?.has?.(key));
       } else {
         const done = object.kind === 'power' ? state.powered ?? state.progress?.powered : state.completed?.has?.(key);
-        updateWorkstation(object, done, time);
+        const age = stationAge(object.motion, Boolean(done), time);
+        const pose = stationPose(this.theme, age, reduced);
+        updateWorkstation(object, pose, time, reduced);
         const material = object.indicator.material;
         material.color.set(done ? '#71d9ad' : '#e8b262');
         material.emissive.copy(material.color);
-        material.emissiveIntensity = done ? 1.4 : 1.15 + Math.sin(time * 4) * .33;
-        const axis = this.theme === 1 ? 'x' : 'z';
-        object.action.rotation[axis] = THREE.MathUtils.lerp(object.action.rotation[axis], done ? (this.theme === 0 ? 2.08 : .52) : 0, .10);
+        material.emissiveIntensity = done ? 1.4 : 1.15 + (reduced ? 0 : Math.sin(time * 4) * .27);
+        object.action.rotation[this.theme === 1 ? 'x' : 'z'] = pose.action;
+        if (object.doorLeaf) object.doorLeaf.rotation.y = pose.leaf;
+        if (!reduced && object.outlet) {
+          this.air.discharge(object, state, this.theme === 2 ? 'water' : 'steam', pose.discharge * .85);
+        }
       }
     }
   }
 
-  updateParticles(state, time, quality) {
+  updateParticles(state, time, quality, night, reduced) {
     if (!this.particles) return;
     const shown = quality !== 'low';
     this.particles.visible = shown;
+    if (this.rain) {
+      this.rain.visible = shown && !reduced && night > .2;
+      if (this.rain.visible) {
+        const drops = this.rain.geometry.getAttribute('position');
+        const wind = .21 + .08 * Math.sin(time * .55);
+        for (let i = 0; i < drops.count / 2; i++) {
+          const [a, b, c, speed] = this.flakes[i];
+          const age = (b + time * (.54 + .26 * speed)) % 1;
+          const x = state.x + (a - .5) * 21 + wind * age * 9;
+          const z = state.z + (c - .5) * 21 - age * .9;
+          const y = (1 - age) * 8;
+          const length = .12 + .17 * speed;
+          drops.setXYZ(i * 2, x, y, z);
+          drops.setXYZ(i * 2 + 1, x - wind * length, y + length, z + length * .09);
+        }
+        drops.needsUpdate = true;
+        this.rain.material.opacity = .24 * night;
+      }
+    }
     if (!shown) return;
     const attribute = this.particles.geometry.getAttribute('position');
     const wrap = x => x - Math.floor(x);

@@ -1,4 +1,4 @@
-import { Group, MathUtils } from 'three';
+import { Group } from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
@@ -57,29 +57,26 @@ export async function mountWorkstations(visual) {
     stage.add(frame);
     const mechanism = model.getObjectByName('Mechanism');
     if (mechanism) {
-      record.workstation = { theme, mechanism, base: mechanism.position.clone(), value: null, time: null };
+      record.workstation = { theme, mechanism, base: mechanism.position.clone() };
     }
   }
   return true;
 }
 
-export function updateWorkstation(record, done, time) {
+export function updateWorkstation(record, pose, time, reduced) {
   const instrument = record.workstation;
   if (!instrument) return;
   const { mechanism, theme, base } = instrument;
-  const target = done ? 1 : 0;
-  if (instrument.value === null) instrument.value = target;
-  const elapsed = instrument.time === null ? 0 : MathUtils.clamp(time - instrument.time, 0, .1);
-  instrument.time = time;
-  instrument.value = MathUtils.damp(instrument.value, target, 9, elapsed);
-  const value = instrument.value;
+  const value = pose.meter;
   if (theme === 0) {
-    mechanism.rotation.z = -1.09 + value * 2.20 + Math.sin(time * 4.2) * .018 * (1 - value);
+    const tremble = reduced ? 0 : Math.sin(time * 5.6) * .026 * pose.discharge;
+    mechanism.rotation.z = -1.09 + value * 2.20 + tremble;
   } else if (theme === 1) {
-    mechanism.position.z = base.z + value * .032;
-    mechanism.position.y = base.y - value * .011;
-    mechanism.rotation.x = value * .065;
+    mechanism.position.z = base.z + value * .06;
+    mechanism.position.y = base.y - value * .03;
+    mechanism.rotation.x = value * .086;
   } else {
-    mechanism.position.y = base.y + value * .071 + Math.sin(time * 3.1) * .0011 * value;
+    const flow = reduced ? 0 : Math.sin(time * 11) * .0034 * pose.discharge;
+    mechanism.position.y = base.y + value * .071 + flow;
   }
 }

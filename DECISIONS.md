@@ -1,5 +1,11 @@
 # Engineering / design decisions
 
+## 3.0.0-rc.21 · Direct touch, mouse inputs and practical machinery
+
+Launch the same campaign and checkpoint from **Play in Mobile**. Give the movement joystick its own pointer capture, allow independent camera drag and action pointers, and clear held input when the app loses focus or rotates. Classic keeps directional touch buttons around the existing game canvas.
+
+Bind right mouse to the same game action as other editable shortcuts. Migrate legacy defaults and retain explicit customization. Place the boiler and roof assemblies off collision paths and draw repeated parts with instancing. Keep steam damage and visible pressure on the same timing, and mix recorded breathing separately from spoken guidance.
+
 ## 3.0.0-rc.20 · Practical light and capture continuity
 
 Use the existing phase and collision grid for the archive. Its modeled slab, ceiling fixtures, cabinets and dressing instance behind neutral geometry. Light selection checks real walls and keeps safety sources and phase markings distinct. Retain old runtime assets in the repository for archived releases.

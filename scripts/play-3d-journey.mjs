@@ -47,7 +47,7 @@ async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, aim, read
     try {
       assert.equal(before.life, 'alive');
       if (command === '*') {
-        await tap('KeyX');
+        await tap('MouseRight');
         const shifted = await whenPlaying(state => state.phase !== before.phase, 'accepted phase switch');
         proof.phaseChanges.push({ x: shifted.x, z: shifted.z, phase: shifted.phase });
         continue;

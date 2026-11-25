@@ -1,9 +1,9 @@
-import {BINDING_SLOTS, DIFFICULTIES, keyLabel} from './player-settings.js';
+import {BINDING_SLOTS, DIFFICULTIES, MOUSE_RIGHT, keyLabel} from './player-settings.js';
 
 const copy = {
   game: ['Difficulty', '难度'],
   controls: ['Key bindings', '键位'],
-  summary: ['Use any slot to change a key. One key per action is required.', '点选任意键位即可修改。每个动作至少保留一个按键。'],
+  summary: ['Choose a slot, then press a key or right-click inside Settings. Each action needs at least one binding.', '选择键位后，按下新键，或在设置内点击鼠标右键。每个动作至少保留一个绑定。'],
   movement: ['Movement', '移动'],
   look: ['Keyboard camera', '键盘视角'],
   action: ['Actions', '动作'],
@@ -11,7 +11,7 @@ const copy = {
   primary: ['Primary', '主键'],
   secondary: ['Secondary', '副键'],
   extra: ['Extra', '备用键'],
-  press: ['Press a key', '按下新键'],
+  press: ['Press a key or right-click', '按下新键或点击鼠标右键'],
   clear: ['Clear slot', '清除键位'],
   cancel: ['Cancel', '取消'],
   change: ['Use another key', '换一个按键'],
@@ -108,6 +108,12 @@ export function mountPlayerSettings(host, prefs, {onChange = () => {}} = {}) {
     apply(event.code);
   }
   document.addEventListener('keydown', captureKey, true);
+  root.addEventListener('contextmenu', event => {
+    if (!capture || event.button !== 2) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!pending) apply(MOUSE_RIGHT);
+  });
 
   function selectTab(id) {
     capture = pending = null;

@@ -87,7 +87,17 @@ async function whenPlaying(check, title, limit = 5000) {
 }
 
 const keys = { KeyA: 'a', KeyD: 'd', KeyE: 'e', KeyS: 's', KeyW: 'w', KeyX: 'x', ShiftLeft: 'Shift', Space: ' ', Escape: 'Escape', ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown' };
-const input = (code, down) => send('Input.dispatchKeyEvent', { code, key: keys[code], type: down ? 'keyDown' : 'keyUp' });
+const input = async (code, down) => {
+  if (code !== 'MouseRight') return send('Input.dispatchKeyEvent', { code, key: keys[code], type: down ? 'keyDown' : 'keyUp' });
+  const point = await read(`(() => {
+    const rect = document.querySelector('canvas').getBoundingClientRect();
+    return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+  })()`);
+  return send('Input.dispatchMouseEvent', {
+    ...point, type: down ? 'mousePressed' : 'mouseReleased',
+    button: 'right', buttons: down ? 2 : 0, clickCount: 1
+  });
+};
 async function hold(codes, run) {
   for (const key of codes) await input(key, true);
   try { return await run(); }
@@ -109,7 +119,7 @@ async function moveTo(axis, target) {
 
 async function phaseTo(phase) {
   if ((await snapshot()).phase === phase) return;
-  await tap('KeyX');
+  await tap('MouseRight');
   await whenPlaying(state => state.phase === phase, 'switch to ' + phase, 1000);
 }
 
@@ -181,7 +191,7 @@ async function startChapter(index, resumePursuit = false) {
   await whenPlaying(state => state.chapter === (index ?? 0) && state.mode === 'playing', 'chapter started');
 }
 
-async function clickVisible(selector) {
+async function clickVisible(selector, button = 'left') {
   const point = await until(() => read(`(() => {
     const element = document.querySelector(${JSON.stringify(selector)});
     if (!element) return null;
@@ -191,7 +201,7 @@ async function clickVisible(selector) {
     return r.width && r.height && element.contains(document.elementFromPoint(x, y)) ? {x, y} : null;
   })()`), 'visible, clickable control ' + selector);
   for (const type of ['mousePressed','mouseReleased']) {
-    await send('Input.dispatchMouseEvent', { ...point, type, button: 'left', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { ...point, type, button, buttons: type === 'mousePressed' ? (button === 'right' ? 2 : 1) : 0, clickCount: 1 });
   }
 }
 
@@ -201,6 +211,74 @@ const readHud = () => read(`({
   work: document.querySelector('#station-progress').textContent,
   cluePapers: window.clueMeshVisibility
 })`);
+
+async function playBindings() {
+  const classicEntry = gameEntry === '/index.html' ? '/classic/index.html' : '/index.html';
+  for (const [kind, path] of [['3D', gameEntry], ['2D', classicEntry]]) {
+    const firstPerson = kind === '3D';
+    const readState = firstPerson ? snapshot : () => read('window.lastLight?.snapshot()');
+    const phaseHint = firstPerson ? '#phase-key' : '#shift-button kbd';
+    const settings = firstPerson ? '#settings-button' : '#settings-menu';
+    const close = firstPerson ? '#close-panel' : '#settings-close';
+    const slot = action => '[data-bind-action="' + action + '"][data-bind-slot="0"]';
+    const contents = selector => read('document.querySelector(' + JSON.stringify(selector) + ')?.textContent');
+    const activateSlot = action => clickVisible(slot(action));
+    await send('Page.navigate', { url: origin + path });
+    await until(async () => {
+      const state = await readState();
+      return state?.mode === 'menu' && (!firstPerson || state.webgl);
+    }, kind + ' game initialized');
+    assert.equal(await contents(phaseHint), 'Right mouse');
+
+    await clickVisible(settings);
+    await clickVisible('[data-player-tab="controls"]');
+    await activateSlot('shift');
+    await tap('KeyX');
+    assert.equal(await contents(slot('shift')), 'X');
+    await activateSlot('interact');
+    await clickVisible(slot('interact'), 'right');
+    assert.equal(await contents(slot('interact')), 'Right mouse');
+    await activateSlot('shift');
+    await clickVisible(slot('shift'), 'right');
+    assert.match(await contents('.player-binding-message'), /Right mouse is bound to Interact/);
+    await clickVisible('.player-binding-capture button:nth-last-child(2)');
+    assert.equal(await contents(slot('shift')), 'Right mouse');
+    assert.equal(await contents(slot('interact')), 'X');
+    await clickVisible('.player-binding-reset');
+    assert.equal(await contents(slot('interact')), 'E');
+    await clickVisible(close);
+
+    await clickVisible('#start');
+    await until(async () => {
+      const state = await readState();
+      return state?.mode === 'playing' && !state.scene;
+    }, kind + ' campaign entered', 16000);
+    assert.equal((await readState()).phase, 'day');
+    await tap('KeyX');
+    assert.equal((await readState()).phase, 'day');
+    await tap('MouseRight');
+    await until(async () => (await readState()).phase === 'night', kind + ' right-click phase switch');
+    assert.equal((await readState()).mode, 'playing');
+
+    await tap('Escape');
+    await until(async () => (await readState()).mode === 'paused', kind + ' paused');
+    await clickVisible(settings);
+    await activateSlot('shift');
+    await tap('KeyX');
+    await activateSlot('pause');
+    await clickVisible(slot('pause'), 'right');
+    assert.equal(await contents(slot('pause')), 'Right mouse');
+    await clickVisible(close);
+    await clickVisible('#start');
+    await until(async () => (await readState()).mode === 'playing', kind + ' resumed');
+    await delay(440); // Phase cooldown is temporarily frozen while this run is paused.
+    await tap('KeyX');
+    await until(async () => (await readState()).phase === 'day', kind + ' rebound X changes phase');
+    await tap('MouseRight');
+    await until(async () => (await readState()).mode === 'paused', kind + ' right mouse reassigned to pause');
+    console.log(kind + ' right-click phase and key binding controls passed');
+  }
+}
 
 async function pauseAndReadGuide() {
   await tap('Escape');
@@ -421,7 +499,9 @@ try {
   await send('Page.bringToFront');
   await send('Emulation.setFocusEmulationEnabled', { enabled: true });
   await send('Emulation.setDeviceMetricsOverride', { width: Number(process.env.QA_WIDTH || 1280), height: Number(process.env.QA_HEIGHT || 720), deviceScaleFactor: 1, mobile: false });
-  if (process.env.JOURNEY) {
+  if (process.env.CHECK_BINDINGS) {
+    await playBindings();
+  } else if (process.env.JOURNEY) {
     await startChapter();
     const proof = await play3DJourney({ snapshot, until, whenPlaying, moveTo, hold, tap, aim, readHud, pauseAndReadGuide, runTransfer:()=>runTransfer({snapshot,input}) }, process.env.JOURNEY);
     const saved = await read("JSON.parse(localStorage.getItem('last-light-3d-v1'))");
@@ -451,7 +531,7 @@ try {
     assert.equal(waiting.chase.started,false);
     if (process.env.TRANSFER_PROFILE) {
       const prompt=await read("document.querySelector('#interaction').textContent");
-      assert.match(prompt,/按住 W 奔跑.*空格跳跃.*X 切换长桥/);
+      assert.match(prompt,/按住 W 奔跑.*空格跳跃.*鼠标右键 切换长桥/);
       assert.equal(await read("document.querySelector('#room-title').textContent"),'后室 · 中转层');
     }
     const stills = process.env.TRANSFER_STILLS;

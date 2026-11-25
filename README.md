@@ -1,9 +1,9 @@
 # LAST LIGHT · One More Shift
 ## 《最后一盏灯：再值一班》
 
-## 2D and 3D browser release · 3.0.0-rc.20
+## 2D and 3D browser release · 3.0.0-rc.21
 
-[档案室重制与抓捕动画 / Archive rebuild and capture sequence](docs/archive-and-capture-rc20.md)
+[移动游玩、设施建模与实录音效 / Touch play, plant models and field recordings](docs/mobile-and-production-rc21.md) · [档案室重制与抓捕动画 / Archive rebuild and capture sequence](docs/archive-and-capture-rc20.md)
 
 [设置与女鬼 / Settings and the Mourning Clerk](docs/settings-and-mourning-rc19.md) · [后室追逐实测 / Records Annex playtest](docs/backrooms-rc17.md) · [Earlier gameplay verification](docs/gameplay-flow-rc15.md)
 
@@ -18,18 +18,18 @@ npm run check
 python3 scripts/package-3d.py
 ```
 
-- Press **X** or click the phase button to switch day and night. WASD moves, the mouse looks around, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. The first bridge exists at night. Starting or resuming captures the mouse. Esc pauses and releases it. On touch screens, drag the scene to look and tap the phase button to switch.
+- Right-click the game view or click the phase button to switch day and night. WASD moves, the mouse looks around, E interacts, Space jumps, Shift sprints, C walks quietly, J opens the journal, M mutes and Esc pauses. The first bridge exists at night. Starting or resuming captures the mouse. Esc pauses and releases it. On touch screens, drag the scene to look and tap the phase button to switch.
 - On desktop, press Enter to resume from pause. Set mouse sensitivity from 50% to 200% in Settings. If the browser releases the mouse, click the scene to capture it again. The browser's Escape shortcut also releases a captured mouse when you bind Pause to a different key.
 - WebGL 2 renders the game using a locally bundled copy of [Three.js](https://github.com/mrdoob/three.js/tree/r187). The game combines procedural sets with imported props and photographic PBR materials. The high preset adds depth-aware light shafts and contact shading. Balanced and Performance reduce rendering cost. Web Audio synthesizes the score and mixes recorded dialogue, spatial effects and room tone. Adaptive resolution runs within the selected graphics preset. The settings menu can display measured frame rate.
 - Blender-authored models give the boiler worker, records clerk and roof caretaker their own faces, clothing and equipment. The janitor's hand operates the controls and wears a watch that advances one minute on a shift. Folding inspection gates retract their bolts before opening.
 - Twelve performed English voice cues have English and Chinese subtitles. The lift announcements, archive playback, reply behind Gary’s door and two endings follow different events. Listen for each worker’s approach and for the change from pursuit to contact. [Cast, sources and licenses](dist/3d/assets/CREDITS.md).
 - The visual update adds floor-specific fittings, practical fixtures and signs, a refined phase effect, and individual face, workwear and movement details for each 3D pursuer.
-- Hold the directional pad with one finger and drag the scene with another to move and look around together. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
+- Select **Play in Mobile** on either title screen. In 3D, use the left joystick and drag the scene to look. In 2D, use the left and right buttons. Each edition has separate jump, phase and interact buttons that accept simultaneous touches. Menu, status, subtitles and touch controls adapt to short landscape screens. During dialogue, the score and room tone duck while nearby threats stay audible. If a pause interrupts a line, it restarts when play resumes.
 - The title menu offers **Play 3D** and **Play 2D**. From the expanded pixel edition, select **Play 3D** on the title card to return. Each edition has its own save. With `npm start`, the 2D edition is also at the server root. The current trailer shows both editions.
 
 ### Settings in both editions
 
-Open **Settings → Key bindings** from the title or pause screen. Select a key slot and press a new key. Each action can have up to three keys, and you can swap an occupied key or restore the defaults. The guide, interaction prompts and phase shortcut show your current bindings. Each edition saves its own keys in the browser. Touch controls keep their dedicated buttons.
+Open **Settings → Key bindings** from the title or pause screen. Select a slot and press a key or right-click to bind the mouse button. Right-click switches phase by default in both editions. Classic also accepts either Shift key. You can assign X in either edition. Each action can have up to three keys, and you can swap an occupied key or restore the defaults. The guide, interaction prompts and phase shortcut show your current bindings. Each edition saves its own keys in the browser. Touch controls keep their dedicated buttons.
 
 Choose **Story**, **Standard** or **Nightmare** in **Settings → Difficulty**. Story gives you more time to escape an enemy and recover from hazards. Nightmare shortens the reaction window and makes enemies faster. You can change difficulty during a run. Each edition remembers the choice separately from the checkpoint save.
 
@@ -39,7 +39,7 @@ The offices are haunted by the Mourning Clerk. When you look directly at her in 
 
 ### The Records Annex
 
-A transfer slip sends the janitor into a stretch of lit corridors between the archives and the next safe room. A worker follows through both phases. In **2D**, hold Right or D, jump the carts and gaps with Space, and switch in the air with X. The emergency lamp halfway through records your progress. Players with a finished save can enter the annex from Chapters. In **3D**, hold W facing the fire door, steer around tall shelving with A/D, jump the barriers with Space and use X when a phase bridge is missing. The transfer floor gives forward movement full running speed. The cry behind you changes direction as you turn your head.
+A transfer slip sends the janitor into a stretch of lit corridors between the archives and the next safe room. A worker follows through both phases. In **2D**, hold Right or D, jump the carts and gaps with Space, and switch in the air with right-click or Shift. The emergency lamp halfway through records your progress. Players with a finished save can enter the annex from Chapters. In **3D**, hold W facing the fire door, steer around tall shelving with A/D, jump the barriers with Space and right-click when a phase bridge is missing. The transfer floor gives forward movement full running speed. The cry behind you changes direction as you turn your head.
 
 The expanded route runs through several distinct interiors. In 2D, the boiler annex and mail-handling rooms add changes in floor height, transfer carts, unlit bridges and tighter jump sequences. In 3D, the tiled return-air room and high microfilm stacks lead to an amber-lit concrete stairwell. Alternating passages through the shelving, deeper shafts and six phase bridges keep the runner moving. The new score gains pace through the run, while the worker's steps and cries track the distance behind you.
 
@@ -47,12 +47,12 @@ The steam trap downstairs, outgoing slip case in the offices, roof drainage hopp
 
 ### Character art sources
 
-Open the [three workers](art/blender/late-workers.blend), [janitor hand](art/characters/janitor.blend) and [folding service lift](art/blender/service-lift.blend) in Blender 4.5 LTS. The runtime includes a pressure dial, archive punch clock and roof flow meter that move when their matching station is operated. [Gameplay screenshots](media/character-art-rc14.jpg) · [Release checks](docs/character-review-rc14.json).
+Open the [three workers](art/blender/late-workers.blend), [janitor hand](art/characters/janitor.blend) and [folding service lift](art/blender/service-lift.blend) in Blender 4.5 LTS. The [pressure gallery and roof services](art/blender/pressure-and-roof.blend) add caged lamps, rainwater tanks and fans. Pressure drops in the boiler gauge, office doors settle on springs and water runs from the rooftop nozzles when each station is operated. [Gameplay screenshots](media/character-art-rc14.jpg) · [Release checks](docs/character-review-rc14.json).
 
 ### Advanced maintenance routes
 
-- **2D** has an upper route in each of the 18 sections. Hold Space, switch with **X** while airborne, and land before launching again. The upper route rejoins the room beyond the first gap and has an emergency lamp. You can also reach every work station from the lower walkways.
-- **3D** has a sprint-jump shortcut on each floor. Save at the lamp beside the entrance, hold **Shift** to sprint, jump with **Space**, and press **X** before landing on the next pad. On the roof, turn between jumps. The standard corridors still lead to the lift.
+- **2D** has an upper route in each of the 18 sections. Hold Space, switch with **right-click** or **Shift** while airborne, and land before launching again. The upper route rejoins the room beyond the first gap and has an emergency lamp. You can also reach every work station from the lower walkways.
+- **3D** has a sprint-jump shortcut on each floor. Save at the lamp beside the entrance, hold **Shift** to sprint, jump with **Space**, and right-click before landing on the next pad. On the roof, turn between jumps. The standard corridors still lead to the lift.
 
 The Chrome runners exercise the real game with keyboard input. The 2D relay run deliberately misses the first catch in each section, retries, verifies the lamp save, and then clears the section. The 3D shortcut runner checks every jump and lamp revival. Its journey mode starts a fresh game and follows the standard corridors.
 
@@ -86,7 +86,7 @@ Open **http://127.0.0.1:8786/**. Any static server can serve `dist/`. No runtime
 
 - A/D or arrows: move; hold C for quiet walking.
 - Space / W / up: jump; release early for a short jump.
-- Shift / X: switch memories. E / down: work, clues, doors, exit light.
+- Right-click / Shift: switch memories. E / down: work, clues, doors, exit light.
 - J: journal. M: mute. Esc: pause/resume. Touch controls remain available.
 - Settings offer the same difficulty and key binding controls, plus master/music/SFX volume and reduced flash effects.
 - Scenes advance automatically. E can advance a beat after its minimum animation time; the departure has a longer minimum so its actors can finish leaving.
