@@ -25,3 +25,10 @@ The glass-tiled walls, shuttered concrete, ventilation fan, roof beams, shaft ma
 The reproducible HTML5 archive contains 124 files. SHA-256: `583bc13a4b3e74780ddd98c92ddb2f6c20f02bbadc02797ba273aa44d38d182d`.
 
 [Updated trailer](https://www.youtube.com/watch?v=mlfnCk58LAw).
+
+
+## Publication
+
+The public itch.io page launched both editions from embed **20805187**, and each playable opening changed phase in an Incognito session. All 124 CDN files matched the release ZIP, allowing for itch.io's script added to the HTML files. The project embeds YouTube video **mlfnCk58LAw**. The direct YouTube page played in regular Chrome and identified the video as unlisted. The signed-out embed showed YouTube's automated sign-in prompt during playback verification.
+
+The 1080p60 H.264 master is 83,248,909 bytes. SHA-256: `1fa1c1bef029cb7dbdf42a5a743ddc69aa0ad77e74ed7e447cc77188fc24686d`.

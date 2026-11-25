@@ -4,6 +4,8 @@
 
 The chase runs at 140 px/s across 37 obstacles in Classic and 7.7 m/s across 28 obstacles in first person. Added stepped elevations, alternating rack openings and more airborne phase switches. The pump gallery, tall stacks and fire stair have their own architecture, lighting and fittings. The score picks up pace through the pursuit. [Desktop acceptance and trailer](docs/backrooms-rc17.md).
 
+The release is live as itch.io build 20805187. Both editions launched and switched phase, and the public game's 124 runtime files match the ZIP. The page links to the [46.8-second updated trailer](https://www.youtube.com/watch?v=mlfnCk58LAw).
+
 ## RC16 · Mandatory Records Annex pursuit
 
 Classic and first-person runs each cleared their new transfer floor, both endings and deliberate recovery cases using Chrome keyboard input. The route takes about 45 seconds in either edition. Sixteen editable Blender assemblies supply the corridor and fittings across the boiler room, office and roof. The hands, ghost, swinging door, directional calls and pursuit score now follow the run. See the [desktop acceptance record](docs/backrooms-rc16.md) and [in-game images](media/backrooms-rc16.jpg).
