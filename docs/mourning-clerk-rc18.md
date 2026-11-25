@@ -16,3 +16,8 @@ Both editions have contextual voice cues in the boiler room, office and roof. Th
 - The archive contains 143 runtime files. SHA-256: `850a3e9f95e88b250e9790d89727932c884424063643670c1767f4624fc1eaac`.
 
 [Browser screenshots](../media/mourning-clerk-rc18.jpg) · [Figure in Blender](../art/blender/mourning-clerk.blend) · [Wings in Blender](../art/blender/mourning-wings.blend) · [Phonograph in Blender](../art/blender/office-phonograph.blend)
+
+
+## Publication
+
+[The signed-out itch.io page](https://tomhao.itch.io/last-light) launched both editions from build **20805574**. Both openings switched phase. All 143 CDN files match the release archive with itch.io's loader appended to the HTML pages.

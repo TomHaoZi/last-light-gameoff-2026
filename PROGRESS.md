@@ -4,6 +4,8 @@
 
 The office now has a female limestone apparition with a gaze mechanic, a replayable phonograph, contextual guidance in Chinese and English, and direct speech mixing. Focused, exact-package tests in both editions verified the warning, recovery and capture. [Office acceptance record](docs/mourning-clerk-rc18.md).
 
+The change is live on itch.io build 20805574. Both editions launched and switched phase while signed out, and all 143 CDN files matched the release archive.
+
 ## RC17 · Denser pursuit and distinct interiors
 
 The chase runs at 140 px/s across 37 obstacles in Classic and 7.7 m/s across 28 obstacles in first person. Added stepped elevations, alternating rack openings and more airborne phase switches. The pump gallery, tall stacks and fire stair have their own architecture, lighting and fittings. The score picks up pace through the pursuit. [Desktop acceptance and trailer](docs/backrooms-rc17.md).
