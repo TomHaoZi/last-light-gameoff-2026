@@ -29,3 +29,11 @@ Three cold Chromium runs on the Apple M4 rendered the archives at 2560 × 1440, 
 After the fix, the worst frame in the entry windows was 33.3, 33.4 and 50.0 ms. RC18 reached 50.0, 66.6 and 50.1 ms in the matched cold trials. The first night switch peaked at 16.7–16.8 ms in the final trials.
 
 Two Clerks first came into view during the real-input 1440p office run at 16.6 and 16.7 ms. The surrounding windows peaked at 16.8 and 16.7 ms. The run continued through the warning, physical charge, phase change, contact and lamp revival.
+
+## Published build
+
+Published as itch.io build 20812192. Signed-out Chrome started both editions from the public page and switched phase. The 2D test used a newly assigned Q key. All 149 embedded files matched the published archive after accounting for the platform's loader in the two HTML pages.
+
+The archive is 23,869,230 bytes. SHA-256: `f6419ed0b18d0f837e3c18034f333a827a52e65911110931946af9cdc7e575a7`. The source commit is `f4b17286b597fa03ac6ae445ae49dce199c5dbfa`.
+
+[Public game](https://tomhao.itch.io/last-light)

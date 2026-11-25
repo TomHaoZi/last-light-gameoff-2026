@@ -10,6 +10,8 @@ Two 3D Chrome playthroughs reached the normal and complete endings with zero dea
 
 The redesigned adult figure uses a fitted human mesh, a tailored gown, painted skin and a shared skeleton. Classic has a new hand-pixelled silhouette and charging pose. The Classic full Chrome run cleared all 18 sectors and reached the complete ending with six records and zero deaths. See the [RC19 controls and encounter record](docs/settings-and-mourning-rc19.md).
 
+On itch.io build 20812192, both editions booted and switched phase in signed-out Chrome. All 149 browser files match the release archive with itch.io’s two HTML loader insertions accounted for.
+
 ## RC18 · The Mourning Clerk
 
 The office now has a female limestone apparition with a gaze mechanic, a replayable phonograph, contextual guidance in Chinese and English, and direct speech mixing. Focused, exact-package tests in both editions verified the warning, recovery and capture. [Office acceptance record](docs/mourning-clerk-rc18.md).
