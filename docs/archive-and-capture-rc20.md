@@ -18,3 +18,11 @@ The Mourning Clerk has fitted feather layers, weathered surface detail and artic
 [In-game capture](../media/archive-rc20.jpg)
 
 Three fresh Chrome profiles ran at 2560 × 1440, High, with adaptive resolution off on an Apple M4. The first night shift stayed within 16.8 ms. The real-input fight's 86 capture frames and 51 revival frames also stayed within 16.8 ms. Cold entry still had occasional long frames while the scene initialized. The worst was 116.6 ms with staged textures, compared with 116.7 ms in the three earlier RC19 comparison runs on the same machine.
+
+## Published build
+
+The public itch.io page served build 20818717. Signed-out Chrome started both editions and switched each to night. All 160 CDN files matched the package after accounting for the two platform-inserted HTML loader scripts.
+
+The archive is 28,677,454 bytes. SHA-256: `dc13bc59cb3768a680ef9deea88fba26a419afb4b32439d1d78155b8453d9e53`. Source commit: `a8db5300a9eee78da5cabdfc668af5e4881b024c`.
+
+[Public game](https://tomhao.itch.io/last-light)

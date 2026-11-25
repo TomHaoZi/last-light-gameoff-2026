@@ -4,6 +4,8 @@
 
 The 3D office now has eight editable Blender assemblies and new photographic ceramic and plaster. Its practical fluorescent and emergency fixtures provide localized highlights, with darker intervening hallways. The Clerk wears layered, six-joint wings fitted to her body. Contact starts a synchronized capture, defense, wing sweep, fall, blackout and lamp recovery. Classic has its own pixel-art sequence. [Archive and capture verification](docs/archive-and-capture-rc20.md).
 
+Chrome finished all 18 Classic areas and both versions passed the capture test. The 3D route reached its normal ending with all nine handovers. The release is live on itch.io build 20818717, and all 160 browser files match the archive with both HTML loader insertions accounted for.
+
 ## RC19 · Custom controls, difficulty and the Mourning Clerk
 
 Both editions have editable keyboard bindings with three slots per action, explicit conflict swaps and a restore-defaults control. Menus and gameplay prompts use the selected keys. Story, Standard and Nightmare change pursuit and recovery timing. Controls and difficulty are stored per edition.
