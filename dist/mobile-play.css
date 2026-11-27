@@ -221,3 +221,56 @@ html[data-mobile-play=true] .classic-mobile .controls { justify-content: flex-en
   html[data-mobile-play=true] .first-person-mobile .hud-bottom .feedback { grid-area: 2 / 2; }
   html[data-mobile-play=true] .first-person-mobile .hud-bottom .bottom-bar { grid-area: 3 / 1 / 4 / 4; }
 }
+
+/* 3D fingertip HUD. Editor and live controls share the same safe-area plane. */
+.first-person-mobile #stage { --hud-inset: max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left)); }
+html[data-mobile-play=true] .first-person-mobile #stage .touch,
+.first-person-mobile .touch-layout-plane,
+.first-person-mobile .touch-layout-bounds { position: fixed; inset: var(--hud-inset); width:auto; display: block; padding: 0; pointer-events: none; }
+.first-person-mobile .touch-layout-bounds { visibility: hidden; }
+html[data-mobile-play=true] .first-person-mobile #stage .touch-actions { display: contents; }
+html[data-mobile-play=true] .first-person-mobile #stage .touch [data-hud-control],
+.first-person-mobile .touch-layout-control {
+  position: absolute;
+  left: clamp(calc(var(--hd)/2),var(--hx),calc(100% - var(--hd)/2));
+  top: clamp(calc(var(--hd)/2),var(--hy),calc(100% - var(--hd)/2));
+  transform: translate(-50%,-50%);
+  width: var(--hd); height: var(--hd); min-width: 0; min-height: 0;
+  border-radius: 50%; pointer-events: auto; touch-action: none; user-select: none;
+}
+html[data-mobile-play=true] .first-person-mobile #stage .touch button[data-hud-control],
+.first-person-mobile .touch-layout-control {
+  display: grid; place-content: center; gap: 1px; padding: 2px;
+  border: 1px solid #c2dbca9c; background: radial-gradient(circle,#273f3cd9,#0b171cec);
+  color: #fff5d9; text-align: center; font: 650 clamp(.55rem,calc(var(--hd)*.15),.82rem)/1.02 var(--sans);
+  box-shadow: inset 0 0 0 2px #cadacd21,0 1px 5px #080d13a8;
+}
+html[data-mobile-play=true] .first-person-mobile #stage .touch button[data-hud-control]::before,
+.first-person-mobile .touch-layout-control::before { content: attr(data-icon); font-size: calc(var(--hd)*.30); line-height: .94; }
+html[data-mobile-play=true] .first-person-mobile #stage .touch button[data-held],
+.first-person-mobile .touch-layout-control[aria-pressed=true] { border-color:#ffdb9b; background:#4d6a5e; outline:2px solid #f2ce7a; }
+html[data-mobile-play=true] .first-person-mobile #stage .hud-bottom { display:block; }
+html[data-mobile-play=true] .first-person-mobile #stage .hud-bottom .feedback,
+html[data-mobile-play=true] .first-person-mobile #stage .hud-bottom .interaction { position:absolute; left:50%; transform:translateX(-50%); }
+html[data-mobile-play=true] .first-person-mobile #stage .hud-bottom .feedback { bottom: 59px; max-width: min(56vw,410px); }
+html[data-mobile-play=true] .first-person-mobile #stage .hud-bottom .interaction { bottom: 156px; top:auto; max-width: min(54vw,400px); }
+html[data-mobile-play=true] .first-person-mobile #stage .touch { z-index:2; }
+html[data-mobile-play=true] .first-person-mobile #stage .roof-tool { top:calc(153px + env(safe-area-inset-top)); }
+@media (orientation: portrait) {
+  html[data-mobile-play=true] .first-person-mobile #stage .hud-bottom .feedback { bottom:213px; max-width:90vw; }
+  html[data-mobile-play=true] .first-person-mobile #stage .hud-bottom .interaction { bottom:315px; max-width:88vw; }
+  html[data-mobile-play=true] .first-person-mobile #stage .top-actions button { padding-inline: .42rem; }
+}
+.first-person-mobile #touch-layout-editor { inset:0; margin:0; padding:0; width:100%; height:100%; max-width:none; max-height:none; border:0; overflow:hidden; background:transparent; }
+.first-person-mobile #touch-layout-editor::backdrop { background:#09151969; }
+.first-person-mobile #stage[data-edit-touch] :is(.topbar,#intro) { visibility:hidden; }
+.first-person-mobile .touch-layout-tools {
+  position: absolute; z-index:3; top:max(10px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+  width:min(92%,340px); padding:.5rem .75rem; border:1px solid #dfca9a7d; background:#0d191bf5; color:#fff1d0;
+}
+.first-person-mobile .touch-layout-tools h2 { margin:0; font:600 1.02rem var(--sans); }
+.first-person-mobile .touch-layout-tools p { margin:.22rem 0 .35rem; font-size:.74rem; }
+.first-person-mobile .touch-layout-tools label { display:flex; justify-content:space-between; font-size:.8rem; }
+.first-person-mobile .touch-layout-tools input { width:100%; }
+.first-person-mobile .touch-layout-actions { display:flex; justify-content:space-between; gap:.35rem; }
+.first-person-mobile .touch-layout-actions button { min-height:38px; padding:.42rem .55rem; font-size:.75rem; }

@@ -441,6 +441,15 @@ def rooftop(work, beacon):
             work.mesh("Separated wet leaf lamina",points,[(0,4,1),(1,4,2),(2,4,3),(3,4,0)],
                       "leaflite" if i%4==1 else "leaf",True)
 
+    work.make("roof", "PlanterBracket")
+    for x in (-.49,.49):
+        box('Vertical fascia plate',(x,-.012,-.214),(.132,.060,.451),'iron',.009)
+        box('Box rail seat',(x,-.204,-.025),(.107,.439,.075),'bare',.009)
+        pipe('Welded diagonal knee',[(x,-.041,-.362),(x,-.122,-.254),(x,-.363,-.058)],.043,'iron',10)
+        box('External retaining stop',(x,-.415,.034),(.112,.032,.12),'iron',.007)
+        for z in (-.382,-.171):
+            work.stud(x,-.046,z,.018)
+        work.stud(x,-.433,.033,.014)
     work.make("roof", "Beacon")
     work.bulkhead(beacon)
 

@@ -417,14 +417,14 @@ def finger_pose(point, line, grip, spread):
     return root+Quaternion(Vector((0,0,1)),spread*u)@(p-root)
 
 
-def morph(name,grip,splay):
+def morph(name,grip,splay,tool=False):
     key=hand.shape_key_add(name=name)
     thumbline=list(map(Vector,thumb_path))
     for vertex in hand.data.vertices:
         p=vertex.co
         if p.y<.024: continue
         if p.x<-.039 and p.y<.106:
-            q=finger_pose(p,thumbline,grip*.74,-splay*.14)
+            q=finger_pose(p,thumbline,(.78 if tool else grip*.74),(-.59 if tool else -splay*.14))
         elif p.y>.071:
             _, idx=min((min(dist_line(p,a,b) for a,b in zip(line,line[1:])),i)
                       for i,(_,line,_) in enumerate(fingers))
@@ -434,6 +434,7 @@ def morph(name,grip,splay):
 
 morph("Operate",1,0)
 morph("Brace",-.34,1)
+morph("ToolGrip",1.28,-.13,tool=True)
 
 # The loose sleeve flares toward the elbow. Ring centres snake through the
 # fabric; diagonally crossing, unequal folds catch raking light in the game.
@@ -549,7 +550,7 @@ for x,wid in [(-.0020,.00066),(0,.00134),(.0023,.00052)]:
 gear=attach(gear,"Janitor | stitched cuff, strap and watch dial")
 metal=attach(metal,"Janitor | nickel case")
 hand["character"]="Last shift janitor; original first-person hand sculpt"
-hand["pose_controls"]="Operate flexes the three finger joints; Brace spreads the hand."
+hand["pose_controls"]="Operate flexes the three finger joints; Brace spreads the hand; ToolGrip closes around the wrench shaft."
 minute.name="JanitorMinute"
 # Keep the editable source out of the web build. GLB contains only visible geometry.
 bpy.context.scene.unit_settings.system="METRIC"

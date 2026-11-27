@@ -1,10 +1,17 @@
 import { preloadMourningFigure } from './mourning-figure.js';
 import { firstSightWall, mourningHiddenByPartition } from './mourning-gaze.js';
 import { clerkCaptureFrame } from './mourning-capture.js';
+import { ordinaryLifeShot } from './shift-cinematics.js';
 import * as THREE from 'three';
 import { applyWorldWeather, createSurfaceSet } from './surfaces.js';
 import { decorateModels } from './models.js';
-import { mountEnvironment } from './environment-assets.js';
+import { MAP_DRESSING, mountMapDressing } from './map-dressing.js';
+import { trackBoilerBatch, updateBoilerBatches } from './dressing-visibility.js';
+import { mountRoofSkyline, updateRoofSkyline } from './roof-skyline.js';
+import { mountArchitecture, mountCityGround, mountDetail, mountFit, mountJunctions, mountRoofCorners, mountRoofSplices, mountSignTrays, mountUtilities } from './architecture-kit.js';
+import { planCityGround } from './city-ground-layout.js';
+import { evidenceModel, evidenceStand, mountInspectionDetails } from './inspection-details.js';
+import { mountEnvironment, mountRoofNurseries } from './environment-assets.js';
 import { FrameBudget } from './frame-budget.js';
 import { mountPhotoSurfaces } from './photo-surfaces.js';
 import { makeReflectionProbe, makeAtmosphere } from './lighting.js';
@@ -19,9 +26,16 @@ import { mountServiceLift, poseServiceLift } from './service-lift.js';
 import { mountStationTrace } from './station-traces.js';
 import { mountWorkstations, updateWorkstation } from './workstation-models.js';
 import { hazardBeat, hazardInPhase, hazardPressure, rotorStep, stationAge, stationPose } from './machinery-motion.js';
-import { mountWallSigns } from './set-dressing.js';
+import { hasArchiveWallSign, mountWallSigns } from './set-dressing.js';
+
+// At these faces furniture or equipment occupies the ornamental fitting's depth.
+// Coordinates describe the backing wall, not the walkable cell in front.
+const ARCHIVE_OCCUPIED_FACES = new Set(['12/5/0/1','7/15/1/0','16/2/1/0','12/17/0/-1']);
 import { mountArchiveInterior } from './archive-interior.js';
 import { mountPlantSets, updatePlantSets } from './plant-sets.js';
+import { dressArchitecture, makeChamferedBox } from './architectural-details.js';
+import { mountCheckpointLamps } from './checkpoint-lamp.js';
+import { ROOF_WALL_HEIGHT } from './levels.js';
 
 const TILE = 2.4;
 const HALF = TILE / 2;
@@ -107,6 +121,7 @@ function spriteText(text, ink = '#fff4d4', caption = '') {
 }
 
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
+const trimBox = makeChamferedBox();
 const unitCylinder = new THREE.CylinderGeometry(.5, .5, 1, 24);
 const unitSphere = new THREE.SphereGeometry(.5, 12, 8);
 const unitPlane = new THREE.PlaneGeometry(1, 1);
@@ -135,6 +150,10 @@ class Batch {
 
   box(material, x, y, z, width, height, depth, angle = 0, color = null) {
     this.add(unitBox, material, [x, y, z], [width, height, depth], { x: 0, y: angle, z: 0 }, color);
+  }
+
+  trim(material, x, y, z, width, height, depth, angle) {
+    this.add(trimBox, material, [x, y, z], [width, height, depth], { x: 0, y: angle, z: 0 });
   }
 
   pipe(material, from, to, diameter) {
@@ -237,8 +256,9 @@ float fbm(vec2 p) {
 void main() {
   vec3 d = normalize(direction);
   float h = max(d.y, 0.0);
-  vec3 sunset = mix(vec3(.38,.20,.117), vec3(.053,.16,.29), smoothstep(0.,.61,sqrt(h)));
-  vec3 darkness = mix(vec3(.022,.044,.076), vec3(.003,.010,.033), smoothstep(0.,.63,sqrt(h)));
+  // The amber break stays low under an ash front, not an open sunset.
+  vec3 sunset = mix(vec3(.31,.165,.091), vec3(.045,.075,.093), smoothstep(.04,.64,sqrt(h)));
+  vec3 darkness = mix(vec3(.030,.060,.066), vec3(.004,.013,.021), smoothstep(0.,.63,sqrt(h)));
   vec3 sun = normalize(vec3(-.64,.15,-.75));
   vec3 moon = normalize(vec3(.28,.44,-.75));
   float sundot = max(dot(d,sun),0.0);
@@ -252,13 +272,14 @@ void main() {
   vec2 plane = d.xz / max(d.y + .115, .08);
   vec2 p = plane * vec2(1.7, 1.42) + vec2(time * .014, -time * .007);
   float clumps = fbm(p);
-  float front = smoothstep(.53, .69, clumps) * smoothstep(.0,.17,h);
+  float front = smoothstep(.33, .61, clumps) * smoothstep(.016,.135,h);
   float obliqueLight = max(0.0, clumps - fbm(p + vec2(.19,.13))) * 3.2;
-  vec3 cloudDay = mix(vec3(.126,.106,.137),vec3(.69,.38,.23),clamp(obliqueLight + pow(sundot, 4.) * .52,0.,1.));
-  vec3 cloudNight = mix(vec3(.008,.015,.037),vec3(.059,.09,.137),clamp(obliqueLight,0.,1.));
-  sky = mix(sky, mix(cloudDay,cloudNight,night), front * .82);
-  float highSheet = smoothstep(.55,.75, fbm(plane * vec2(4.9, .92) - vec2(time * .009,11.0)));
-  sky += highSheet * smoothstep(.10,.34,h) * mix(vec3(.115,.14,.22),vec3(.012,.022,.043),night) * (1.0-front);
+  float underlit = pow(sundot,6.) * (1.0-smoothstep(.08,.37,h));
+  vec3 cloudDay = mix(vec3(.038,.048,.051),vec3(.36,.224,.151),clamp(obliqueLight * .43 + underlit * .48,0.,1.));
+  vec3 cloudNight = mix(vec3(.006,.017,.020),vec3(.032,.067,.075),clamp(obliqueLight,0.,1.));
+  sky = mix(sky, mix(cloudDay,cloudNight,night), front * .95);
+  float highSheet = smoothstep(.46,.73, fbm(plane * vec2(4.9, .92) - vec2(time * .015,11.0)));
+  sky += highSheet * smoothstep(.04,.13,h) * mix(vec3(.041,.046,.044),vec3(.008,.022,.025),night) * (1.0-front);
   vec2 stars = vec2(atan(d.z,d.x)/6.283185 + .5,h) * vec2(860.0,385.0);
   float star = (1.0 - smoothstep(.04,.15,length(fract(stars)-.5))) * step(.993,hash(floor(stars)));
   sky += vec3(.26,.36,.61) * star * night * smoothstep(.12,.31,h) * (1.0-front);
@@ -341,10 +362,14 @@ void main() {
     float depth = eyeDepth(sampleUv);
     if (depth < 21.0) base *= 1.0 - contact(sampleUv, depth) * .36;
   }
-  vec2 offset = texel * 5.0;
-  vec3 glow = glowSample(sampleUv+offset) + glowSample(sampleUv-offset)
-    + glowSample(sampleUv+vec2(-offset.x,offset.y)) + glowSample(sampleUv+vec2(offset.x,-offset.y));
-  base += glow * .045;
+  // Aspect-correct halation with a tight core and broader, warmer scatter.
+  // Reuse four scene taps even at high quality; no extra full-screen pass.
+  vec2 glowRadius = (texel / texel.y) * .006;
+  vec3 core = glowSample(sampleUv + vec2(glowRadius.x, 0.0))
+            + glowSample(sampleUv - vec2(glowRadius.x, 0.0));
+  vec3 tail = glowSample(sampleUv + vec2(0.0, glowRadius.y * 1.7))
+            + glowSample(sampleUv - vec2(0.0, glowRadius.y * 1.7));
+  base += core * .057 + tail * mix(vec3(.040,.030,.025), vec3(.026,.037,.042), night);
   if (shafts > .5) base += texture2D(shaftsTex, sampleUv).rgb;
   float vignette = 1.0 - smoothstep(.24,.76,range) * (.19+.13*night+.27*life);
   base *= vignette;
@@ -580,13 +605,35 @@ export class Visual {
       return;
     }
 
+    this.architecture = new Map();
+    this.junctions = new Map();
+    this.utilities = new Map();
+    this.detail = new Map();
+    this.fit = new Map();
+    this.signMounts = new Map();
+    this.roofCorners = new Map();
+    this.roofSplices = new Map();
+    this.cityGround = new Map();
+    this.cityGroundFallback = this.cityLamp = null;
+    this.inspection = [];
     for (const wall of decoded.walls) this.makeWall(wall);
     for (const floor of decoded.floors) this.makeFloor(floor);
     if (decoded.shortcut) this.markShortcut(decoded.shortcut.pads);
+    this.roofNurseries = [];
+    this.mapDressing = new Map();
+    const nurseryFallback = new THREE.Group();
+    if (this.theme === 2) {
+      nurseryFallback.name = 'Nursery box fallback';
+      this.stage.add(nurseryFallback);
+      this.batches.nurseryFallback = new Batch(nurseryFallback);
+    }
     this.makePropClusters();
     this.makeArrival();
     decorateModels(this);
     mountWallSigns(this, TILE);
+    const lampFallback = new THREE.Group();
+    this.stage.add(lampFallback);
+    this.batches.lampFallback = new Batch(lampFallback);
     for (const lamp of decoded.lamps) this.makeSafeLamp(lamp);
     for (const station of decoded.stations) this.makeStation(station);
     if (decoded.power) this.makeStation(decoded.power, true);
@@ -597,11 +644,23 @@ export class Visual {
     this.air = new AirEffects(this.stage);
     this.liftLeaves = null;
     this.makeDoor(decoded.exit);
+    this.skyline = null;
     if (this.theme === 2) this.makeSkyline();
     Object.values(this.batches).forEach(batch => batch.build());
+    if (this.theme === 0) {
+      for (const key of ['neutral', 'day', 'night']) {
+        for (const mesh of this.batches[key].group.children) {
+          if (mesh.isInstancedMesh) trackBoilerBatch(this, [mesh]);
+        }
+      }
+    }
     this.makeParticles();
     this.workstationsReady = mountWorkstations(this);
-    this.environmentReady = Promise.all([mountEnvironment(this), mountArchiveInterior(this), mountPlantSets(this)]);
+    this.environmentReady = Promise.all([
+      mountEnvironment(this), mountArchiveInterior(this), mountPlantSets(this), mountCheckpointLamps(this, lampFallback),
+      mountRoofNurseries(this, nurseryFallback), mountMapDressing(this), mountRoofSkyline(this),
+      mountArchitecture(this), mountInspectionDetails(this), mountJunctions(this), mountUtilities(this), mountDetail(this), mountFit(this), mountSignTrays(this), mountRoofCorners(this), mountRoofSplices(this), mountCityGround(this)
+    ]);
     this.surfacesReady = mountPhotoSurfaces(this);
     const stage = this.stage;
     const redraw = () => { if (this.stage === stage) this.overlayFrame = null; };
@@ -707,6 +766,9 @@ export class Visual {
       ceiling: applyWorldWeather(standard(this.palette.ceiling, surfaces.ceiling), 'ceiling', this.theme),
       low: standard(this.palette.low, { roughness: .92 }),
       steel: standard(this.palette.steel, surfaces.steel),
+      edgeMetal: standard(this.theme === 2 ? '#5c6d70' : '#655c53', { ...surfaces.steel, metalness: .57, roughness: .42 }),
+      plasterEdge: standard(this.theme === 2 ? '#7b817d' : '#aaa99b', { roughness: .72 }),
+      lacquer: standard(this.theme === 1 ? '#4c3c32' : '#51453a', { roughness: .44, metalness: .13 }),
       dark: standard('#202a2c', { roughness: .61, metalness: .20 }),
       accent: standard(this.palette.accent, surfaces.accent),
       copper: standard('#8d5a37', { roughness: .38, metalness: .31 }),
@@ -726,8 +788,20 @@ export class Visual {
     const m = this.materials;
     const b = this.batches.neutral;
     const roof = this.theme === 2;
-    const height = roof ? 1.38 : 3.28;
+    const height = roof ? ROOF_WALL_HEIGHT : 3.28;
     b.box(m.wall, x, height / 2 - .13, z, TILE + .025, height + .26, TILE + .025, 0, tint(random(col * 771 + row * 297)()));
+    const exposed = (dx,dz) => {
+      const neighbor = this.decoded.get(col+dx,row+dz);
+      return Boolean(neighbor && neighbor.kind !== '#');
+    };
+    if (roof && FACES.some(([dx,dz])=>exposed(dx,dz))) {
+      this.junctionPoint('RoofCopingBed',x,height,z,0,1);
+      for (const [dx,dz,yaw] of [[1,1,0],[1,-1,Math.PI/2],[-1,-1,Math.PI],[-1,1,-Math.PI/2]]) {
+        if (exposed(dx,0) && exposed(0,dz)) {
+          this.junctionPoint('RoofCopingCorner',x+dx*HALF,height,z+dz*HALF,Math.sin(yaw),Math.cos(yaw));
+        }
+      }
+    }
     for (let face = 0; face < FACES.length; face++) {
       const [dx, dz] = FACES[face];
       const next = this.decoded.get(col + dx, row + dz);
@@ -735,20 +809,54 @@ export class Visual {
       const xFace = x + dx * (HALF + .018);
       const zFace = z + dz * (HALF + .018);
       const angle = dx ? Math.PI / 2 : 0;
-      b.box(m.dark, xFace, roof ? 1.29 : .13, zFace, TILE + .04, .14, .094, angle);
+      const joint = this.junctionPoint(roof ? 'RoofCoping' : this.theme === 1 ? 'ArchiveJunction' : 'BoilerJunction',
+        xFace,roof ? height : 0,zFace,dx,dz);
       if (roof) {
-        b.box(m.steel, xFace, 1.44, zFace, TILE, .08, .15, angle);
-      } else if (this.theme === 1) {
+        b.box(m.dark,xFace,1.29,zFace,TILE+.04,.14,.094,angle);
+        joint.box(m.steel,xFace,1.44,zFace,TILE,.08,.15,angle);
+      } else {
+        joint.box(m.dark,xFace,.13,zFace,TILE+.04,.14,.094,angle);
+      }
+      if (this.theme === 1) {
         b.box(m.low, xFace, .54, zFace, TILE, .87, .055, angle);
         b.box(m.accent, xFace, .983, zFace, TILE, .083, .10, angle);
         b.box(m.bone, xFace, 2.91, zFace, TILE, .07, .055, angle);
-      } else {
+      } else if (!roof) {
         b.box(m.low, xFace, .44, zFace, TILE, .63, .055, angle);
         b.box(m.steel, xFace, .76, zFace, TILE, .037, .075, angle);
         b.box(m.dark, xFace, 2.73, zFace, TILE, .13, .11, angle);
       }
       this.wallFeature(tile, dx, dz, xFace, zFace, angle, next.kind);
     }
+  }
+
+  junctionPoint(name,x,y,z,dx,dz) {
+    return this.architecturePoint(name,x,y,z,dx,dz,'neutral',this.junctions);
+  }
+
+  detailPoint(name,x,y,z,yaw=0) {
+    return this.architecturePoint(name,x,y,z,Math.sin(yaw),Math.cos(yaw),'neutral',this.detail);
+  }
+
+  utilityPoint(name,x,y,z,yaw,scale = []) {
+    return this.architecturePoint(name,x,y,z,Math.sin(yaw),Math.cos(yaw),'neutral',this.utilities,scale);
+  }
+
+  architecturePoint(name,x,y,z,dx,dz,phase = 'neutral',collection = this.architecture,scale = []) {
+    const batch = this.architectureBatch(name,phase,collection);
+    collection.get(name).points.push([x,y,z,Math.atan2(dx,dz),...scale]);
+    return batch;
+  }
+
+  architectureBatch(name,phase,collection) {
+    if (!collection.has(name)) {
+      const fallback = new THREE.Group();
+      fallback.name = 'Architecture fallback: ' + name;
+      (phase === 'neutral' ? this.stage : this.groups[phase]).add(fallback);
+      this.batches['architecture-' + name] = new Batch(fallback);
+      collection.set(name,{points:[],fallback,phase});
+    }
+    return this.batches['architecture-' + name];
   }
 
   wallFeature(tile, dx, dz, x, z, angle, neighbor) {
@@ -758,6 +866,23 @@ export class Visual {
     const pattern = (tile.row * 19 + tile.col * 13 + (dx + 2) * 7 + dz * 17) % 19;
     const panel = (material, offset, y, width, height, depth, u = 0) =>
       b.box(material, x + dx * offset + dz * u, y, z + dz * offset - dx * u, width, height, depth, angle);
+    const trim=(batch,material,offset,y,width,height,depth,u=0)=>
+      batch.trim(material,x+dx*offset+dz*u,y,z+dz*offset-dx*u,width,height,depth,angle);
+    const handoverWall=this.theme===1 && tile.col===9 && tile.row===0 && dz===1;
+    let oldPlate=b, plateOffset=0;
+    if (pattern % (roof ? 7 : 5) === 0) {
+      const [name,u,y]=roof ? ['RoofInspectionCover',.48,.40] : this.theme===1 ?
+        ['ArchiveSocketPlate',pattern>=13 ? .994 : .91,1.58] : ['BoilerControlPlate',-.65,1.52];
+      // This continuous wall bay also carries the public-register board.
+      // Clear its right edge instead of mounting a socket partly behind it.
+      // Pattern zero pairs the control with a vertical feed. Keep its junction
+      // block and shift the independent plate clear of the drop pipe.
+      const fitted=u+(handoverWall ? .194 : this.theme===0 && pattern===0 ? .32 : 0);
+      plateOffset=fitted-(roof ? .48 : this.theme===1 ? .91 : -.65);
+      oldPlate=this.detailPoint(name,x+dz*fitted,y,z-dx*fitted,Math.atan2(dx,dz));
+    }
+    dressArchitecture(this.theme,pattern,(...args)=>trim(b,...args),m,
+      (material,offset,y,w,h,d,u=0)=>trim(oldPlate,material,offset,y,w,h,d,u+plateOffset));
     if (roof) {
       if (pattern % 3 === 0) {
         panel(m.steel, .02, .66, .072, 1.52, .082, -.92);
@@ -768,47 +893,81 @@ export class Visual {
     }
     if (this.theme === 0) {
       const y = 2.40;
-      b.pipe(m.copper, new THREE.Vector3(x - dz * HALF, y, z + dx * HALF), new THREE.Vector3(x + dz * HALF, y, z - dx * HALF), .136);
-      b.pipe(m.dark, new THREE.Vector3(x - dz * HALF, y + .21, z + dx * HALF), new THREE.Vector3(x + dz * HALF, y + .21, z - dx * HALF), .07);
+      this.boilerPipeRun(tile,dx,dz,x,y,z);
+      if (pattern % 4 === 2) this.utilityPoint('CeilingFeed',x+dz*.34,y,z-dx*.34,Math.atan2(dx,dz));
       const ox = -dz * (pattern < 9 ? .74 : -.74);
       const oz = dx * (pattern < 9 ? .74 : -.74);
-      b.box(m.steel, x + ox, y - .05, z + oz, .105, .205, .202, angle);
-      b.box(m.rust, x - dx * .018 + ox, y - .28, z - dz * .018 + oz, .049, .38, .028, angle);
+      const saddle = this.architecturePoint('PipeSaddle',x+ox,y,z+oz,dx,dz);
+      saddle.box(m.steel, x + ox, y - .05, z + oz, .105, .205, .202, angle);
+      saddle.box(m.rust, x - dx * .018 + ox, y - .28, z - dz * .018 + oz, .049, .38, .028, angle);
       if (pattern < 5) {
         // Carry a visible supply line into the wall instead of ending it at every bay.
         const dropX = x + ox + dx * .053;
         const dropZ = z + oz + dz * .053;
         b.pipe(m.copper, new THREE.Vector3(dropX, .08, dropZ), new THREE.Vector3(dropX, y, dropZ), .066);
+        const union = this.architecturePoint('SupplyUnion',x+ox,y,z+oz,dx,dz);
+        union.box(m.dark,dropX,2.33,dropZ,.18,.18,.18,angle);
         panel(m.dark, .064, 1.58, .112, .105, .091, pattern < 9 ? -.74 : .74);
       }
       if (pattern % 5 === 0 && neighbor === '.') {
-        panel(m.steel, .13, .68, 1.46, 1.04, .22);
-        panel(m.dark, .252, .68, 1.29, .84, .035);
-        for (let i = 0; i < 5; i++) panel(m.steel, .276, .38 + i * .14, 1.23, .055, .053);
-        panel(m.copper, .18, 1.22, 1.58, .065, .24);
+        const vent = this.architecturePoint('BoilerLouvre',x,.68,z,dx,dz);
+        vent.box(m.steel,x+dx*.10,.68,z+dz*.10,1.46,1.04,.22,angle);
+        vent.box(m.dark,x+dx*.229,.68,z+dz*.229,1.29,.84,.032,angle);
+        for (let i = 0; i < 5; i++) vent.box(m.steel,x+dx*.259,.38+i*.14,z+dz*.259,1.23,.055,.053,angle);
       }
     } else {
       panel(m.accent, .016, .54, .050, .76, .10, -.97);
+      const occupied=handoverWall || hasArchiveWallSign(tile.col,tile.row,dx,dz) ||
+        ARCHIVE_OCCUPIED_FACES.has(`${tile.col}/${tile.row}/${dx}/${dz}`);
+      if (occupied) return;
       if (pattern >= 13 && neighbor === '.') {
-        panel(m.accent, .046, 1.87, 1.58, 1.14, .14);
-        panel(m.dark, .113, 1.885, 1.42, .97, .040);
-        for (const u of [-.36, .36]) {
-          panel(m.frosted, .141, 1.90, .677, .88, .019, u);
-          panel(m.steel, .156, 2.08, .69, .027, .021, u);
-          panel(m.steel, .160, 1.55, .69, .028, .027, u);
-        }
-        panel(m.bone, .114, 1.29, 1.64, .074, .17);
+        const sash = this.architecturePoint('ArchiveWindow',x,1.87,z,dx,dz);
+        sash.box(m.accent,x+dx*.046,1.87,z+dz*.046,1.58,1.14,.14,angle);
+        sash.box(m.frosted,x+dx*.132,1.89,z+dz*.132,1.38,.93,.034,angle);
+        sash.box(m.bone,x+dx*.113,1.29,z+dz*.113,1.64,.074,.17,angle);
       } else if (pattern === 1 || pattern === 7) {
-        panel(m.accent, .035, 1.38, .94, 2.35, .09);
-        panel(m.low, .084, 1.50, .76, 2.02, .04);
-        panel(m.frosted, .110, 1.92, .48, .71, .018);
-        panel(m.brass, .109, 1.05, .17, .045, .073, .25);
+        const door = this.architecturePoint('ArchiveDoor',x,0,z,dx,dz);
+        door.box(m.accent,x+dx*.035,1.18,z+dz*.035,.94,2.35,.09,angle);
+        door.box(m.low,x+dx*.084,1.13,z+dz*.084,.76,2.16,.04,angle);
+        door.box(m.frosted,x+dx*.110,1.82,z+dz*.110,.48,.71,.018,angle);
       }
     }
   }
 
+  boilerPipeRun(tile,dx,dz,x,y,z) {
+    const tx=dz, tz=-dx;
+    const wall=(x,z)=>this.decoded.get(x,z)?.kind==='#';
+    const pipe=(batch,start,end)=>{
+      for (const [height,diameter,material] of [[y,.136,this.materials.copper],[y+.21,.07,this.materials.dark]]) {
+        batch.pipe(material,new THREE.Vector3(x+tx*start,height,z+tz*start),new THREE.Vector3(x+tx*end,height,z+tz*end),diameter);
+      }
+    };
+    const endPoints=[-1,1].map(sign=>{
+      const floorX=tile.col+dx, floorZ=tile.row+dz;
+      const sx=sign*tx, sz=sign*tz;
+      if (wall(floorX+sx,floorZ+sz)) {
+        const end=sign*(HALF-.270);
+        if (dx) {
+          // Only the X-facing branch instantiates the mirrored quarter bend.
+          // Yaw maps its positive X/Z tangents away from the two wall planes.
+          const ix=dx, iz=-sz;
+          const yaw=ix>0 ? (iz>0?0:Math.PI/2) : (iz>0?-Math.PI/2:Math.PI);
+          this.utilityPoint('PipeCorner',x+sx*(HALF-.018),y,z+sz*(HALF-.018),yaw);
+        }
+        pipe(this.architectureBatch('PipeCorner','neutral',this.utilities),end,sign*HALF);
+        return end;
+      }
+      if (!wall(tile.col+sx,tile.row+sz)) {
+        this.utilityPoint('PipeStop',x+sx*(HALF-.028),y,z+sz*(HALF-.028),Math.atan2(-sz,sx));
+      }
+      return sign*HALF;
+    });
+    pipe(this.batches.neutral,...endPoints);
+  }
+
   makeFloor(tile) {
     const { x, z, col, row, kind } = tile;
+    if (this.theme===2 && !PHASE[kind]) this.makeRoofInsideReturn(tile);
     const batch = this.batches[PHASE[kind] || 'neutral'];
     const m = this.materials;
     const variant = random(col + 3211 * row + 7001 * this.theme);
@@ -826,9 +985,9 @@ export class Visual {
     if (this.theme !== 2) {
       this.batches.neutral.box(m.ceiling, x, 3.34, z, TILE + .013, .15, TILE + .013);
       if (this.theme === 0 && (col + row * 2) % 4 === 0) {
-        this.batches.neutral.box(m.dark, x, 3.12, z + .85, TILE + .025, .2, .16);
+        this.detailPoint('BoilerCeilingJoist',x,3.022,z+.85).box(m.dark,x,3.12,z+.85,TILE+.025,.2,.16);
       } else if (this.theme === 1 && row % 4 === 2) {
-        this.batches.neutral.box(m.low, x, 3.163, z + 1.10, TILE + .025, .17, .27);
+        this.detailPoint('ArchiveCeilingJoist',x,3.071,z+1.10).box(m.low,x,3.163,z+1.10,TILE+.025,.17,.27);
       }
       if (PHASE[kind]) this.batches.neutral.box(m.low, x, -5.8, z, TILE + .012, .2, TILE + .012);
     }
@@ -836,15 +995,16 @@ export class Visual {
       const phase = PHASE[kind];
       const light = m[phase + 'Line'];
       const rail = phase === 'day' ? m.brass : m.steel;
+      const deck = this.architecturePoint(phase === 'day' ? 'PhaseDeckDay' : 'PhaseDeckNight',x,0,z,0,1,phase);
       for (let tread = 0; tread < 9; tread++) {
         const u = (tread - 4) * .246;
-        batch.box(material, x + u, -.049, z, .172, .098, 2.24, 0, tint(variant()));
-        for (const offset of [-.62, .62]) batch.box(m.dark, x + u, -.006, z + offset, .149, .016, .043);
+        deck.box(material, x + u, -.049, z, .172, .098, 2.24, 0, tint(variant()));
+        for (const offset of [-.62, .62]) deck.box(m.dark, x + u, -.006, z + offset, .149, .016, .043);
       }
       for (const direction of [-1, 1]) {
-        batch.box(rail, x + direction * 1.144, -.043, z, .09, .087, TILE - .015);
-        batch.box(rail, x, -.043, z + direction * 1.145, TILE - .017, .086, .087);
-        batch.box(m.dark, x, -.14, z + direction * .975, TILE - .04, .085, .1);
+        deck.box(rail, x + direction * 1.144, -.043, z, .09, .087, TILE - .015);
+        deck.box(rail, x, -.043, z + direction * 1.145, TILE - .017, .086, .087);
+        deck.box(m.dark, x, -.14, z + direction * .975, TILE - .04, .085, .1);
         if (this.decoded.get(col + direction, row)?.kind !== kind) {
           batch.box(light, x + direction * 1.144, .005, z, .020, .018, 2.19);
         }
@@ -855,7 +1015,7 @@ export class Visual {
       return;
     }
     if (this.theme === 2) {
-      batch.box(m.low, x, -.65, z, TILE - .015, .93, TILE - .015);
+      this.detailPoint('RoofSoffitField',x,0,z).box(m.low,x,-.65,z,TILE-.015,.93,TILE-.015);
       this.makeRoofFascia(tile);
     }
     if (this.theme === 0 && (col + row * 7) % 8 === 0) {
@@ -888,16 +1048,46 @@ export class Visual {
     }
   }
 
+  makeRoofInsideReturn({x,z,col,row}) {
+    const kind=(dx,dz)=>this.decoded.get(col+dx,row+dz)?.kind;
+    const deck=kind=>kind && !PHASE[kind] && kind!=='#';
+    for (const [dx,dz,yaw] of [[1,1,0],[1,-1,Math.PI/2],[-1,-1,Math.PI],[-1,1,-Math.PI/2]]) {
+      const gap=kind(dx,dz);
+      // Three permanent slabs at a re-entrant edge, with the fourth
+      // quadrant absent or phasing. No added crossing or phase marker.
+      if (!deck(kind(dx,0)) || !deck(kind(0,dz)) || (gap && !PHASE[gap])) continue;
+      this.architecturePoint('RoofDeckInsideCorner',x+dx*HALF,-.081,z+dz*HALF,
+        Math.sin(yaw),Math.cos(yaw),'neutral',this.fit);
+    }
+  }
+
   makeRoofFascia(tile) {
-    const b = this.batches.neutral;
     const m = this.materials;
+    const cell=(dx,dz)=>this.decoded.get(tile.col+dx,tile.row+dz);
+    const exposed=(dx,dz)=>{
+      const adjacent=cell(dx,dz);
+      return !adjacent || Boolean(PHASE[adjacent.kind]);
+    };
+    for(const [dx,dz,yaw] of [[1,1,0],[1,-1,Math.PI/2],[-1,-1,Math.PI],[-1,1,-Math.PI/2]]) {
+      if(!exposed(dx,0)||!exposed(0,dz)) continue;
+      // The folded lap sits below its permanent tile, not on either bridge.
+      // Keep the original folded edge runs as the low-detail load fallback.
+      this.architecturePoint('RoofFasciaCorner',tile.x+dx*HALF,0,tile.z+dz*HALF,
+        Math.sin(yaw),Math.cos(yaw),'neutral',this.roofCorners);
+    }
     for (const [dx, dz] of FACES) {
-      const adjacent = this.decoded.get(tile.col + dx, tile.row + dz);
-      if (adjacent && !adjacent.phase) continue;
+      if (!exposed(dx,dz)) continue;
       // Permanent roof edges only. Keep the trim entirely under the neutral slab.
       const x = tile.x + dx * (HALF - .063);
       const z = tile.z + dz * (HALF - .063);
       const angle = dx ? Math.PI / 2 : 0;
+      const alongX=Math.abs(dz),alongZ=Math.abs(dx); // Pick one owner per seam.
+      const next=cell(alongX,alongZ);
+      if(next&&next.kind!=='#'&&!PHASE[next.kind]&&exposed(dx+alongX,dz+alongZ)) {
+        this.architecturePoint('RoofFasciaSplice',x+alongX*HALF,0,z+alongZ*HALF,dx,dz,'neutral',this.roofSplices);
+      }
+      const b = this.architecturePoint('RoofEdge',x,0,z,dx,dz);
+      this.junctionPoint('RoofSoffitEdge',x,0,z,dx,dz);
       b.box(m.steel, x, -.235, z, TILE - .021, .13, .10, angle);
       b.box(m.wall, x, -1.34, z, TILE - .028, 1.41, .093, angle);
       if ((tile.row + tile.col) % 3 === 0) {
@@ -908,23 +1098,32 @@ export class Visual {
 
   fixture(x, y, z, type) {
     const m = this.materials;
-    const b = this.batches.neutral;
     const lens = type === 'safe' ? m.safe : m.lamp;
     if (this.theme === 2) {
-      b.box(m.steel, x, y + .08, z, .68, .14, .36);
-      b.box(lens, x, y, z, .52, .052, .18);
-      b.box(m.steel, x + .33, y / 2, z, .047, y, .047);
-      b.box(m.dark, x + .33, .067, z, .22, .13, .21);
+      const exit = type === 'safe';
+      const [dx,dz] = exit ? this.exitFace(this.decoded.exit) : [0,1];
+      // Keep the exit post beside the new apron rather than in its approach.
+      const px=x+dz*(exit?1.052:.33), pz=z-dx*(exit?1.052:.33);
+      const yaw=Math.atan2(dx,dz);
+      const lamp=this.utilityPoint(exit?'RoofExitLamp':'RoofLamp',px,0,pz,yaw);
+      x=px-dz*.29; z=pz+dx*.29;
+      lamp.box(m.steel,x,y+.08,z,.68,.14,.36,yaw);
+      lamp.box(lens,x,y,z,.52,.052,.18,yaw);
+      lamp.box(m.steel,px,y/2,pz,.047,y,.047);
+      lamp.box(m.dark,px,.067,pz,.22,.13,.21);
     } else if (this.theme === 1) {
       const { row, col } = this.decoded.at(x, z);
       const narrow = this.decoded.get(col-1,row)?.kind === '#' || this.decoded.get(col+1,row)?.kind === '#';
       const damaged = (col * 19 + row * 7) % 5 < 2 && type !== 'safe';
-      this.archiveFixtures.push({ x, y, z, angle: narrow ? Math.PI / 2 : 0, damaged });
+      const angle = narrow ? Math.PI/2 : 0;
+      this.archiveFixtures.push({ x, y, z, angle, damaged });
+      this.detailPoint('ArchiveLightFeed',x,y,z,angle);
       this.batches.archiveFixture.box(m.dark, x, y + .07, z, 1.12, .145, .38);
       this.batches.archiveFixture.box(lens, x, y - .029, z, .90, .042, .24);
       this.lightSource(x, y - .11, z, damaged ? 10.8 : 21, type, damaged ? .46 : .64);
       return;
     } else {
+      const b=this.detailPoint(type==='safe'?'BoilerExitLight':'BoilerWorkLight',x,y,z);
       b.box(m.dark, x, y + .08, z, .72, .15, .36);
       b.box(m.copper, x, y + .027, z, .67, .07, .27);
       b.box(lens, x, y - .018, z, .52, .062, .18);
@@ -943,36 +1142,78 @@ export class Visual {
   }
 
   makePropClusters() {
-    const b = this.batches.neutral;
     const m = this.materials;
+    const place = (key, x, y, z, yaw, light) => {
+      if (!this.mapDressing.has(key)) {
+        const [file,size] = MAP_DRESSING[key];
+        const fallback = new THREE.Group();
+        fallback.name = `Dressing fallback: ${key}`;
+        this.stage.add(fallback);
+        this.batches['dressing-' + key] = new Batch(fallback);
+        this.mapDressing.set(key,{file,size,points:[],fallback});
+      }
+      this.mapDressing.get(key).points.push({x,y,z,yaw,light});
+      return this.batches['dressing-' + key];
+    };
+    // Hand fitted, always mounted beside permanent walkable tiles. Yaw faces
+    // the room rather than mounting the controls and service faces to masonry.
+    const service=(key,col,row,dx,dz,u,y,gap=.02)=>{
+      const tile=this.decoded.get(col,row), floor=this.decoded.get(col+dx,row+dz);
+      if(tile?.kind!=='#'||floor?.kind!=='.')return;
+      const [,size]=MAP_DRESSING[key];
+      const depth=HALF+.025+size[2]/2+gap;
+      const x=tile.x+dx*depth+dz*u,z=tile.z+dz*depth-dx*u;
+      const yaw=Math.atan2(dx,dz);
+      const fallback=place(key,x,y,z,yaw,.96);
+      const color=key==='generator'?m.dark:key==='hose'?m.copper:m.steel;
+      fallback.trim(color,x,y+size[1]/2,z,...size,yaw);
+    };
+    if(this.theme===0) {
+      service('generator',7,18,0,-1,.43,.005,.037);
+      service('generator',4,13,0,1,.20,.005,.037);
+    } else if(this.theme===1) {
+      service('utilityBox',12,17,0,-1,0,1.10,-.015);
+    } else {
+      // West face is free of the simulated irrigation valve and grille.
+      service('hose',9,7,-1,0,0,.48,-.015);
+      service('hose',21,8,0,-1,0,.48,-.015);
+    }
     for (const tile of this.decoded.floors) {
       if (!PROPS.has(tile.kind)) continue;
+      // Hand-placed archive cabinets own these bays. Don't layer random desks over them.
+      if (this.theme === 1 && ((tile.col === 9 && tile.row === 16) || (tile.col === 8 && tile.row === 14))) continue;
       const n = (tile.col * 71 + tile.row * 57) % 31;
       const edge = this.edgeOffset(tile);
       if (Math.abs(edge.dx) + Math.abs(edge.dz) === 0 || n > 13) continue;
       const { x, z, angle, dx, dz } = edge;
       const hasWall = this.decoded.get(tile.col + dx, tile.row + dz)?.kind === '#';
       if (!hasWall && this.theme !== 2) continue;
+      const yaw = Math.atan2(-dx, -dz);
+      const light = .89 + .021 * (n % 8);
       if (this.theme === 0) {
         if (n < 7) {
+          const b = place('cylinder',x,0,z,yaw,light);
           b.add(unitCylinder, m.dark, [x, .86, z], [.55, 1.7, .55]);
           b.add(unitSphere, m.steel, [x, 1.72, z], [.54, .30, .54]);
           for (const y of [.20, .64, 1.48]) b.add(unitCylinder, m.copper, [x, y, z], [.57, .055, .57]);
           b.pipe(m.copper, new THREE.Vector3(x, 1.8, z), new THREE.Vector3(x + dx * .36, 2.38, z + dz * .36), .10);
         } else {
-          b.box(m.accent, x, .4, z, .49, .8, .48, angle);
-          for (let k = 0; k < 4; k++) b.box(m.dark, x - dx * .245, .22 + k * .11, z - dz * .245, .38, .026, .012, angle);
+          const neutral = this.batches.neutral;
+          neutral.box(m.dark, x, .031, z, .45, .062, .37, angle);
+          const b = place('toolbox',x,.062,z,yaw,light);
+          b.box(m.accent, x, .20, z, .49, .276, .41, angle);
         }
       } else if (this.theme === 1) {
         if (n < 9) {
+          const b = place('desk',x,0,z,yaw,light);
+          const stationery = place('notepads',x - dx*.024,.821,z - dz*.024,yaw + .045*(n-4),light);
+          stationery.box(m.bone,x,.848,z,.27,.035,.24,angle);
           b.box(m.accent, x, .79, z, 1.57, .11, .48, angle);
           for (const side of [-1, 1]) {
             b.box(m.dark, x + dz * side * .65, .39, z - dx * side * .65, .13, .77, .39, angle);
           }
-          b.box(m.bone, x + dz * .38, .86, z - dx * .38, .27, .035, .24, angle);
-          b.box(m.steel, x - dz * .26, 1.03, z + dx * .26, .46, .33, .18, angle);
-          b.box(m.dark, x - dx * .1 - dz * .26, 1.025, z - dz * .1 + dx * .26, .39, .25, .014, angle);
         } else {
+          const b = place('cabinet',x,0,z,yaw,light);
           b.box(m.steel, x, .60, z, .52, 1.20, .48, angle);
           for (let d = 0; d < 4; d++) {
             b.box(m.dark, x - dx * .248, .18 + d * .27, z - dz * .248, .455, .048, .026, angle);
@@ -980,7 +1221,9 @@ export class Visual {
           }
         }
       } else if (n > 10) {
-        this.planter(x, z, angle, n);
+        // Keep the entry nursery separate from the wider demonstration trough.
+        if (tile.col === 9 && tile.row === 14) this.planter(tile.x - .62, z, angle, n);
+        else this.planter(x, z, angle, n);
       }
     }
   }
@@ -994,7 +1237,7 @@ export class Visual {
         const stripe = m[i % 2 ? 'dark' : 'brass'];
         batch.box(stripe, x - 1.1 + i * .3, .013, z - 5.44, .28, .022, .13);
       }
-      this.makeFan(x + 3.35, 1.60, z - 5.80, .74);
+      this.makeFan(x + 4.91, 1.67, z - 5.74, .69);
     } else if (this.theme === 1) {
       const wallZ = z - 4.81;
       const wallX = x - 2.48;
@@ -1012,6 +1255,7 @@ export class Visual {
   makeFan(x, y, z, radius) {
     const m = this.materials;
     const group = new THREE.Group();
+    group.name = 'Arrival extractor fallback';
     group.position.set(x, y, z);
     this.stage.add(group);
     const rim = new THREE.TorusGeometry(radius, .035, 8, 29);
@@ -1032,8 +1276,9 @@ export class Visual {
 
   planter(x, z, angle, seed) {
     const m = this.materials;
-    const b = this.batches.neutral;
+    const b = this.batches.nurseryFallback;
     const rng = random(seed + Math.floor(x * 31));
+    this.roofNurseries.push({ x, z, angle, flip: seed % 2, shade: .89 + rng() * .13 });
     b.box(m.accent, x, .17, z, .87, .34, .42, angle);
     b.box(m.low, x, .338, z, .79, .027, .34, angle);
     for (let j = 0; j < 8; j++) {
@@ -1064,7 +1309,7 @@ export class Visual {
 
   makeSafeLamp(tile) {
     const m = this.materials;
-    const b = this.batches.neutral;
+    const b = this.batches.lampFallback;
     const { x, z, angle } = this.edgeOffset(tile, .72);
     b.box(m.dark, x, .08, z, .38, .16, .34, angle);
     b.box(m.steel, x, .168, z, .31, .035, .28, angle);
@@ -1089,7 +1334,7 @@ export class Visual {
     });
     const pool = mesh(this.stage, unitPlane, mat, [tile.x, .016, tile.z], [2.3, 2.3, 1]);
     pool.rotation.x = -Math.PI / 2;
-    this.safeLamps.push({ tile, pool, beacon });
+    this.safeLamps.push({ tile, pool, beacon, x, z, angle });
   }
 
   makeStation(tile, power = false) {
@@ -1177,34 +1422,43 @@ export class Visual {
 
   makePhonographMarker(tile) {
     const x = tile.x - .38, z = tile.z;
-    const label = spriteText('RECORD 17', '#ebd2a2', 'ARCHIVE / SAFETY NOTE');
-    this.localTextures.push(label);
-    const sign = new THREE.Mesh(unitPlane, new THREE.MeshBasicMaterial({
-      map: label, transparent: true, opacity: .94, depthWrite: false
-    }));
-    sign.position.set(x, 1.78, z + .20);
-    sign.scale.set(.77, .27, 1);
-    this.stage.add(sign);
-    this.lightSource(x + .28, 1.31, z + .50, 5.4, 'alarm', .46);
+    // The turntable has engraved lettering and a physical direction card.
+    // Let its practical graze the rim rather than bleach the bell from the front.
+    this.lightSource(x + .55, 1.46, z + .16, 2.45, 'alarm', .29);
   }
 
   makeClue(tile) {
     const id = tile.key || tile.kind;
-    const { x, z } = this.edgeOffset(tile, .78);
+    const { x, z, dx, dz } = this.edgeOffset(tile, .78);
     const m = this.materials;
-    this.batches.neutral.box(m.dark, x, .35, z, .39, .70, .39);
-    this.batches.neutral.box(m.steel, x, .71, z, .52, .055, .42);
-    const page = mesh(this.stage, unitBox, emit('#e1b88d', .36), [x, .765, z], [.24, .025, .33]);
-    page.rotation.y = .21;
-    this.objects.set(id, { indicator: page, kind: 'clue' });
+    const yaw = Math.atan2(-dx,-dz);
+    const fallback = new THREE.Group();
+    this.stage.add(fallback);
+    const stand = this.batches['evidence-' + id] = new Batch(fallback);
+    stand.box(m.dark, x, .35, z, .39, .70, .39);
+    stand.box(m.steel, x, .71, z, .52, .055, .42);
+    this.inspection.push({name:evidenceStand(this.theme),x,y:0,z,yaw,fallback});
+
+    const indicator = new THREE.Group();
+    const name = evidenceModel(this.theme,id);
+    indicator.name = 'Evidence: ' + name;
+    indicator.position.set(x,.7545,z);
+    indicator.rotation.y = yaw;
+    this.stage.add(indicator);
+    const blank = mesh(indicator, unitBox, emit('#e1b88d', .36), [0,.010,0], [.24,.021,.33]);
+    this.inspection.push({name,indicator,fallback:blank});
+    this.objects.set(id,{indicator,kind:'clue'});
   }
 
   makeHazard(tile) {
     const phase = tile.kind === '~' ? 'day' : 'night';
     const group = this.groups[phase];
-    const b = this.batches[phase];
     const { x, z } = tile;
     const m = this.materials;
+    const fallback = new THREE.Group();
+    group.add(fallback);
+    const b = this.batches['outlet-' + tile.col + '/' + tile.row] = new Batch(fallback);
+    this.inspection.push({name:phase === 'day' ? 'HeatOutlet' : 'ColdReturn',x,y:0,z,yaw:0,phase,fallback});
     for (let n = -4; n <= 4; n++) {
       b.box(m.dark, x + n * .14, .022, z, .072, .03, .95);
     }
@@ -1222,22 +1476,23 @@ export class Visual {
     });
   }
 
+  exitFace(tile) {
+    return FACES.find(([dx,dz])=>{
+      const next=this.decoded.get(tile.col+dx,tile.row+dz);
+      return !next || next.kind==='#';
+    }) ?? [0,1];
+  }
+
   makeDoor(tile) {
     const { x, z } = tile;
     const m = this.materials;
-    let face = [0, 1];
-    for (const [dx, dz] of FACES) {
-      if (this.decoded.get(tile.col + dx, tile.row + dz)?.kind === '#' || !this.decoded.get(tile.col + dx, tile.row + dz)) {
-        face = [dx, dz];
-        break;
-      }
-    }
-    const [dx, dz] = face;
+    const [dx,dz] = this.exitFace(tile);
     const g = new THREE.Group();
     g.position.set(x + dx * .71, 0, z + dz * .71);
     g.rotation.y = Math.atan2(dx, dz);
     this.stage.add(g);
     this.doorMount = g;
+    this.junctionPoint('LiftApron',x+dx*.461,0,z+dz*.461,-dx,-dz);
     const oldGate = new THREE.Group();
     g.add(oldGate);
     const frame = new Batch(oldGate);
@@ -1287,9 +1542,8 @@ export class Visual {
     // Transparent surfaces still blend over the completed sky.
     this.sky.renderOrder = 100;
     this.sky.frustumCulled = false;
-    const b = this.batches.neutral;
-    const m = this.materials;
     const rng = random(3197);
+    const towerFootprints=[];
     const mx = this.decoded.width * TILE / 2;
     const mz = this.decoded.depth * TILE / 2;
     const city = standard('#4c5456', { roughness: .86, fog: false });
@@ -1300,7 +1554,11 @@ export class Visual {
     const street = new THREE.MeshBasicMaterial({ color: '#453738', fog: false });
     for (const material of [city, concrete, glass, distant]) material.userData.castShadow = false;
     Object.assign(this.materials, { city, concrete, glass, distant, windows, street });
-    b.box(street, mx, -22, mz, 216, .1, 216);
+    this.cityGroundFallback=new THREE.Group();
+    this.cityGroundFallback.name='Distant grade fallback';
+    this.stage.add(this.cityGroundFallback);
+    this.batches.cityGrade=new Batch(this.cityGroundFallback);
+    this.batches.cityGrade.box(street,mx,-22,mz,216,.1,216);
     for (let i = 0; i < 68; i++) {
       const a = i / 68 * Math.PI * 2 + rng() * .09;
       const radius = 73 + rng() * 24;
@@ -1308,9 +1566,18 @@ export class Visual {
       const height = 5.0 + rng() ** 2 * 21.5;
       const x = mx + Math.cos(a) * radius;
       const z = mz + Math.sin(a) * radius;
-      b.box(distant, x, height / 2 - 22, z, width, height, width, .13 + rng() * .18, tint(rng()));
-      if (i % 3 === 0) b.box(distant, x, height - 21.3, z, width * .64, 1.4, width * .55, .15);
+      const yaw=.13+rng()*.18, tone=tint(rng());
+      const name=['FarCityOffice','FarCityBrick','FarCityService'][i%3];
+      towerFootprints.push({x,z,width,depth:width,turn:yaw,far:true});
+      const far=this.utilityPoint(name,x,-22,z,yaw,[width,height,width]);
+      far.box(distant,x,height/2-22,z,width,height,width,yaw,tone);
+      if (i%3===0) far.box(distant,x,height-21.3,z,width*.64,1.4,width*.55,.15);
     }
+    const fallback = new THREE.Group();
+    fallback.name = 'Midground skyline fallback';
+    this.stage.add(fallback);
+    this.skyline = { fallback, sites: [], lights: [] };
+    const near = this.batches.skylineFallback = new Batch(fallback);
     for (let i = 0; i < 48; i++) {
       const angle = i / 48 * Math.PI * 2 + rng() * .073;
       const radius = 48 + rng() * 18;
@@ -1325,27 +1592,34 @@ export class Visual {
       const facingZ = mz > z ? 1 : -1;
       const front = z + facingZ * (depth / 2 + .018);
       const side = x + facingX * (width / 2 + .018);
-      b.box(city, x, height / 2 - 22, z, width, height, depth, 0, facade);
-      b.box(concrete, x, top + .095, z, width + .17, .19, depth + .17, 0, facade);
-      if (i % 2 === 0) b.box(city, x - width * .13, top + .55, z, width * .52, 1.1, depth * .55, 0, facade);
-      if (i % 4 === 0) b.box(concrete, x, top + 1.23, z, .09, 2.2, .09);
+      this.skyline.sites.push({ x,z,width,depth,height,style:(i*5 + Math.floor(i/7)) % 3,
+        turn: i % 2 ? 0 : Math.PI, light: facade.r });
+      towerFootprints.push(this.skyline.sites.at(-1));
+      near.box(city, x, height / 2 - 22, z, width, height, depth, 0, facade);
+      near.box(concrete, x, top + .095, z, width + .17, .19, depth + .17, 0, facade);
+      if (i % 2 === 0) near.box(city, x - width * .13, top + .55, z, width * .52, 1.1, depth * .55, 0, facade);
+      if (i % 4 === 0) near.box(concrete, x, top + 1.23, z, .09, 2.2, .09);
       const activity = .61 + rng() * .35;
       const columns = Math.floor(width / .89);
       const rows = Math.floor(depth / .89);
       const step = i % 3 === 0 ? 1.18 : .92;
       for (let y = top - .72; y > Math.max(-13, top - 13); y -= step) {
-        b.box(concrete, x, y + .31, front, width, .066, .08, 0, facade);
+        near.box(concrete, x, y + .31, front, width, .066, .08, 0, facade);
         for (let column = 0; column < columns; column++) {
           const u = (column / columns - .5 + .5 / columns) * width;
           const open = rng() > activity;
-          b.box(open ? windows : glass, x + u, y, front, .45, .36, .026, 0, open ? tint(rng()) : facade);
+          near.box(open ? windows : glass, x + u, y, front, .45, .36, .026, 0, open ? tint(rng()) : facade);
         }
         for (let column = 0; column < rows; column++) {
           const u = (column / rows - .5 + .5 / rows) * depth;
           const open = rng() > activity + .075;
-          b.box(open ? windows : glass, side, y, z + u, .026, .34, .44, 0, open ? tint(rng()) : facade);
+          near.box(open ? windows : glass, side, y, z + u, .026, .34, .44, 0, open ? tint(rng()) : facade);
         }
       }
+    }
+    for(const [name,points] of planCityGround(mx,mz,towerFootprints)) {
+      for(const [x,y,z,yaw,sx,sy,sz] of points) this.architecturePoint(name,x,y,z,
+        Math.sin(yaw),Math.cos(yaw),'neutral',this.cityGround,[sx,sy,sz]);
     }
   }
 
@@ -1410,10 +1684,14 @@ export class Visual {
       const turn = bearing - actor.group.rotation.y;
       actor.group.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) *
         (wasVisible ? Math.min(1, dt * (attack ? 17 : 8)) : 1);
+      const stagger = state.reduceMotion ? 0 : (ghost.stagger ?? 0);
+      actor.group.rotation.x = -.22 * Math.min(1, stagger * 2);
+      actor.group.rotation.z = .13 * Math.sin(stagger * 14) * stagger;
       actor.group.position.set(x, ghost.y || 0, z);
       actor.placed = true;
       updateCreature(actor, { time: state.time || 0, threat, attack, night: state.night, distance, reduced,
-        moving, dt, travel, gazeLock: ghost.gaze || 0, charging: ghost.charging, capture });
+        moving, dt, travel, gazeLock: ghost.gaze || 0, watching: ghost.watching, charging: ghost.charging, capture, stagger,
+        transfer: state.chase ? { danger: state.chase.danger, vault: ghost.y || 0, started: state.chase.started } : null });
       this.air.breathe(actor, distance, state, this.theme, reduced);
     }
     for (const [key, actor] of this.ghosts) if (!seen.has(key)) actor.group.visible = false;
@@ -1445,16 +1723,18 @@ export class Visual {
     const roof = this.theme === 2;
     const office = this.theme === 1;
     const steady = state.reduceMotion || state.reducedMotion;
-    this.fill.color.set(state.chase ? '#fff1ae' : office ? '#bdcbbe' : '#dce3ed').lerp(COLD, night * .8);
-    this.fill.intensity = state.chase ? 1.3 - night * .3 : roof ? 1.50 - night * .39 : office ? .55 - night * .22 : .94 - night * .22;
+    this.fill.color.set(state.chase ? '#eee1b0' : office ? '#b9c9bf' : roof ? '#dbe5f4' : '#cdd8e2').lerp(COLD, night * .8);
+    // Leave the player/task lamps and bridge strips legible; pull broad
+    // night fill off the roof so backlit figures are silhouettes, not grey fog.
+    this.fill.intensity = state.chase ? 1.3 - night * .3 : roof ? 1.50 - night * .80 : office ? .55 - night * .22 : .94 - night * .22;
     if (office) {
       this.materials.frosted.emissiveIntensity = .09 + night * .13;
       if (this.archiveTube) this.archiveTube.emissiveIntensity = 2.15 - night * 1.20;
       if (this.archiveBulkhead) this.archiveBulkhead.emissiveIntensity = .70 + night * 2.45;
     }
     this.scene.environmentIntensity = roof ? .63 - night * .31 : office ? .34 - night * .09 : .57 - night * .19;
-    this.rim.color.copy(WARM).lerp(COLD, night);
-    this.rim.intensity = roof ? 1.85 - night * .18 : office ? .20 - night * .08 : .64 - night * .12;
+    this.rim.color.set(roof ? '#ffd0a6' : '#ffd8a5').lerp(COLD, night);
+    this.rim.intensity = roof ? 1.85 - night * .61 : office ? .20 - night * .08 : .64 - night * .12;
     this.lamp.color.copy(WARM).lerp(PALE, night);
     this.lamp.position.copy(this.camera.position);
     // Mount the beam beside the left temple. Off-axis highlights reveal the
@@ -1527,7 +1807,7 @@ export class Visual {
     }
   }
 
-  render(state, dt, elapsed = dt) {
+  render(state, dt, elapsed = dt, shot = null) {
     if (!this.stage) return;
     const quality = typeof state.quality === 'string' ? state.quality.toLowerCase() : 'high';
     const reduced = state.reducedMotion || state.reduceMotion || state.reducedEffects;
@@ -1538,7 +1818,7 @@ export class Visual {
     }
     this.wasPlaying = playing;
     const resized = this.resize(quality);
-    if (this.desktopPointer.matches && (state.mode === 'paused' || state.mode === 'won')) {
+    if ((!shot || shot.settled) && this.desktopPointer.matches && (state.mode === 'paused' || state.mode === 'won')) {
       const previous = this.overlayFrame;
       if (!resized && previous?.mode === state.mode && previous.quality === quality && previous.reduced === reduced) return;
       this.overlayFrame = { mode: state.mode, quality, reduced };
@@ -1575,13 +1855,11 @@ export class Visual {
     const lean = reduced ? 0 : Math.cos(this.walk * .52) * this.velocity * .003;
     const caught = dying && (state.deathCause === 'ghost' || state.deathCause === 'gaze');
     const capture = clerkCaptureFrame(state, reduced);
-    const collapse = caught ? THREE.MathUtils.smoothstep(lifeTime, .38, 1.07) :
-      dying ? Math.min(1, Math.abs(lifeTime) * 1.25 + .14) :
-        revival ? .57 * (1 - THREE.MathUtils.smoothstep(lifeTime, .08, .63)) : 0;
-    const descent = capture ? capture.stretch : collapse * 1.19;
+    const lifeShot = capture ? null : ordinaryLifeShot(state.life, state.deathCause, lifeTime, reduced);
+    const descent = capture?.stretch ?? lifeShot?.descent ?? 0;
     this.camera.position.set(state.x, (state.y || 0) + EYE + (capture ? 0 : bob) - descent, state.z);
     let yaw = state.yaw || 0;
-    let pitch = (state.pitch || 0) - (reduced ? 0 : capture ? .26 * descent : collapse * .17);
+    let pitch = (state.pitch || 0) + (shot?.pitch ?? 0) + (capture ? (reduced ? 0 : -.26 * descent) : lifeShot?.pitch ?? 0);
     const faceExposure = this.updateGhosts(state, dt, reduced, capture);
     if (caught && state.pursuer && capture && !reduced) {
       const actor = this.ghosts.get(state.pursuer.key ?? state.pursuer.id);
@@ -1630,20 +1908,29 @@ export class Visual {
       pitch = THREE.MathUtils.lerp(pitch, headPitch, hold);
     }
     this.view.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    if (shot?.forward) {
+      const x = this.camera.position.x + this.view.x * shot.forward;
+      const z = this.camera.position.z + this.view.z * shot.forward;
+      if (!state.blocks(x, z, .12)) {
+        this.camera.position.x = x;
+        this.camera.position.z = z;
+      }
+    }
     this.camera.lookAt(delta.copy(this.camera.position).add(this.view));
-    this.camera.rotateZ(lean + (reduced ? 0 : capture ? capture.roll ?? 0 : collapse * .31));
+    this.camera.rotateZ(lean + (reduced ? 0 : capture?.roll ?? lifeShot?.roll ?? 0));
     const fov = 65 + (state.sprint || state.sprinting ? 4 : 0) + shift * (reduced ? 0 : 2.5) +
       (reduced ? 0 : capture?.lens ?? 0);
     if (Math.abs(this.camera.fov - fov) > .01) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fov, Math.min(1, dt * 9));
       this.camera.updateProjectionMatrix();
     }
-    this.janitorHands.update(state, dt, this.walk, this.velocity, capture);
+    this.janitorHands.update(state, dt, this.walk, this.velocity, capture, shot, lifeShot);
     // Prevent the flashlight from flattening a face at arm’s length.
     this.creatureExposure = THREE.MathUtils.lerp(this.creatureExposure, faceExposure, Math.min(1, dt * 13));
     const exposure = capture ? (capture.lamp ?? 1) * (1 - .71 * (capture.grip ?? 0)) :
       caught ? 1 - .94 * THREE.MathUtils.smoothstep(lifeTime, .015, .19) : this.creatureExposure;
     this.updateLights(state, time, night, exposure);
+    updateBoilerBatches(this);
     const door = Math.min(1, Math.max(0, state.door || 0));
     const slide = door * door * (3 - 2 * door);
     if (this.liftLeaves) poseServiceLift(this.liftLeaves, door);
@@ -1660,9 +1947,11 @@ export class Visual {
     if (this.sky) {
       this.sky.position.copy(this.camera.position);
       this.sky.material.uniforms.night.value = night;
-      this.sky.material.uniforms.time.value = time;
+      this.sky.material.uniforms.time.value = reduced ? 0 : time;
       this.materials.street.color.set('#463938').lerp(this.fogCold, night);
+      if(this.cityLamp)this.cityLamp.emissiveIntensity=.37+night*1.28;
       this.materials.windows.color.setRGB(.29 + night * .95, .21 + night * .66, .11 + night * .25);
+      updateRoofSkyline(this.skyline,night);
       this.materials.distant.color.copy(this.scene.background).lerp(COLD, .15 + .08 * night);
     }
     for (const motor of this.kinetics) {

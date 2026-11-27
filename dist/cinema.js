@@ -1,4 +1,11 @@
 import {SCENES} from './chapters.js';
+
+const SOUND_BEATS={
+ clock:[[[.50,'clock-step']],[[.08,'clock-trip']],[[1.35,'clock-key']]],
+ 'ending-normal':[[[.56,'ending-latch']],[[.18,'ending-air']],[[.57,'clock-step']]],
+ 'ending-complete':[[[.56,'ending-latch']],[[.18,'ending-air']],[[.84,'ending-lunch']],[[.49,'ending-page']]]
+};
+
 export function beginScene(world,id,purpose='work'){
  const beats=SCENES[id];if(!beats)return false;
  world.scene={id,purpose,beat:0,time:0,total:0,beats:beats.length,origin:{x:world.player.x,y:world.player.y},actors:[]};
@@ -6,7 +13,11 @@ export function beginScene(world,id,purpose='work'){
  world.player.lifeState='cinematic';world.emit('clear-input');world.emit('scene-beat',{id,beat:0});return true;
 }
 export function updateScene(world,input,dt){
- const s=world.scene;if(!s)return false;s.time+=dt;s.total+=dt;
+ const s=world.scene;if(!s)return false;
+ const previous=s.time;s.time+=dt;s.total+=dt;
+ for(const [at,name] of SOUND_BEATS[s.id]?.[s.beat]??[]){
+  if(previous<at&&s.time>=at)world.emit('sound',{name});
+ }
  const ending=s.id.startsWith('ending-'),duration=ending?4.2:3.6;
  const minimum=ending?3.9:s.id==='lunchbox'&&s.beat===1?2.1:.9;
  if(s.time>=duration||(input.interact&&s.time>minimum)){

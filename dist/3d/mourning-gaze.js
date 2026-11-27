@@ -7,7 +7,7 @@ const CONTACT_RADIUS = .62;
 const FACE_CONE = Math.cos(Math.PI * 9 / 180);
 const MODEL_FOOTPRINT = 1.55;
 
-export function firstSightWall(map, ax, az, bx, bz, tileSize) {
+export function firstSightWall(map, ax, az, bx, bz, tileSize, intersectsHeight) {
   const dx = bx - ax;
   const dz = bz - az;
   const stepX = Math.sign(dx);
@@ -21,11 +21,14 @@ export function firstSightWall(map, ax, az, bx, bz, tileSize) {
   // Trace tile boundaries instead of sampling at fixed intervals. A narrow
   // crossing of the corner of an office partition still blocks the stare.
   while (Math.min(nextX, nextZ) < 1) {
+    const enter = Math.min(nextX, nextZ);
     if (Math.abs(nextX - nextZ) < 1e-8) {
       const side = map.get(col + stepX, row);
       const forward = map.get(col, row + stepZ);
-      if (side?.kind === '#') return side;
-      if (forward?.kind === '#') return forward;
+      if (!intersectsHeight || intersectsHeight(enter, enter)) {
+        if (side?.kind === '#') return side;
+        if (forward?.kind === '#') return forward;
+      }
     }
     if (nextX <= nextZ) {
       col += stepX;
@@ -35,7 +38,8 @@ export function firstSightWall(map, ax, az, bx, bz, tileSize) {
       nextZ += spanZ;
     }
     const tile = map.get(col, row);
-    if (tile?.kind === '#') return tile;
+    const exit = Math.min(nextX, nextZ, 1);
+    if (tile?.kind === '#' && (!intersectsHeight || intersectsHeight(enter, exit))) return tile;
   }
   return null;
 }
@@ -78,6 +82,7 @@ export function updateMourningClerks(state, dt, tileSize, sanctuary, rules, supp
   const lookZ = -Math.cos(state.yaw) * cosPitch;
 
   for (const ghost of state.ghosts) {
+    const wasCharging = ghost.charging;
     ghost.watching = ghost.charging = false;
     if (!ghost.active || sanctuary) {
       ghost.gaze = ghost.alert = ghost.lockTime = 0;
@@ -113,6 +118,13 @@ export function updateMourningClerks(state, dt, tileSize, sanctuary, rules, supp
       state.emit('sound', { name: 'mourning-lock', position: ghost });
       state.emit('mourning-glance');
     }
+    if (ghost.charging && !wasCharging) {
+      state.emit('sound', { name: 'mourning-rush', position: ghost });
+      ghost.nextCry = Math.max(ghost.nextCry, state.time + .9);
+    } else if (!ghost.charging && wasCharging && range < 10) {
+      state.emit('sound', { name: 'mourning-release', position: ghost });
+      ghost.nextCry = Math.max(ghost.nextCry, state.time + .54);
+    }
     if (ghost.charging && range > .001) {
       const move = Math.min(range, CHARGE_SPEED * rules.gazeSpeed * dt);
       const x = ghost.x - dx / range * move;
@@ -128,7 +140,7 @@ export function updateMourningClerks(state, dt, tileSize, sanctuary, rules, supp
       state.startDeath(ghost.charging ? 'gaze' : 'ghost', ghost);
       return;
     }
-    if (range < 12 && state.time >= ghost.nextCry) {
+    if (!ghost.watching && range < 12 && state.time >= ghost.nextCry) {
       state.emit('sound', { name: 'mourning-cry', position: ghost });
       ghost.nextCry = state.time + 5.4 + ghost.index * .89;
     }

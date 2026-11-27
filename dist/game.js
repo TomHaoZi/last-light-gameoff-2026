@@ -2,7 +2,7 @@ import {annexScore,replayAnnex,cancelAnnexReplay} from './backrooms.js';
 import {Art} from './art.js';
 import {Sound} from './audio.js';
 import {Simulation,FIXED_DT} from './simulation.js';
-import {loadSave,storeSave,restartSave,freshSave} from './save.js';
+import {openSave,commitSave,restartSavedSession,freshSave} from './save.js';
 import {STORY} from './story.js';
 import {CHAPTERS} from './chapters.js';
 import {MOUSE_RIGHT,bindRightMouse,createPlayerSettings} from './player-settings.js';
@@ -10,7 +10,7 @@ import {mountPlayerSettings} from './settings-panel.js';
 import {isMobilePlay} from './mobile-play.js';
 const $=id=>document.getElementById(id),canvas=$('game'),art=new Art(canvas),sound=new Sound();
 let storage;try{storage=window.localStorage;}catch{}
-let loaded=storage?loadSave(storage):{data:freshSave(),warnings:['storage-unavailable'],readOnly:true};
+let loaded=storage?await openSave(storage):{data:freshSave(),warnings:['storage-unavailable'],readOnly:true};
 const preferences=createPlayerSettings('2d',storage);
 const heldInputs=new Map(),settingsDialog=$('settings');
 let state=new Simulation(loaded.data),edges={},lastTime=null,accumulator=0,starting=false;
@@ -28,15 +28,45 @@ function canvasHint(action){
  return hint(action);
 }
 function instruction(copy){return copy.replace(/\{(\w+)\}/g,(_,action)=>hint(action));}
-function storageNotice(){
- notify(state.lang==='zh'?'当前无法保存进度，原存档已保留。可在页面底部重开并备份原档。':'Progress cannot be saved. Your existing save is safe. Restart shift below to back it up and begin again.',6);
+function storageNotice(issue=loaded.issue){
+ if(issue==='staleSave'){
+  notify(state.lang==='zh'?'其他标签页更新了存档。暂停后点继续，即可载入最新进度。':'Another tab updated the save. Pause and continue to load the latest progress.',6);
+ }else notify(state.lang==='zh'?'当前无法保存进度，原存档已保留。可在页面底部重开并备份原档。':'Progress cannot be saved. Your existing save is safe. Restart shift below to back it up and begin again.',6);
 }
 function persist(){
- state.persist();
- if(loaded.readOnly)return;
- try{
-  if(!storeSave(storage,state.progress)){loaded.readOnly=true;storageNotice();}
- }catch{storageNotice();}
+ const data=state.persist(),session=loaded;
+ if(session.readOnly)return;
+ commitSave(storage,data,session).then(issue=>{
+  if(loaded===session&&issue)storageNotice(issue);
+ });
+}
+async function reconcileSave(){
+ if(!storage||state.mode==='playing')return false;
+ const session=loaded;
+ await session.pending;
+ const latest=await openSave(storage,{migrate:false});
+ if(loaded!==session||state.mode==='playing')return false;
+ if(latest.raw===session.raw){
+  session.readOnly=latest.readOnly;
+  session.issue=latest.issue;
+  return false;
+ }
+ if(latest.readOnly){
+  if(!loaded.readOnly)storageNotice();
+  loaded.readOnly=true;
+  loaded.issue='protectedSave';
+  return false;
+ }
+ loaded=latest;
+ state=new Simulation(latest.data);
+ state.difficulty=preferences.difficulty;
+ clearInput();
+ accumulator=0;
+ lastTime=null;
+ syncAudioSettings();
+ controlLabels();
+ showCard();
+ return true;
 }
 function syncPhase(){sound.setPhase(state.night);labels();}
 function notify(message,seconds=5){state.message=message;state.messageTimer=seconds;$('status').textContent=message;}
@@ -84,7 +114,7 @@ function controlLabels(){
  labels();
 }
 function card(title,body,button,hint=''){ $('overlay').classList.remove('hidden');$('card-title').innerHTML=title;$('card-copy').innerHTML=body;$('start').textContent=button;$('start-hint').textContent=hint;}
-function showCard(){const t=text();if(state.mode==='menu')card(t.introTitle,t.introCopy,state.progress.checkpointId?t.resume:t.start,instruction(t.hint));else if(state.mode==='paused')card(t.pause,t.pauseCopy,t.resume);else if(state.mode==='between')card(t.floors[state.floor],t.between,t.next);else if(state.mode==='won')card(state.ending==='complete'?t.completeTitle:t.normalTitle,state.ending==='complete'?t.completeCopy:t.normalCopy,t.replay);}
+function showCard(){const t=text();if(state.mode==='menu')card(t.introTitle,t.introCopy,state.progress.checkpointId?t.resume:t.start,(state.lang==='zh'?'含闪光、血腥和恐怖画面':'Flashing lights, blood and horror')+' · '+instruction(t.hint));else if(state.mode==='paused')card(t.pause,t.pauseCopy,t.resume);else if(state.mode==='between')card(t.floors[state.floor],t.between,t.next);else if(state.mode==='won')card(state.ending==='complete'?t.completeTitle:t.normalTitle,state.ending==='complete'?t.completeCopy:t.normalCopy,t.replay);}
 function drain(){for(const event of state.drain()){
  if(event.type==='sound'){if(event.position!=null)sound.effectAt(event.name,event.position,state.player.x,event.amount??1,event.surface??'concrete');else sound.effect(event.name,event.amount??1,event.surface??'concrete');}
  else if(event.type==='save')persist();
@@ -101,16 +131,16 @@ function drain(){for(const event of state.drain()){
  }
  else if(event.type==='mourning-guide'){
   const t=text();notify(t.mourningGuide+' '+(useTouchCue()?t.mourningTouch:instruction(t.mourningLower)),8);
-  sound.warnMourning?.('guide',state.lang);
+  sound.warnMourning?.('guide');
  }
  else if(event.type==='mourning-glance'){
   const t=text();notify(useTouchCue()?t.mourningWarningTouch:instruction(t.mourningWarning),1.35);
-  if(event.voice)sound.warnMourning?.('glance',state.lang);
+  if(event.voice)sound.warnMourning?.('glance');
  }
  else if(event.type==='checkpoint'){sound.effect('checkpoint');notify(text().lamp,2.5);}
  else if(event.type==='task'){sound.effect(state.floor===0?'valve':'collect');notify(state.floor===2?text().roofTasks[event.index]:text().task[state.floor][event.index],7);}
  else if(event.type==='evidence'){sound.effect('evidence');notify(text().evidence[event.id],8);}
- else if(event.type==='tutorial'){notify(instruction(text().tutorial),7);if(state.floor===0)sound.playGuidance?.('boiler',state.lang);}
+ else if(event.type==='tutorial'){notify(instruction(text().tutorial),7);if(state.floor===0)sound.playGuidance?.('boiler');}
  else if(event.type==='scene-beat'){if(event.id==='phone'){if(event.beat===0)sound.effect('phone');else sound.stopPhone();}else if(['fire-door','lunchbox'].includes(event.id))sound.effect(event.beat===0?'handle':'doorOpen');else if(['reservoir','plants','coolant'].includes(event.id))sound.effect('water');else if(event.beat===0)sound.effect('knock');}
  else if(event.type==='pursuit-warning'){sound.effect('warningBell');notify(state.lang==='zh'?'预警：出口在右侧。留门，不要留在走廊。':'Warning: exit to the right. Leave the door, not yourself in the corridor.',5);}
  else if(event.type==='need-work')notify(state.lang==='zh'?'先完成本区交接，门闩才会放行。':'Complete this section’s work to release its door.',3);
@@ -119,7 +149,7 @@ function drain(){for(const event of state.drain()){
  else if(event.type==='route-hint')notify(text().upperRoute,7);
  else if(event.type==='light'){sound.effect('checkpoint');notify(text().light,4);}
  else if(event.type==='need')notify(text().need,3);
- else if(event.type==='floor'){sound.stopOfficeVoice?.();sound.setFloor(state.floor);syncPhase();notify(text().story[state.floor],8);if(state.floor===2)sound.playGuidance?.('roof',state.lang);}
+ else if(event.type==='floor'){sound.stopOfficeVoice?.();sound.setFloor(state.floor);syncPhase();notify(text().story[state.floor],8);if(state.floor===2)sound.playGuidance?.('roof');}
  else if(['between','ending'].includes(event.type)){sound.menu=true;clearInput();showCard();}
  }}
 function focusPlayfield(){
@@ -131,10 +161,14 @@ function focusPlayfield(){
 }
 async function activate(){
  if(starting)return;starting=true;
- try{await sound.start();}catch(e){notify(state.lang==='zh'?'音频暂不可用，仍可继续游戏。':'Audio unavailable; play can continue.',3);}
+ const audioReady=sound.start().then(()=>true,()=>false);
  try{
+  const updated=await reconcileSave();
+  if(!await audioReady)notify(state.lang==='zh'?'音频暂不可用，仍可继续游戏。':'Audio unavailable; play can continue.',3);
+  if(document.hidden||document.querySelector('dialog[open]'))return;
   if(state.mode==='won'){showVisits();return;}
   const from=state.mode;if(from==='paused')state.resume();else state.start();clearInput();accumulator=0;lastTime=null;sound.menu=false;sound.setPhase(state.night);sound.setFloor(state.floor);sound.setVolumes(state.progress.settings);$('overlay').classList.add('hidden');focusPlayfield();labels();if(from==='menu'){if(loaded.readOnly)storageNotice();else notify(text().story[state.floor],9);}drain();
+  if(updated)notify(state.lang==='zh'?'已载入另一标签页保存的进度。':'Loaded the progress saved in the other tab.',4);
  }finally{starting=false;}
 }
 function pause(){clearInput();if(state.pause()){sound.stopOfficeVoice?.();accumulator=0;persist();labels();showCard();}}
@@ -155,11 +189,14 @@ $('settings-close').onclick=()=>{settingsPanel.cancelCapture();settingsDialog.cl
 settingsDialog.addEventListener('close',()=>settingsPanel.cancelCapture());
 $('pause-button').onclick=togglePause;
 $('language').onclick=()=>{state.lang=state.lang==='en'?'zh':'en';controlLabels();persist();showCard();};
-$('restart').onclick=()=>{
+$('restart').onclick=async()=>{
+ if($('restart').disabled)return;
+ $('restart').disabled=true;
  const next=new Simulation(freshSave());
  try{
-  if(storage){restartSave(storage,next.persist());loaded={data:next.progress,warnings:[],readOnly:false};}
+  if(storage)loaded=await restartSavedSession(storage,next.persist());
  }catch{notify(state.lang==='zh'?'备份或写入失败，未重开。':'Could not back up or write the save. Restart cancelled.',5);return;}
+ finally{$('restart').disabled=false;}
  state=next;
  state.difficulty=preferences.difficulty;
  clearInput();
@@ -186,7 +223,8 @@ function visitSection(floor,sector,annex=false){
  persist();
  focusPlayfield();
 }
-function showVisits(){
+async function showVisits(){
+ await reconcileSave();
  const list=$('visit-entries');
  list.replaceChildren();
  const unlocked=Math.max(state.floor,state.events.includes('chapter-1-complete')?2:state.events.includes('chapter-0-complete')?1:0);

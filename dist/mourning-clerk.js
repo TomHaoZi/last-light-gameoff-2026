@@ -38,7 +38,7 @@ function crossesBlock(x, y, dx, dy, block) {
 }
 
 export function resetMourningGaze(ghost) {
-  Object.assign(ghost, { gaze: 0, looking: false, charging: false, lockTime: 0, gazeWarned: false });
+  Object.assign(ghost, { gaze: 0, looking: false, charging: false, recoil: 0, lockTime: 0, gazeWarned: false });
 }
 
 function charge(ghost, world, dt, speed, solids) {
@@ -70,11 +70,8 @@ export function updateMourningGaze(ghost, world, dt, atLamp) {
   const alive = player.lifeState === 'alive' || player.lifeState === 'hurt';
   const near = alive && Math.hypot(dx, dy) < cryRange;
 
+  const wasCharging = ghost.charging;
   ghost.cryCooldown = Math.max(0, (ghost.cryCooldown || 0) - dt);
-  if (near && ghost.cryCooldown === 0) {
-    world.emit?.('sound', { name: 'mourning-cry', position: ghost.xNow });
-    ghost.cryCooldown = 4.7 + (ghost.seed || 0) * .2;
-  }
   const inFront = dx * player.dir >= 0;
   const atEyeLevel = Math.abs(dy) <= Math.min(32, 17 + Math.abs(dx) * .14);
   const looking = alive && !atLamp && !player.eyesDown && inFront && atEyeLevel &&
@@ -84,6 +81,18 @@ export function updateMourningGaze(ghost, world, dt, atLamp) {
   ghost.gaze = atLamp ? 0 : Math.max(0, Math.min(1, (ghost.gaze || 0) + dt * (looking ? 2 : -4)));
   ghost.looking = looking;
   ghost.charging = looking && ghost.lockTime >= rules.gazeDelay;
+  ghost.recoil = ghost.charging ? 0 : wasCharging ? .25 : Math.max(0,(ghost.recoil || 0)-dt);
+  if (ghost.charging && !wasCharging) {
+    world.emit?.('sound', { name: 'mourning-rush', position: ghost.xNow });
+    ghost.cryCooldown = Math.max(ghost.cryCooldown,.9);
+  } else if (near && wasCharging && !ghost.charging) {
+    world.emit?.('sound', { name: 'mourning-break', position: ghost.xNow });
+    ghost.cryCooldown = Math.max(ghost.cryCooldown,.55);
+  }
+  if (near && !looking && ghost.cryCooldown === 0) {
+    world.emit?.('sound', { name: 'mourning-cry', position: ghost.xNow });
+    ghost.cryCooldown = 4.7 + (ghost.seed || 0) * .2;
+  }
 
   if (ghost.gaze === 0) ghost.gazeWarned = false;
   if (ghost.lockTime >= .075 && !ghost.gazeWarned) {

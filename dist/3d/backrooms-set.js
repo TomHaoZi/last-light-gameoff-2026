@@ -1,5 +1,8 @@
 import * as THREE from 'three';
+import { fitModel } from './map-dressing.js';
+import { preloadAnnexDetail, preloadAnnexFit, preloadAnnexJunctions, preloadAnnexPitLining, preloadAnnexUtilities } from './architecture-kit.js';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
+import { waitForRenderIdle } from './render-idle.js';
 
 // The conversion from longitudinal distance to world Z is the same one used
 // by the chase simulation. There is no floor mesh beneath pits or phase spans.
@@ -38,16 +41,43 @@ function planSet(track) {
     matrix.scale(new THREE.Vector3(...scale)).setPosition(x, y, z);
     placements.push({ name, matrix, phase, shade, z });
   }
+  const unsupported=track.obstacles.filter(o=>o.kind==='gap'||o.kind==='bridge');
+  function recessThreshold(x,z,yaw) {
+    let start=startZ-z-2.4;
+    const end=start+4.8;
+    const at=(a,b)=>{
+      if (b-a<=.19) return;
+      put('recessbar',x,0,startZ-(a+b)/2,[1,1,(b-a-.08)/2.4],yaw);
+    };
+    for (const pit of unsupported) {
+      const stop=pit.at+pit.length;
+      if (stop<=start || pit.at>=end) continue;
+      at(start,pit.at);
+      start=Math.max(start,stop);
+    }
+    at(start,end);
+  }
   function carpet(from, to, phase) {
+    const seam=track.length*.22;
+    if (!phase && from<seam && seam<to) {
+      carpet(from,seam);
+      carpet(seam,to);
+      for (let lane=-1;lane<=1;lane++) put('floorbar',cx+lane*width/3,0,startZ-seam,[width/7.2,1,1]);
+      return;
+    }
     const count = Math.ceil((to - from) / (phase ? 1.2 : 2.4));
     if (count < 1) return;
     const step = (to - from) / count;
     for (let i = 0; i < count; i++) {
+      const distance = from + (i + .5)*step;
+      const z = startZ - distance;
+      const covered = !phase && roomAt(distance)===0;
+      if (covered) for (const side of [-1,1])
+        // Sit room-side of the RC29 cove toe; stitches must not be buried.
+        put('carpetbound',cx+side*(limit-.103),0,z,[1,1,step/2.4],side<0?Math.PI:0);
       for (let lane = -1; lane <= 1; lane++) {
-        const distance = from + (i + 0.5) * step;
-        const z = startZ - distance;
         put(
-          phase ? 'bridge' : roomAt(distance) === 0 ? 'carpet' : 'cementfloor',
+          phase ? 'bridge' : covered ? 'carpet' : 'cementfloor',
           cx + (lane * width) / 3,
           0,
           z,
@@ -65,11 +95,18 @@ function planSet(track) {
     const z = startZ - ob.at - ob.length / 2;
     if (ob.kind === 'gap' || ob.kind === 'bridge') {
       carpet(from, ob.at);
-      if (ob.kind === 'bridge') carpet(ob.at, ob.at + ob.length, ob.phase);
-      // Paint is on the fixed near lip. The shaft extends down below the
-      // playable floor and stays open whenever its phase bridge is inactive.
+      if (ob.kind === 'bridge') {
+        carpet(ob.at,ob.at+ob.length,ob.phase);
+        for (const [sx,sz,yaw] of [[1,1,0],[1,-1,Math.PI/2],[-1,-1,Math.PI],[-1,1,-Math.PI/2]]) {
+          put('bridgecorner',cx+sx*(limit-.047),0,z+sz*(ob.length/2-.049),[1,1,1],yaw,ob.phase);
+        }
+      }
+      // The fixed nose assemblies grip the permanent ledges, never the
+      // bridge. Slight setback keeps the rolled face within the shaft rim.
       for (let lane = -1; lane <= 1; lane++) {
-        put('dangerlip', cx + (lane * width) / 3, 0.006, startZ - ob.at + 0.09, [width / 7.2, 1, 1]);
+        const x=cx+lane*width/3;
+        put('dangerlip',x,0,startZ-ob.at+.027,[width/7.2,1,1]);
+        put('dangerlip',x,0,startZ-ob.at-ob.length-.027,[width/7.2,1,1],Math.PI);
         put(
           'cementfloor',
           cx + (lane * width) / 3,
@@ -83,7 +120,7 @@ function planSet(track) {
       }
       for (const side of [-1, 1])
         put(
-          'concretewall',
+          'pitwall',
           cx + side * (limit + 0.06),
           -4.17,
           z,
@@ -94,7 +131,7 @@ function planSet(track) {
         );
       for (const edge of [-1, 1])
         put(
-          'concretewall',
+          'pitwall',
           cx,
           -4.2,
           z + (edge * ob.length) / 2,
@@ -170,6 +207,7 @@ function planSet(track) {
         const upper = Math.max(h, roomHeight[priorRoom]);
         put('concretewall', cx, lower - 0.09, z + 2.4, [width / 4.8, (upper - lower + 0.13) / 3.3, 1.5]);
         put('transferbeam', cx, 2.82, z + 2.05, [1.01, 0.88, 1.4]);
+        for (const side of [-1,1]) put('paneljoint',cx+side*(limit+.005),0,z+2.4,[1,lower,1],-side*Math.PI/2);
       }
     }
     priorRoom = room;
@@ -179,13 +217,21 @@ function planSet(track) {
       const recess = gallery ? 2.45 : utility ? 1.6 : storage ? 1.36 : 0;
       const wallX = cx + side * (limit + 0.07 + recess);
       put(wall, wallX, 0, z, [1, h / 3.3, 1], turn, 'neutral', 0.9 + 0.025 * ((i + side + 2) % 4));
+      put('cove',wallX-side*.061,0,z,[1,1,1],turn);
+      put('crown',wallX-side*.041,h-.016,z,[1,1,1],turn);
       if (recess) {
+        recessThreshold(cx+side*(limit+.025),z,side<0?Math.PI:0);
         const x = cx + side * (limit + recess / 2);
         for (const end of [-1, 1]) {
           // Adjacent microfilm bays share one gallery instead of adding dead-end partitions.
           const openEnd = gallery && ((end === 1 && (i - 1) % 8 >= 2) || (end === -1 && i % 8 < 4));
-          if (!openEnd)
-            put(wall, x, 0, z + end * 2.4, [recess / 4.8, h / 3.3, 1], end === -1 ? 0 : Math.PI);
+          if (!openEnd) {
+            const yaw=end === -1 ? 0 : Math.PI;
+            put(wall,x,0,z+end*2.4,[recess/4.8,h/3.3,1],yaw);
+            put('cove',x,0,z+end*2.339,[recess/4.8,1,1],yaw);
+            put('crown',x,h-.016,z+end*2.359,[recess/4.8,1,1],yaw);
+            put('paneljoint',wallX-side*.056,0,z+end*2.362,[.78,h,1],turn);
+          }
           put('cementfloor', x, 0, z + end * 1.2, [recess / 2.4, 1, 1]);
           put('ceiling', x, h, z + end * 1.2, [recess / 2.4, 1, 1]);
         }
@@ -197,6 +243,10 @@ function planSet(track) {
           put('ventilator', wallX - side * 0.11, 1.9, z, [1.06, 1.06, 1.06], turn);
           put('ventrotor', wallX - side * 0.11, 1.9, z, [1.06, 1.06, 1.06], turn);
           put('pipes', wallX - side * 0.17, 0.35, z, [1.82, 0.75, 1.3], turn);
+          // Put the new assets behind the corridor boundary and off the existing pipe runs.
+          const binSide=i%8===2 ? -1 : 1;
+          if(side===binSide) put('recessbin',wallX-side*.752,0,z+1.47,[1,1,1],turn);
+          put('recessextinguisher',wallX-side*.191,1.10,z-1.52,[1,1,1],turn);
           lights.push({ x: wallX - side * 0.36, z, y: 2.81, strength: 15 });
         } else {
           put('cart', x, 0, z + 0.8, [1, 1, 1], turn + 0.11);
@@ -249,6 +299,7 @@ function planSet(track) {
     if (turn === 0) {
       put('doorframe', cx, 0.005, z + 0.11, [1.4, 1.14, 1], 0);
       put('doorleaf', cx, 0.005, z + 0.11, [1.4, 1.14, 1], 0);
+      put('doorsill',cx,0,z+.221,[1.4,1,1],0);
       // The door swings away into a lit landing, with a floor and back wall.
       put('carpet', cx, 0, z - 1.77, [1.1, 1, 1.48]);
       put('ceiling', cx, 3.29, z - 1.77, [1.1, 1, 1.48]);
@@ -268,6 +319,7 @@ const approx = {
   carpet: [2.4, 0.074, 2.4, '#726957'],
   cementfloor: [2.4, 0.086, 2.4, '#73786c'],
   concretewall: [4.8, 3.3, 0.13, '#858579'],
+  pitwall: [4.8, 3.3, 0.13, '#858579'],
   tiledwall: [4.8, 3.3, 0.13, '#708780'],
   transferbeam: [7.75, 0.53, 0.47, '#794e3d'],
   ceiling: [2.4, 0.05, 2.4, '#a49f8a'],
@@ -324,8 +376,9 @@ function instanceSet(groups, placements, kits) {
         'wall',
         'tiledwall',
         'concretewall',
+        'pitwall',
         'bridge',
-        'dangerlip'
+        'dangerlip', 'cove', 'crown', 'doorsill', 'floorbar', 'paneljoint', 'bridgecorner', 'carpetbound', 'recessbar'
       ].includes(name);
       inst.receiveShadow = true;
       inst.frustumCulled = false;
@@ -519,9 +572,34 @@ function driftingFibres(visual, lights, track) {
   };
 }
 
+const importedKits = new Map();
+function preloadImportedKit(file, name, fit) {
+  if (!importedKits.has(file)) importedKits.set(file, new GLTFLoader().loadAsync(new URL('./assets/env/' + file + '.glb', import.meta.url).href).then(({ scene }) => {
+    const kit = [];
+    const transform = fitModel(scene,fit);
+    scene.traverse(part => {
+      if (!part.isMesh) return;
+      // Envelopes match the original course. No phase or collision state changes.
+      const geometry = part.geometry.clone().applyMatrix4(part.matrixWorld).applyMatrix4(transform);
+      geometry.name = name;
+      kit.push({ geometry, material: part.material });
+      part.geometry.dispose();
+    });
+    return kit;
+  }).catch(error => { importedKits.delete(file); console.warn('Annex kit unavailable: ' + file,error); return null; }));
+  return importedKits.get(file);
+}
+
 export function mountBackroomsSet(visual, track) {
   const plan = planSet(track),
     fallback = previewKits();
+  const secondary = [
+    ['recessbin','annex-recess-bin','Poly Haven rusted metal can',[.855,.906,.556]],
+    ['recessextinguisher','annex-recess-extinguisher','Poly Haven wall fire extinguisher',[.280,.659,.367]]
+  ];
+  const secondaryKeys = new Set(secondary.map(([key]) => key));
+  const corePlacements = plan.placements.filter(item => !secondaryKeys.has(item.name));
+  const decor = [];
   let active = true;
   let meshes = instanceSet(visual.groups, plan.placements, fallback);
   meshes.update(track.startZ);
@@ -538,24 +616,57 @@ export function mountBackroomsSet(visual, track) {
       }
     fallback.clear();
   };
-  const ready = preloadBackroomsSet().then((scene) => {
+  const coreReady = Promise.all([
+    preloadBackroomsSet(),
+    preloadImportedKit('annex-steel-rack','Poly Haven worn metal rack',[1.52,1.97,.57]),
+    preloadImportedKit('annex-shipping-crate','Poly Haven wooden shipping crate',[1.91,.64,.62]),
+    preloadAnnexPitLining(),
+    preloadAnnexJunctions(),
+    preloadAnnexUtilities(),
+    preloadAnnexDetail(),
+    preloadAnnexFit()
+  ]).then(([scene, rack, crate, pit, junctions, utilities, detail, fit]) => {
     if (!scene || !active) return false;
     meshes.clear();
     removeFallback();
-    meshes = instanceSet(visual.groups, plan.placements, authoredKits(scene));
+    const kits = authoredKits(scene);
+    if (rack?.length) kits.set('rack', rack);
+    if (crate?.length) kits.set('barrier',crate);
+    kits.set('pitwall',pit.length ? pit : kits.get('concretewall'));
+    for (const [name,kit] of [...junctions,...utilities,...detail,...fit]) kits.set(name,kit);
+    meshes = instanceSet(visual.groups, corePlacements, kits);
     meshes.update(visual.camera.position.z);
     visual.renderer.shadowMap.needsUpdate = true;
+    return true;
+  });
+  const ready = coreReady.then(async mounted => {
+    if (!mounted) return false;
+    // Finish the course before side-recess props can compete with its fetch,
+    // upload or initial draw. Each decoration can succeed independently.
+    for (const [key, file, preparation, size] of secondary) {
+      await waitForRenderIdle();
+      if (!active) return false;
+      const kit = await preloadImportedKit(file, preparation, size);
+      if (!active) return false;
+      if (!kit?.length) continue;
+      const instances = instanceSet(visual.groups, plan.placements.filter(item => item.name === key), new Map([[key, kit]]));
+      instances.update(visual.camera.position.z);
+      decor.push(instances);
+      visual.renderer.shadowMap.needsUpdate = true;
+    }
     return true;
   });
   return {
     ready,
     update(state, dt) {
       meshes.update(state.z, state.door, state.reduceMotion ? 0 : dt, state.night);
+      for (const instances of decor) instances.update(state.z);
       animateDust(state);
     },
     dispose() {
       active = false;
       meshes.clear();
+      for (const instances of decor) instances.clear();
       removeFallback();
     }
   };

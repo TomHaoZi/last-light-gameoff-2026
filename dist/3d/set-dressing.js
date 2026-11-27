@@ -3,11 +3,12 @@ import {
 } from 'three';
 
 const CELL = [384, 144];
+const matchesFace = (sign,col,row,dx,dz) => sign.tile[0]===col && sign.tile[1]===row && sign.face[0]===dx && sign.face[1]===dz;
 const SETS = [
   {
     ink: '#e6c58e', board: '#29302c', edge: '#9d784c', tag: 'B2',
     signs: [
-      { tile: [7, 13], face: [0, 1], title: 'SHIFT HANDOVER', detail: 'LOG PRESSURE BEFORE LEAVING', mark: 'B-17' },
+      { tile: [4, 13], face: [0, 1], title: 'SHIFT HANDOVER', detail: 'LOG PRESSURE BEFORE LEAVING', mark: 'B-17' },
       { tile: [9, 6], face: [-1, 0], title: 'LOW PRESSURE', detail: 'ISOLATE BEFORE SERVICING', mark: '01' },
       { tile: [17, 9], face: [-1, 0], title: 'COOLING LOOP', detail: 'MANUAL CONTROL OPEN', mark: '02' },
       { tile: [18, 0], face: [0, 1], title: 'FIRE INTERLOCK', detail: 'OVERRIDE INSIDE THE DOOR', mark: '03' },
@@ -32,6 +33,8 @@ const SETS = [
     ]
   }
 ];
+
+export const hasArchiveWallSign = (col,row,dx,dz) => SETS[1].signs.some(sign=>matchesFace(sign,col,row,dx,dz));
 
 function printSign(ctx, w, h, set, sign) {
   ctx.fillStyle = set.board;
@@ -86,10 +89,18 @@ export function mountWallSigns(visual, tileSize) {
     printSign(ctx, w, h, set, sign);
     ctx.restore();
 
-    const outset = tileSize * .5 + .165;
-    const width = theme === 2 ? 1.58 : 1.73;
+    const archive = theme===1;
+    const overCabinet=archive && sign.mark==='401';
+    const size=overCabinet ? .62 : 1;
+    const outset = tileSize * .5 + (archive ? .128 : .165);
+    const width = (theme === 2 ? 1.58 : 1.73)*size;
     const height = width * h / w;
-    const center = theme === 2 ? .88 : 2.16;
+    const center = theme === 2 ? .88 : overCabinet ? 2.55 : 2.16;
+    if (archive) {
+      const x=support.x+dx*(tileSize*.5+.018),z=support.z+dz*(tileSize*.5+.018);
+      const fallback=visual.architecturePoint('ArchiveSignTray',x,center,z,dx,dz,'neutral',visual.signMounts,[size,size,1]);
+      fallback.trim(visual.materials.accent,x+dx*.075,center,z+dz*.075,1.816*size,.727*size,.056,dx ? Math.PI/2 : 0);
+    }
     const corners = [
       [-width / 2, -height / 2, left + 1, top + h - 1],
       [width / 2, -height / 2, left + w - 1, top + h - 1],

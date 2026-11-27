@@ -391,19 +391,21 @@ export function animateCreatureBody(body, { time, threat = 0, reach = 0, moving 
   const urgency = smoothstep(threat, .23, .87);
   const stride = (moving ? 1 : .13) * (reduced ? .62 : 1);
   const beat = movementTime * 8 + seed * 2;
+  const weakSide = Math.sin(seed*2.7) < 0 ? -1 : 1;
+  const hitch = reduced ? 0 : stride*Math.max(0,Math.sin(beat*weakSide+.54))**5;
   const drift = Math.sin(time * 3.4 + seed);
   const twitch = reduced ? 0 : Math.sin(time * 18 + seed) * (.014 + urgency * .025);
   const lurch = .55 * Math.sin(beat) + .45 * Math.sin(beat * 2 + .6);
   const breath = Math.sin(time * (2.5 + urgency * 1.9) + seed);
   hips.position.y = .906 + Math.abs(lurch) * stride * (.021 + .013 * urgency) - reach * .035;
-  hips.rotation.z = stride * .027 * lurch;
-  hips.rotation.y = stride * Math.sin(beat) * (.072 - urgency * .023);
+  hips.rotation.z = stride * .027 * lurch - weakSide*hitch*.033;
+  hips.rotation.y = stride * Math.sin(beat) * (.072 - urgency * .023) + weakSide*hitch*.035;
   torso.rotation.x = .095 + urgency * .17 + reach * .22 + breath * .018;
   torso.rotation.z = -.095 + drift * .045 + twitch + stride * lurch * .012;
   torso.position.z = .012 + reach * .080;
 
   for (const { shoulder, elbow, wrist, side } of arms) {
-    const walk = side * Math.sin(beat + .55) * stride;
+    const walk = side * Math.sin(beat + .55 - (side===weakSide ? .24 : 0)) * stride;
     const lead = side === 1 ? 1 : .76;
     shoulder.rotation.x = -.105 + walk * (.23 + urgency * .22) - reach * (.96 * lead);
     shoulder.rotation.z = side * (-.13 + .076 * urgency - reach * .13) + lurch * .048;
@@ -413,10 +415,11 @@ export function animateCreatureBody(body, { time, threat = 0, reach = 0, moving 
       side * (-.075 + reach * .25) + twitch);
   }
   for (const { hip, knee, ankle, side } of legs) {
-    const forward = side * Math.sin(beat) * stride;
-    hip.rotation.x = -.063 + side * .049 + forward * (.18 + urgency * .28);
-    hip.rotation.z = side * (.043 + reach * .060);
-    knee.rotation.x = .104 + Math.max(0, -.18 + forward) * (.33 + urgency * .24);
-    ankle.rotation.x = -.064 - forward * .14;
+    const weak = side === weakSide;
+    const forward = side * Math.sin(beat - (weak ? .16 : 0)) * stride;
+    hip.rotation.x = -.063 + side * .049 + forward * (.18 + urgency * .28) + (weak ? .08*hitch : 0);
+    hip.rotation.z = side * (.043 + reach * .060 + (weak ? .033*hitch : 0));
+    knee.rotation.x = .104 + Math.max(0, -.18 + forward) * (.33 + urgency * .24) + (weak ? .15*hitch : 0);
+    ankle.rotation.x = -.064 - forward * .14 - (weak ? .10*hitch : 0);
   }
 }

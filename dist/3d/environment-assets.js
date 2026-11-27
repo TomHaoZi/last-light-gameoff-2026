@@ -1,4 +1,4 @@
-import { Box3, BoxGeometry, CanvasTexture, Group, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3 } from 'three';
+import { Box3, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3 } from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
@@ -10,22 +10,33 @@ function plans(visual) {
   if (visual.theme === 0) return [
     { file: 'steamtrap', place: [x - 4.58, 0, z - 2.83, .65, .95], footprint: [1.55, .74] },
     { file: 'compressor', place: [x - 3.74, 0, z - 4.34, Math.PI / 2, 1.15], footprint: [2.42, 1.07] },
-    { file: 'fire-alarm', place: [x - 1.70, 1.37, z - 5.96, 0, 1.20] }
+    { file: 'fire-alarm', place: [x - 1.70, 1.37, z - 5.96, 0, 1.20] },
+    { file: 'boiler-tool-chest', place: [x + 4.91, 0, z - 5.10, -.14, 1.16], footprint: [.93, .56] },
+    { file: 'boiler-arrival-extractor', place: [x + 4.91, 1.67, z - 5.99, 0, 1], authoredOrigin: true,
+      replaces: 'Arrival extractor fallback' }
   ];
   if (visual.theme === 1) {
     const note = visual.decoded.notes?.find(tile => tile.kind === 'N');
+    const cabinet = visual.decoded.get(9, 16);
     return [
+    ...(cabinet?.kind === '.' ? [{ file: 'archive-drawer-cabinet', place: [cabinet.x, 0, cabinet.z + .76, Math.PI, 1],
+      optional: true, replaces: 'Personnel drawers', footprint: [1.15, .54] }] : []),
     ...(note ? [{ file: 'office-phonograph', place: [note.x - .38, 0, note.z, .12, 1.04],
       optional: true, footprint: [.98, .76] }] : []),
-    { file: 'ticketcase', place: [x - 5.83, .93, z + .90, Math.PI / 2, 1.1] },
+    { file: 'ticketcase', place: [x - 5.83, .93, z + .90, Math.PI / 2, 1.1], optional: true },
     { file: 'records-desk', place: [x - 2.52, 0, z - 4.63, 0, 1.10], replaces: 'F4 records desk', footprint: [2.55, 1.33] },
     { file: 'dispatch-radio', place: [x - 2.72, .866, z - 4.54, -.13, 1.44] },
     { file: 'records-lamp', place: [x - 1.79, .80, z - 4.82, Math.PI, .86] }
     ];
   }
+  const header = visual.decoded.get(9, 6);
   return [
     { file: 'rainhead', place: [x + 6.20, 0, z - 4.30, -.14, 1.02], footprint: [.90, .50] },
-    { file: 'roof-condenser', place: [x + 4.26, -.24, z - 5.30, -.14, 1.32], replaces: 'Rooftop exhaust HVAC-03', footprint: [1.45, .80] }
+    { file: 'roof-condenser', place: [x + 4.26, -.24, z - 5.30, -.14, 1.32], replaces: 'Rooftop exhaust HVAC-03', footprint: [1.45, .80] },
+    { file: 'roof-garden-bed', place: [x - 3.58, 0, z - 4.42, -.12, 1], authoredOrigin: true,
+      replaces: 'Rooftop rain-fed herb bed', footprint: [1.86, .83] },
+    ...(header?.kind === '#' ? [{ file: 'roof-irrigation-header', place: [header.x + 1.23, 0, header.z, Math.PI / 2, 1],
+      authoredOrigin: true, replaces: 'Roof irrigation header' }] : [])
   ];
 }
 
@@ -62,16 +73,19 @@ function releaseTexturesOnDispose(textures) {
   }
 }
 
-function placeModel(scene, target, dimensions) {
+function placeModel(scene, target, dimensions, authoredOrigin = false) {
   const [x, y, z, yaw, scale] = dimensions;
   const frame = new Group();
   frame.rotation.y = yaw;
   frame.scale.setScalar(scale);
   frame.add(scene);
-  frame.updateMatrixWorld(true);
-  const bounds = new Box3().setFromObject(frame, true);
-  const center = bounds.getCenter(new Vector3());
-  frame.position.set(x - center.x, y - bounds.min.y, z - center.z);
+  if (authoredOrigin) frame.position.set(x, y, z);
+  else {
+    frame.updateMatrixWorld(true);
+    const bounds = new Box3().setFromObject(frame, true);
+    const center = bounds.getCenter(new Vector3());
+    frame.position.set(x - center.x, y - bounds.min.y, z - center.z);
+  }
   target.add(frame);
 }
 
@@ -111,14 +125,48 @@ function condenserStand(visual, dressing, [x, , z, yaw]) {
   dressing.add(base);
 }
 
-export async function mountEnvironment(visual) {
-  const stage = visual.stage;
-  const anisotropy = Math.min(8, visual.renderer.capabilities.getMaxAnisotropy());
-  const placements = plans(visual);
+export async function mountRoofNurseries(visual, fallback) {
+  if (!visual.roofNurseries.length) return false;
+  const { stage, roofNurseries } = visual;
+  try {
+    const { scene } = await loader.loadAsync(modelPath('roof-nursery-box'));
+    const resources = assetsFor(scene);
+    if (visual.stage !== stage) {
+      for (const set of Object.values(resources)) for (const resource of set) resource.dispose();
+      return false;
+    }
+    scene.updateMatrixWorld(true);
+    const placement = new Matrix4(), world = new Matrix4();
+    const color = new Color();
+    const group = new Group();
+    group.name = 'Modeled nursery boxes';
+    scene.traverse(part => {
+      if (!part.isMesh) return;
+      const instances = new InstancedMesh(part.geometry, part.material, roofNurseries.length);
+      instances.castShadow = instances.receiveShadow = true;
+      for (const [i, { x, z, angle, flip, shade }] of roofNurseries.entries()) {
+        placement.makeRotationY(angle + flip * Math.PI).setPosition(x, .001, z);
+        instances.setMatrixAt(i, world.multiplyMatrices(placement, part.matrixWorld));
+        instances.setColorAt(i, color.setScalar(shade));
+      }
+      instances.computeBoundingSphere();
+      group.add(instances);
+    });
+    if (!group.children.length) return false;
+    stage.add(group);
+    visual.localTextures.push(...resources.textures);
+    fallback.visible = false;
+    visual.renderer.shadowMap.needsUpdate = true;
+    return true;
+  } catch (error) {
+    console.warn('The modeled roof nursery boxes could not load.', error);
+    return false;
+  }
+}
+
+async function mountGroup(visual, stage, anisotropy, placements, fitted = false) {
   const results = await Promise.allSettled(placements.map(plan => loader.loadAsync(modelPath(plan.file))));
-  // Keep the desk, radio and clamped lamp together if a file is missing.
-  const usable = stage === visual.stage &&
-    (visual.theme !== 1 || results.every((result, index) => placements[index].optional || result.status === 'fulfilled'));
+  const usable = stage === visual.stage && (!fitted || results.every(result => result.status === 'fulfilled'));
 
   for (const [index, result] of results.entries()) {
     if (result.status !== 'fulfilled') continue;
@@ -151,10 +199,15 @@ export async function mountEnvironment(visual) {
 
     const dressing = new Group();
     dressing.name = 'Environment asset: ' + plan.file;
-    placeModel(scene, dressing, plan.place);
+    placeModel(scene, dressing, plan.place, plan.authoredOrigin);
     if (plan.footprint) contactShadow(visual, dressing, plan);
     if (plan.file === 'roof-condenser') condenserStand(visual, dressing, plan.place);
+    if (plan.file === 'boiler-arrival-extractor') {
+      const rotor = scene.getObjectByName('ExtractorRotor');
+      if (rotor) visual.kinetics.push({ rotor, speed: 3.8 });
+    }
     stage.add(dressing);
+    visual.overlayFrame = null;
     visual.renderer.shadowMap.needsUpdate = true;
     const fallback = plan.replaces && stage.getObjectByName(plan.replaces);
     if (fallback) fallback.visible = false;
@@ -162,4 +215,22 @@ export async function mountEnvironment(visual) {
   return results.map((result, index) => ({
     file: placements[index].file, loaded: usable && result.status === 'fulfilled'
   }));
+}
+
+export async function mountEnvironment(visual) {
+  const stage = visual.stage;
+  const anisotropy = Math.min(8, visual.renderer.capabilities.getMaxAnisotropy());
+  const placements = plans(visual);
+  if (visual.theme !== 1) return mountGroup(visual, stage, anisotropy, placements);
+
+  // The radio and clamp lamp use the fitted desk surface as their support.
+  // Mount that trio together; unrelated props can finish in any order.
+  const fitted = placements.filter(plan => !plan.optional);
+  const optional = placements.filter(plan => plan.optional);
+  const groups = await Promise.all([
+    mountGroup(visual, stage, anisotropy, fitted, true),
+    ...optional.map(plan => mountGroup(visual, stage, anisotropy, [plan]))
+  ]);
+  const byFile = new Map(groups.flat().map(result => [result.file, result]));
+  return placements.map(({ file }) => byFile.get(file));
 }

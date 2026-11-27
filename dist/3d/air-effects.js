@@ -56,7 +56,7 @@ export class AirEffects {
     this.colors = stream(geometry, 'ink', 4);
     this.mesh = new Mesh(geometry, new ShaderMaterial({vertexShader:vertex, fragmentShader:fragment,
       transparent:true, depthWrite:false}));
-    this.mesh.name = 'Vent steam, runoff, breath and lift dust';
+    this.mesh.name = 'Vent steam, runoff, breath, lift dust and contact droplets';
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
     this.mesh.renderOrder = 4;
@@ -69,8 +69,32 @@ export class AirEffects {
   release(x, y, z, yaw, time, dust, seed, source = null, motion = '', force = 1) {
     const p = this.slots[this.cursor];
     this.cursor = (this.cursor + 1) % capacity;
-    const life = motion === 'water' ? .49 : dust ? .72 : .94;
+    const life = motion === 'blood' ? .39 + .11*force : motion === 'water' ? .49 : dust ? .72 : .94;
     Object.assign(p, { x, y, z, yaw, time, dust, seed, source, motion, force, life });
+  }
+
+  roofImpact(state, { x, z, banished }) {
+    if (state.reduceMotion || state.reducedMotion || state.reducedEffects) return;
+    this.contactBlood(state,{x,z},banished ? 6 : 4,1.39);
+    const count = banished ? 9 : 4;
+    for (let i = 0; i < count; i++) {
+      const yaw = i * 2.399 + state.time * 1.8;
+      this.release(x + .18*Math.sin(yaw), .74 + .09*i, z + .18*Math.cos(yaw), yaw,
+        state.time + i*.013, true, i + state.time, null, '', banished ? 1 : .73);
+    }
+  }
+
+  contactBlood(state, ghost, count = 8, height = 1.49) {
+    if (!ghost || state.reduceMotion || state.reducedMotion || state.reducedEffects) return;
+    const facing = Math.atan2(state.x-ghost.x,state.z-ghost.z);
+    for(let i=0;i<count;i++) {
+      const seed=(i+.7)*2.399;
+      const yaw=facing+.86*Math.sin(seed);
+      const force=.32+.62*(.5+.5*Math.cos(seed));
+      const offset=.065+.04*Math.sin(seed);
+      this.release(ghost.x+Math.sin(yaw)*offset,height+(ghost.y||0)+.10*Math.cos(seed*1.8),
+        ghost.z+Math.cos(yaw)*offset,yaw,state.time+i*.008,false,seed,null,'blood',force);
+    }
   }
 
   discharge(record, state, motion, force) {
@@ -144,14 +168,19 @@ export class AirEffects {
       if (age >= 1) { p.life = 0; continue; }
       const steam = p.motion === 'steam';
       const water = p.motion === 'water';
+      const blood = p.motion === 'blood';
       const growth = steam ? .053 + age * .215 * p.force : .032 + age * (p.dust ? .17 : .13);
-      const drift = steam ? age * .35 * p.force : (water ? .26 : p.dust ? .31 : .27) * age;
-      const rise = steam ? (.19 + p.force * .69) * age * (2 - age) :
+      const drift = blood ? age*(.24 + p.force*.71) : steam ? age * .35 * p.force : (water ? .26 : p.dust ? .31 : .27) * age;
+      const rise = blood ? age*(.26*p.force-.91*age) : steam ? (.19 + p.force * .69) * age * (2 - age) :
         water ? .091 * age - 1.04 * age * age : age * (p.dust ? .07 : .13);
-      if (water && p.y + rise <= .08) { p.life = 0; continue; }
+      if ((water || blood) && p.y + rise <= .08) { p.life = 0; continue; }
       this.centers.setXYZ(count,p.x+Math.sin(p.yaw)*drift,p.y+rise,p.z+Math.cos(p.yaw)*drift);
       const alpha = Math.sin(age*Math.PI) * (1 - .45*age);
-      if (water) {
+      if (blood) {
+        this.shapes.setXYZW(count,.011+.017*p.force,.018+.041*p.force,p.yaw*.53+age*.43,
+          .91*(1-age*age)*Math.min(1,age*31));
+        this.colors.setXYZW(count,.168+.095*p.force,.005,.011,.42);
+      } else if (water) {
         this.shapes.setXYZW(count, .013, .03 + .052 * age, -.12, .67 * alpha * p.force);
         this.colors.setXYZW(count, .52, .72, .75, 1);
       } else {

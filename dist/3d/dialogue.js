@@ -99,12 +99,10 @@ export class Dialogue {
   preload(ids = CHAPTER_RECORDINGS[0]) {
     for (const id of ids) {
       const line = LINES[id];
-      const files = line?.stem ? [fileForVoice(line, 'en'), fileForVoice(line, 'zh')] : [id];
-      for (const file of files) {
-        if (this.files.has(file)) continue;
-        const url = mourningVoiceURL(file);
-        this.files.set(file, fetch(url).then(response => response.ok ? response.arrayBuffer() : null).catch(() => null));
-      }
+      const file = line?.stem ? fileForVoice(line) : id;
+      if (this.files.has(file)) continue;
+      const url = mourningVoiceURL(file);
+      this.files.set(file, fetch(url).then(response => response.ok ? response.arrayBuffer() : null).catch(() => null));
     }
   }
 
@@ -178,7 +176,7 @@ export class Dialogue {
     const line = LINES[id];
     const entry = { id, line, position: this.positions.get(id) };
     this.active = entry;
-    const file = line.stem ? fileForVoice(line, this.language ? 'zh' : 'en') : id;
+    const file = line.stem ? fileForVoice(line) : id;
     const context = this.sound.context;
     let buffer;
     if (context) {

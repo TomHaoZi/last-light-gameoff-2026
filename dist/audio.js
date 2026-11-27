@@ -58,7 +58,7 @@ export class Sound {
   }
   preloadGuidance() {
     for (const line of [GUIDANCE_LINES.boiler, GUIDANCE_LINES.roof, ...Object.values(MOURNING_LINES)]) {
-      for (const language of ['en', 'zh']) this.loadGuidance(fileForVoice(line, language));
+      this.loadGuidance(fileForVoice(line));
     }
     void Promise.all(SOB_FILES.map(file => decodeOfficeRecording(this.ctx, mourningCryURL(file))))
       .then(buffers => { this.sobs = buffers.filter(Boolean); });
@@ -75,31 +75,31 @@ export class Sound {
     return this.guidanceReady.get(file);
   }
 
-  playGuidance(cue, language) {
-    return this.playVoice(cue, GUIDANCE_LINES[cue], language);
+  playGuidance(cue) {
+    return this.playVoice(cue, GUIDANCE_LINES[cue]);
   }
 
-  warnMourning(cue, language) {
+  warnMourning(cue) {
     if (!this.ctx || this.floor !== 1) return;
     const now = this.ctx.currentTime;
     if (cue === 'glance') {
       if (now - this.lastWarning < 6) return;
       this.lastWarning = now;
     }
-    return this.playVoice(cue, MOURNING_LINES[cue], language);
+    return this.playVoice(cue, MOURNING_LINES[cue]);
   }
 
   isMourningPlaying(cue = 'guide') {
     return Boolean(this.officeVoice && this.officeVoice.cue === cue && !this.muted && this.focus);
   }
 
-  async playVoice(cue, line, language) {
+  async playVoice(cue, line) {
     const context = this.ctx;
     if (!context || !line || this.menu || this.muted || !this.focus || this.officeVoice?.cue === cue) return;
     this.stopOfficeVoice();
     const generation = this.guidanceSeq;
     const floor = this.floor;
-    const file = fileForVoice(line, language);
+    const file = fileForVoice(line);
     const buffer = this.guidanceAudio.get(file) ?? await this.loadGuidance(file);
     if (!buffer || generation !== this.guidanceSeq || this.floor !== floor || this.menu || this.muted || !this.focus) return;
     const at = context.currentTime + .006;
@@ -231,10 +231,25 @@ export class Sound {
       for(const offset of [0,.29,.66]){this.noise(t+offset,.34,.078,710,this.sfx,2.05);this.tone(334,173,t+offset+.05,.22,.026,'triangle');}
     }
     if(name==='mourning-lock'){this.noise(t,.14,.085,1390,this.sfx,1.55);this.tone(82,43,t+.09,.20,.075,'sine');}
+    if(name==='mourning-rush'){this.playFoley('step-stone',t,.19,1.11);this.noise(t+.016,.24,.087,1440,this.sfx,1.45);}
+    if(name==='mourning-break'){this.noise(t,.21,.055,725,this.sfx,1.32);this.tone(138,64,t+.028,.18,.023,'triangle');}
     if(name==='mourning-strike'){this.stopSobs();this.playSob(t,true);this.playFoley('eli-catch',t+.04,.30,.98);this.noise(t,.23,.15,1520,this.sfx,1.1);this.duck(.62);}
     if(name==='mourning-release'){this.noise(t,.17,.064,1300,this.sfx,1.5);this.tone(159,71,t+.02,.16,.035,'triangle');}
     if(name==='mourning-impact'){this.stopSobs();this.kick(t,.12,.18);this.noise(t+.01,.16,.047,510);}
-    if(name==='ghostAlert'){this.tone(320,220,t,.48,.035,'sine');this.noise(t,.5,.025,950);this.duck(.35);}
+    if(['ghostAlert','ghostPursuit','ghostSearch','ghostPass'].includes(name)){
+      const ear=surface==='listener',visor=surface==='watcher';
+      const grate=ear?1490:visor?870:540, low=ear?131:visor?91:68;
+      if(name==='ghostAlert'){
+        this.noise(t,.16,.067,grate*1.3,this.sfx,1.65);
+        this.tone(low*2.2,low*1.6,t+.055,.27,.041,'triangle');this.duck(.29);
+      } else if(name==='ghostPursuit'){
+        this.noise(t,.42,.077,grate,this.sfx,1.38);
+        this.tone(low,low*.46,t+.056,.38,.057,'triangle');
+        this.noise(t+.24,.091,.053,grate*.54);this.duck(.42);
+      } else if(name==='ghostSearch'){
+        this.noise(t,.21,.034,grate,this.sfx,1.48);this.noise(t+.23,.11,.026,grate*.72);
+      } else this.noise(t,.18,.015,grate*.68,this.sfx,1.3);
+    }
     if(name==='handle'){if(!this.playFoley('archive-mechanism',t,.29,1.12,0,.72))this.tick(t,.065);this.clunk(t+.12,.07);}
     if(name==='evidence'){[0,7,12].forEach((v,i)=>this.tone(midi(65+v),midi(65+v),t+i*.1,.5,.04,'sine'));}
     if(name==='checkpoint'){[0,4,7,12].forEach((v,i)=>this.tone(midi(60+v),midi(60+v),t+i*.13,.65,.04,'triangle'));}
@@ -246,6 +261,17 @@ export class Sound {
     if(name==='collect'){this.slurp(t,.045);[0,4,7].forEach((v,i)=>this.tone(midi(72+v),midi(72+v),t+i*.06,.35,.08,'triangle'));}
     if(name==='doorOpen'){if(!this.playFoley('door-steel',t,.41,.97))this.noise(t+.08,.45,.08,380);this.clunk(t,.17);this.whirr(t+.05,.035,true);}
     if(name==='door'){this.clunk(t,SFX_GAIN.door);this.whirr(t+.1,.025,true);this.tick(t+.6,.05);this.duck(.65);}
+    if(name==='clock-step'){
+      if(!this.playFoley('step-stone',t,.16,.94,0,.43)){this.noise(t,.09,.032,690);this.kick(t,.037);}
+    }
+    if(name==='clock-trip'){this.tick(t,.061);this.tick(t+.09,.038);this.tone(140,82,t+.057,.28,.029,'triangle');}
+    if(name==='clock-key'){this.noise(t,.085,.028,2430);this.tick(t+.071,.052);this.clunk(t+.13,.037);}
+    if(name==='ending-latch'){
+      this.tick(t,.048);this.clunk(t+.07,.095);this.noise(t+.14,.24,.031,540);this.duck(.49);
+    }
+    if(name==='ending-air'){this.noise(t,.79,.036,760,this.sfx,.72);this.tone(112,96,t+.11,.60,.013,'sine');}
+    if(name==='ending-lunch'){this.clunk(t,.045);this.noise(t+.075,.13,.026,1480);}
+    if(name==='ending-page'){this.noise(t,.21,.043,2250,this.sfx,.83);this.noise(t+.13,.15,.021,960);}
     if(name==='drip'){this.tone(1450,700,t,.11,.045);this.noise(t,.06,.025,3200);[.16,.29,.43].forEach((delay,i)=>this.tone(950,700,t+delay,.2,.016/(i+1)));}
     if(name==='knock'){this.clunk(t,.06);this.kick(t+.13,.035);}
     if(name==='warningBell'){[0,.65,1.3].forEach(delay=>{this.tone(622,620,t+delay,.48,.055,'sine');this.tone(934,930,t+delay,.35,.025,'sine');});this.duck(1.6);}

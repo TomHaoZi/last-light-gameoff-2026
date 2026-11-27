@@ -3,8 +3,9 @@ import {phaseActive} from './phase.js';
 import {WORK_OBJECTS} from './story.js';
 import {sectorDecor,sectorActors,cinemaOverlay} from './sector-art.js';
 import {sceneryBackdrop,sceneryCanopy} from './sector-scenery.js';
-import {drawApparition,drawJanitor,drawPhaseRipple} from './actor-art.js';
+import {drawApparition,drawContactDrops,drawJanitor,drawPhaseRipple} from './actor-art.js';
 import {drawMourningFade,drawMourningShot,mourningShot} from './mourning-capture-art.js';
+import {drawLifeShading,drawStoryScene,lifeSprite} from './cinematic-art.js';
 // Native 480×270 pixel artwork. Four-value ramps, one upper-left light.
 // No per-pixel noise: wear marks are deterministic connected clusters.
 export const RAMPS={teal:['#9db8a1','#628e82','#355c59','#193c40'],brick:['#b4a782','#7c8069','#4e6259','#263f40'],iron:['#adb9a0','#6d9189','#3e6264','#1d3c43'],rust:['#e4bb78','#b17d54','#754f3e','#403b35'],gold:['#ffdfa0','#dcad66','#946e49','#513f37'],blue:['#a6c2bd','#648e98','#3d5b70','#243b4b'],cloth:['#d4d2a0','#9ba97e','#657b62','#354e48'],skin:['#ffe0a2','#dfb57b','#aa7955','#654d3c']};
@@ -90,19 +91,16 @@ export class Art{
  item(item,index){if(item.got||item.present===false||item.y<(this.viewTop??-1e6)-30||item.y>(this.viewBottom??1e6))return;const x=item.x-this.cam,y=item.y+Math.sin(this.t*2+index)*2;this.glow(x,y,15,15,'#f3c982',.16);if(item.kind==='valve'){this.valve(x,y,6);}else if(item.kind==='lunch'){this.box(x-6,y-4,13,10,RAMPS.gold);this.box(x-2,y-7,5,3,RAMPS.iron);this.rect(x-5,y-1,11,2,RAMPS.rust[2]);}else if(item.kind==='water'){this.box(x-5,y-4,10,10,RAMPS.blue);this.rect(x+5,y-4,6,2,RAMPS.blue[0]);this.rect(x+9,y-6,3,3,RAMPS.blue[1]);this.rect(x-2,y-7,5,2,RAMPS.blue[0]);}else{this.box(x-5,y-6,10,13,RAMPS.cloth);this.line(x-3,y-2,6,RAMPS.cloth[2]);this.line(x-3,y+1,5,RAMPS.cloth[2]);}
    this.rect(x-1,y-14,2,2,RAMPS.gold[0]);this.label(''+(index+1),x-1,y-18,'#e5d6a4',5);
  }
- player(p){const c=this.c,x=Math.round(p.x-this.cam),y=Math.round(p.anim==='fallDeath'?Math.min(p.y,(this.viewTop||0)+218):p.y),t=this.t;let frame=0,squash=0,bob=0,legs=[0,0],arm=0,rot=0,alpha=1,scale=1;
-   if(p.anim==='ghostDeath'){const k=Math.min(1,(p.deathTime||0)/.55);bob=-6*k;arm=-7*k;legs=[-2*k,2*k];rot=Math.sin(t*15)*.05*k;alpha=1-Math.max(0,((p.deathTime||0)-.55)/.35);}
-   else if(p.anim==='death'){const k=Math.min(1,(p.deathTime||0)/.7);rot=k*1.25;legs=[3*k,-2*k];arm=5*k;bob=k*3;}
-   else if(p.anim==='fallDeath'){const k=Math.min(1,(p.deathTime||0)/.8);legs=[-4,4];arm=-9;bob=k*18;alpha=1-k;}
-   else if(p.anim==='revive'){const k=1-Math.min(1,(p.animTime||0)/.65);alpha=Math.min(1,k*2);bob=(1-k)*9;legs=[-2*(1-k),2*(1-k)];arm=7*(1-k);}
+ player(p,reduced=false){const c=this.c,x=Math.round(p.x-this.cam),y=Math.round(p.anim==='fallDeath'?Math.min(p.y,(this.viewTop||0)+213):p.y),t=this.t;let frame=0,squash=0,bob=0,legs=[0,0],arm=0,rot=0,alpha=1;
+   const pose=lifeSprite(p,reduced);
+   if(pose)({bob,legs,arm,rot,alpha}=pose);
    else if(p.anim==='interact'){squash=3;bob=4;legs=[-2,3];arm=5;}
    else if(p.anim==='hurt'){rot=Math.sin(t*28)*.09;arm=-4;}
    else if(p.anim==='door'){bob=Math.sin(t*12);}
    else if(p.land>0){squash=p.land>.07?2:1;}else if(!p.grounded){frame=p.vy<0?10:11;legs=p.vy<0?[-3,1]:[2,-2];arm=p.vy<0?-4:2;}else if(Math.abs(p.vx)>5){frame=Math.floor(t*11)%6;legs=[[-3,3],[-2,1],[0,0],[3,-3],[1,-2],[0,0]][frame];bob=[0,-1,-2,0,-1,-2][frame];arm=legs[0];}else{frame=Math.floor(t*2)%4;bob=frame===2?-1:0;}
-   c.save();c.globalAlpha=alpha;c.translate(x+7,y+28);c.rotate(rot);c.scale(p.dir*scale,scale);c.translate(-7,-28+squash+bob);
+   c.save();c.globalAlpha=alpha;c.translate(x+7,y+28);c.rotate(rot*p.dir);c.scale(p.dir,1);c.translate(-7,-28+squash+bob);
    drawJanitor(this,frame,legs,arm,squash,p.grounded,Math.abs(p.vx)>5,p.dir,p.eyesDown);
    c.restore();
-   if(p.anim==='ghostDeath'){this.rect(x+3,y+5,3,8,'#182b35');this.rect(x+10,y+5,3,8,'#182b35');this.rect(x-1,y+8,18,3,'#526b75');}
    if(this.n>.05&&!['death','ghostDeath','fallDeath'].includes(p.anim)){c.save();c.globalCompositeOperation='lighter';c.globalAlpha=.12*this.n;let hx=x+(p.dir===1?19:-3),hy=y+6,drop=p.eyesDown?43:0;const g=c.createLinearGradient(hx,hy,hx+p.dir*70,hy+18+drop);g.addColorStop(0,'#ffe5a4');g.addColorStop(1,'#ffe5a400');c.fillStyle=g;c.beginPath();c.moveTo(hx,hy);c.lineTo(hx+p.dir*82,hy-15+drop);c.lineTo(hx+p.dir*76,hy+35+drop);c.closePath();c.fill();c.restore();}
  }
  officeMezzanine(s){if(s.floor!==1||this.cam>4140||this.cam+480<3480)return;
@@ -255,7 +253,7 @@ export class Art{
   this.glow(x+14,141,34,17,ready?'#edcb84':'#8aa58d',wave*.18);
   if(ready&&phase==='closed'){this.label(`[${interact}]`,x+9,130,'#ead9aa',7);this.glow(x+15,220,30,13,'#edcb84',.18);}
  }
- render(s,dt){this.t=s.time;this.n=s.phaseMix;this.floor=s.floor;this.gameplayNight=s.night;this.cam=Math.floor(s.camera);this.viewTop=s.cameraY||0;this.viewBottom=this.viewTop+280;const c=this.c;c.imageSmoothingEnabled=false;if(s.backrooms){drawBackrooms(this,s);return;}const shot=mourningShot(s);if(s.expanded)sceneryBackdrop(this,s);else this.wall(s.floor,this.cam);
+ render(s,dt){this.t=s.time;this.n=s.phaseMix;this.floor=s.floor;this.gameplayNight=s.night;this.cam=Math.floor(s.camera);this.viewTop=s.cameraY||0;this.viewBottom=this.viewTop+280;const c=this.c;c.imageSmoothingEnabled=false;if(drawStoryScene(this,s))return;if(s.backrooms){drawBackrooms(this,s);return;}const shot=mourningShot(s);if(s.expanded)sceneryBackdrop(this,s);else this.wall(s.floor,this.cam);
    c.save();c.beginPath();c.rect(0,0,480,246);c.clip();c.translate(0,-Math.floor(s.cameraY||0));
    if(s.expanded)sectorDecor(this,s);else this.officeMezzanine(s);
    if(s.expanded)this.serviceRoute(s);
@@ -273,13 +271,18 @@ export class Art{
    c.save();c.translate(0,(s.exitY??200)-200);this.elevator(s.exitX,s.expanded?s.station.done:s.items.every(i=>i.got),s.floor,s.door,s.controlKeys?.interact);
    if(s.floor===2&&(!s.expanded||s.sector===5)){const x=s.exitX-100-this.cam;this.box(x-6,193,14,35,RAMPS.iron);this.rect(x-2,197,6,6,s.events?.includes('emergency-light')?'#f3d98e':'#716d55');this.label(`${s.controlKeys?.interact??'E'} · LIGHT`,x-16,187,'#d3c59d',5);}c.restore();if(s.expanded)sectorActors(this,s);
    if(shot)drawMourningShot(this,shot);else{
-    this.player(s.player);
-    if(s.death?.kind==='ghost'){const p=s.player,k=Math.min(1,s.death.time/.15),x=p.x-this.cam;this.rect(x-9,p.y+10-k*3,11,3,'#617b87');this.rect(x+12,p.y+10-k*3,11,3,'#617b87');}
+    this.player(s.player,s.reducedEffects);
+    if(s.death?.kind==='ghost'){
+     const p=s.player,k=Math.min(1,s.death.time/.15),x=p.x-this.cam;
+     this.rect(x-9,p.y+10-k*3,11,3,'#617b87');this.rect(x+12,p.y+10-k*3,11,3,'#617b87');
+     drawContactDrops(this,x+7,p.y+11,s.death.time-.04,p.dir,s.reducedEffects);
+    }
    }
    c.restore();
    for(const p of s.particles)this.rect(p.x-this.cam,p.y-(s.cameraY||0),p.size??2,p.size??2,p.color);
    if(s.expanded)sceneryCanopy(this,s);
    for(let i=-1;!s.expanded&&i<4;i++){const x=i*390-((this.cam*1.13)%390)-12;this.pipe(x,-4,9,68,true,[RAMPS.iron[1],RAMPS.iron[2],RAMPS.iron[3],'#19393f']);this.pipe(x,63,34,7,false,[RAMPS.iron[1],RAMPS.iron[2],RAMPS.iron[3],'#19393f']);}
+   if(!shot)drawLifeShading(this,s);
    this.rect(0,246,480,24,'#142e34');this.line(0,246,480,'#49665f');for(let i=0;i<3;i++){const lit=i<s.player.hp;this.box(10+i*14,252,10,10,lit?RAMPS.rust:RAMPS.iron);this.rect(13+i*14,254,4,5,lit?'#f0c477':'#31494c');if(lit)this.glow(15+i*14,255,10,8,'#eab86e',.12);}this.label(`HP ${s.player.hp}/3`,54,260,s.player.hp===1?'#ef897c':'#d7c79c',6);this.label(s.lang==='zh'?s.shortZh:s.short,92,259,'#b4c6af',6);this.label(`${s.items.filter(i=>i.got).length}/3`,450,259,'#e9c28a',7);
    if(s.expanded)this.routeObjective(s);
    if(s.messageTimer>0&&!s.scene&&shot?.kind!=='capture'){const lines=this.wrap(s.message,430,7);const h=lines.length*11+12;this.rect(12,28,456,h,'#142b34ee');this.line(12,28,456,'#a8a783');lines.forEach((line,i)=>this.label(line,22,41+i*11,'#e8dfb9',7));}

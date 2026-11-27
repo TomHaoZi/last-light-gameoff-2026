@@ -1,4 +1,4 @@
-import { drawClerkForearms, drawJanitor, drawJanitorCapture, drawMourningClerk } from './actor-art.js';
+import { drawClerkForearms, drawContactDrops, drawJanitor, drawJanitorCapture, drawMourningClerk } from './actor-art.js';
 import { MOURNING_CAPTURE } from './mourning-clerk.js';
 
 const blend = (start, end, value) => {
@@ -16,15 +16,13 @@ export function mourningShot(world) {
     const recoil = blend(MOURNING_CAPTURE.recoil, MOURNING_CAPTURE.impact, time);
     const grip = close * (1 - recoil);
     return {
-      kind: 'capture', ghost, away, x: x + 7, feet: y + 28,
+      kind: 'capture', ghost, away, x: x + 7, feet: y + 28, bloodTime: reduced ? 0 : time - .17,
       lift: grip * (reduced ? 2 : 13 + Math.sin(time * 12) * 2 * close),
       tilt: grip * .27 + recoil * (reduced ? .45 : 1.49),
       slide: recoil * (reduced ? 2 : 8),
       grip,
       reach: (1 - recoil) * .77 + .23 * grip,
       dim: .25 * close + .19 * grip,
-      wingSpread: .44 + grip * .53 - recoil * .13,
-      fold: blend(.27, .55, time) * (1 - recoil) * (reduced ? .22 : .76),
       dropCap: reduced ? 0 : blend(.76, 1.05, time),
       blackout: blend(MOURNING_CAPTURE.blackout, MOURNING_CAPTURE.duration, time),
       dust: reduced ? 0 : blend(.93, .99, time) * (1 - blend(1, 1.18, time)),
@@ -59,16 +57,16 @@ export function drawMourningShot(a, shot) {
     c.globalAlpha = 1;
     a.glow(x, shot.feet - 14, 69, 51, '#807664', shot.keylight);
 
-    // The wings cross behind Eli first. The forearms and the falling coat
-    // form separate foreground silhouettes throughout the release.
+    // The reaching forearms and the falling coat stay on separate layers.
     drawMourningClerk(a, { looking: true, charging: true, gaze: .62, facing: shot.away,
-      capture: { spread: shot.wingSpread, fold: shot.fold } }, gx, gy);
+      capture: true }, gx, gy);
     const target = drawJanitorCapture(a, {
       x: x + shot.away * shot.slide, feet: shot.feet,
       direction: shot.away, tilt: shot.tilt, lift: shot.lift,
       appeal: shot.grip, dropCap: shot.dropCap
     });
     drawClerkForearms(a, gx, gy, target, shot.away, shot.reach);
+    drawContactDrops(a,x,shot.feet-22-shot.lift,shot.bloodTime,shot.away);
     if (shot.dust > .01) {
       c.globalAlpha = shot.dust * .60;
       for (let k = 0; k < 6; k++) {

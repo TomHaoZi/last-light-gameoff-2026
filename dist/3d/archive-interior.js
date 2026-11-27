@@ -28,7 +28,9 @@ function plans(map, fixtures) {
     kit.get(asset).push({ placement, color });
   };
   for (const tile of map.floors) {
-    if (tile.phase) continue;
+    // Hazard metadata also has a phase, but only bridge tiles lose their
+    // floor when the phase changes. Keep a slab under machinery in both.
+    if (tile.kind === 'd' || tile.kind === 'n') continue;
     const code = (tile.col * 73 + tile.row * 109) % 17;
     const tone = .83 + code * .009;
     add('FloorSlab', [tile.x, -.0002, tile.z, code % 4 * Math.PI / 2],

@@ -8,15 +8,18 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "3.0.0-rc.21"
+VERSION = "3.0.0-rc.40"
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)
-SHARED_RUNTIME = {"player-settings.js", "settings-panel.js", "player-settings.css", "mobile-play.js", "mobile-play.css"}
-HISTORIC_MODEL = "assets/creature/mourning-clerk.glb"
+SHARED_RUNTIME = {"player-settings.js", "settings-panel.js", "player-settings.css", "mobile-play.js", "mobile-play.css", "save-slot.js"}
+HISTORIC_MODELS = {f"assets/creature/{name}.glb" for name in (
+    "mourning-clerk", "mourning-clerk-human", "mourning-wings",
+)}
 REQUIRED_FILES = {
-    "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js",
+    "index.html", "style.css", "game.js", "visual.js", "audio.js", "levels.js", "mobile-hud.js", "creature-pressure.js", "wound-finish.js",
+    "shift-cinematics.js", "dressing-visibility.js", "classic/cinematic-art.js",
     "simulation.js", "save.js", "lighting.js", "models.js", "surfaces.js",
     "creature.js", "creature-body.js", "creature-head.js", "creature-voice.js",
-    "creature-textures.js", "render-idle.js", "office-phase-programs.js", "set-dressing.js",
+    "creature-textures.js", "render-idle.js", "office-phase-programs.js", "set-dressing.js", "architectural-details.js",
     "vendor/three.module.js", "vendor/three.core.js",
     "vendor/THREE-LICENSE.txt", "classic/index.html", "classic/style.css",
     "classic/game.js", "classic/actor-art.js", "classic/sector-art.js", "classic/sector-scenery.js",
@@ -30,13 +33,28 @@ REQUIRED_FILES = {
     "assets/CREDITS.md", "assets/creature/late-worker.glb",
     "assets/creature/SOURCES.md", "assets/env/CREDITS.md",
     "mourning-audio.js", "mourning-figure.js", "mourning-gaze.js", "mourning-capture.js", "creature-rig.js",
-    "classic/mourning-clerk.js", "classic/mourning-capture-art.js", "assets/creature/mourning-clerk-human.glb",
-    "assets/creature/mourning-wings.glb", "assets/env/office-phonograph.glb",
+    "classic/mourning-clerk.js", "classic/mourning-capture-art.js", "assets/creature/archive-nurse.glb",
+    "assets/env/office-phonograph.glb",
     "audio/mourning-sob-soft.m4a", "audio/mourning-sob-held.m4a",
     "assets/dialogue/CREDITS.md", "assets/surfaces/CREDITS.md",
     "audio/CREDITS.md", "air-effects.js", "service-lift.js", "station-traces.js", "workstation-models.js", "janitor-hands.js",
     "assets/janitor/janitor.glb", "assets/janitor/CREDITS.md", "assets/env/service-lift.glb",
     "plant-sets.js", "machinery-motion.js", "field-foley.js", "assets/env/boiler-plant.glb", "assets/env/roof-plant.glb",
+    "checkpoint-lamp.js", "assets/env/checkpoint-lamp.glb",
+    "assets/env/roof-garden-bed.glb", "assets/env/roof-irrigation-header.glb", "assets/env/roof-nursery-box.glb",
+    "roof-combat.js", "assets/env/roof-strike-wrench.glb", "assets/env/boiler-tool-chest.glb",
+    "assets/env/archive-drawer-cabinet.glb", "assets/env/annex-steel-rack.glb", "assets/env/boiler-arrival-extractor.glb",
+    "map-dressing.js", "assets/env/boiler-cylinder.glb", "assets/env/boiler-maintenance-box.glb",
+    "assets/env/archive-notepads.glb", "assets/env/annex-shipping-crate.glb",
+    "roof-skyline.js", "assets/env/roof-skyline.glb",
+    "architecture-kit.js", "assets/env/architecture-rc27.glb", "assets/env/junctions-rc29.glb", "assets/env/utilities-rc30.glb",
+    "assets/env/detail-rc31.glb", "assets/env/fit-rc32.glb", "assets/env/sign-mount-rc33.glb",
+    "assets/env/roof-corners-rc34.glb", "assets/env/roof-splices-rc35.glb",
+    "city-ground-layout.js", "assets/env/city-ground-rc35.glb",
+    "assets/env/boiler-service-generator.glb", "assets/env/archive-wall-utility-box.glb",
+    "assets/env/roof-irrigation-wall-hose.glb", "assets/env/annex-recess-bin.glb",
+    "assets/env/annex-recess-extinguisher.glb",
+    "inspection-details.js", "assets/env/inspection-rc28.glb",
 }
 REQUIRED_FILES.update(SHARED_RUNTIME)
 REQUIRED_FILES.update(f"classic/{name}" for name in SHARED_RUNTIME)
@@ -52,9 +70,8 @@ REQUIRED_FILES.update(
         "circuit", "doors", "exchange", "farewell", "gap", "lunch", "recovered", "register")
 )
 REQUIRED_FILES.update(
-    f"assets/dialogue/mourning-{cue}-{lang}.m4a"
+    f"assets/dialogue/mourning-{cue}-en.m4a"
     for cue in ("guide", "glance", "boiler", "boiler3d", "roof")
-    for lang in ("en", "zh")
 )
 REQUIRED_FILES.update(
     f"assets/env/{name}.glb" for name in
@@ -74,7 +91,9 @@ def collect_runtime():
     files = {}
     for path in sorted(scene.rglob("*")):
         relative = path.relative_to(scene)
-        if relative.as_posix() != HISTORIC_MODEL and path.is_file() and not path.is_symlink() and all(
+        if relative.parent.as_posix() == "assets/dialogue" and relative.name.endswith("-zh.m4a"):
+            continue  # Historical Mandarin masters are not part of the game package.
+        if relative.as_posix() not in HISTORIC_MODELS and path.is_file() and not path.is_symlink() and all(
             not part.startswith(".") for part in relative.parts
         ):
             files[relative.as_posix()] = path.read_bytes()
@@ -106,6 +125,7 @@ def collect_runtime():
         ("simulation.js", "player-settings.js"),
         ("index.html", "mobile-play.css"),
         ("game.js", "mobile-play.js"),
+        ("save.js", "save-slot.js"),
     ):
         parent = f"../{name}".encode()
         if files[scene_file].count(parent) != 1:

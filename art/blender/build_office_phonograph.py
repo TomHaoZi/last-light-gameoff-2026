@@ -159,10 +159,10 @@ def label(name, content, center, size, mat):
 
 paper = material("Faded inspection card", "c6ba96", 0.88)
 ghost_ink = material("Recesses and old mineral seepage", "3b4140", 0.87)
-gold = material("Aged brass", "a57d45", 0.38, 0.71)
-polish = material("Machined brass edge", "ccae71", 0.29, 0.83)
-rust = material("Heat-marked copper throat", "6f5140", 0.51, 0.63)
-walnut = material("Dark walnut veneer", "5f4638", 0.53)
+gold = material("Aged brass", "947751", 0.49, 0.65)
+polish = material("Machined brass edge", "b6a17f", 0.34, 0.78)
+rust = material("Heat-marked copper throat", "6f5140", 0.58, 0.60)
+walnut = material("Dark walnut veneer", "574137", 0.57)
 dark = material("Blackened green iron", "303a37", 0.41, 0.58)
 warm = material("Amber record lamp", "e6be77", 0.34, 0.05, 1.35)
 
@@ -252,6 +252,16 @@ tube(
     72,
     0.033,
 )
+# Fine spinning lines sit on the bell's outer slope and fade into the rolled lip.
+for t0, t1, count in ((.36, .46, 3), (.46, .56, 4), (.56, .64, 4)):
+    a, b = next(p for p in profile if p[0] == t0), next(p for p in profile if p[0] == t1)
+    for i in range(count):
+        blend = (i + .53) / count
+        t = a[0] + (b[0] - a[0]) * blend
+        r = a[1] + (b[1] - a[1]) * blend + .00095
+        tube("Spinning line", [(origin + axis * t, r), (origin + axis * (t + .0012), r + .0005)],
+             axis, rust if i % 3 == 0 else gold, 72, .033)
+
 tube(
     "Patinated bell throat",
     [(origin + axis * 0.005, 0.039), (origin + axis * 0.122, 0.047)],

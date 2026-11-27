@@ -331,6 +331,20 @@ export class ChaseScore {
     const group = this.live ?? this.enter(now, elapsed);
     const progress = clamp(state.progress), danger = clamp(state.danger);
     group.lastElapsed = elapsed;
+    // A sudden rush and an airborne footfall gap belong to the pursuer,
+    // not to the player's jump or to the musical downbeat.
+    const airborne = Boolean(this.spatial && state.threat?.y > .18);
+    if (airborne && !group.airborne) this.scrape(now+.01,.15,.12,1840,690,group.voice);
+    if (!airborne && group.airborne) {
+      this.stepBehind(now+.01,group.stepIndex++,danger);
+      group.nextStep = elapsed+.22;
+    }
+    group.airborne = airborne;
+    if (danger > .72 && !group.encroaching) {
+      this.scrape(now+.012,.36,.20,1220,455,group.voice);
+      this.note(now+.08,132,59,.37,.095,group.voice,this.folds,.045);
+      group.encroaching = true;
+    } else if (danger < .54) group.encroaching = false;
     if (now - group.lastPosition >= .040) {
       this.position(state, listener, now);
       group.lastPosition = now;
@@ -349,7 +363,7 @@ export class ChaseScore {
       group.nextCall = elapsed + CALL_SPACING[group.callIndex % CALL_SPACING.length] - progress * .66 - danger * .73;
     }
     if (elapsed >= group.nextStep) {
-      this.stepBehind(now + .012, group.stepIndex, danger);
+      if (!airborne) this.stepBehind(now + .012, group.stepIndex, danger);
       group.stepIndex++;
       group.nextStep = elapsed + .347 - progress * .041 - danger * .034 + (group.stepIndex % 2 ? .018 : -.018);
     }

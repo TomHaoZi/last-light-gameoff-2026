@@ -14,6 +14,7 @@ const options = [
   ['jump', ['Jump', '跳跃'], ['Space', 'ArrowUp', 'KeyW'], ['Space'], 'act'],
   ['shift', ['Switch day / night', '切换昼夜'], [MOUSE_RIGHT, 'ShiftLeft', 'ShiftRight'], [MOUSE_RIGHT], 'act'],
   ['interact', ['Interact / read', '互动 / 阅读'], ['KeyE', 'ArrowDown'], ['KeyE'], 'act'],
+  ['attack', ['Strike on the roof', '屋顶挥击'], null, ['KeyF'], 'act'],
   ['sprint', ['Sprint', '冲刺'], null, ['ShiftLeft', 'ShiftRight'], 'move'],
   ['walk', ['Walk quietly / lower eyes', '轻步 / 低头'], ['KeyC'], ['KeyC'], 'move'],
   ['journal', ['Journal', '日志'], ['KeyJ'], ['KeyJ'], 'menu'],
@@ -118,7 +119,20 @@ export function createPlayerSettings(edition, storage) {
     // The game stays usable when private browsing or an iframe denies storage.
   }
   let difficulty = Object.hasOwn(DIFFICULTIES, saved?.difficulty) ? saved.difficulty : 'normal';
-  let bindings = readBindings(actions, migrateDefaultShift(saved, is3d));
+  let raw = migrateDefaultShift(saved, is3d);
+  if (is3d && raw && typeof raw === 'object' && !Object.hasOwn(raw, 'attack')) {
+    // Introducing a default must not reset a player's existing F binding.
+    const used = new Set(Object.values(raw).filter(Array.isArray).flat());
+    const candidates = ['KeyF', 'KeyV',
+      ...Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ', letter => 'Key' + letter),
+      ...Array.from('0123456789', number => 'Digit' + number),
+      ...Array.from('0123456789', number => 'Numpad' + number),
+      ...Object.keys(keyNames)];
+    const available = candidates.find(code => usable(code, 'attack') && !used.has(code) &&
+      !actions.some(row => row.id !== 'attack' && !Object.hasOwn(raw, row.id) && row.defaults.includes(code)));
+    if (available) raw = { ...raw, attack: [available] };
+  }
+  let bindings = readBindings(actions, raw);
   let byCode = new Map();
   function indexCodes() {
     byCode = new Map();

@@ -4,6 +4,7 @@ import { updateMourningClerks } from './mourning-gaze.js';
 import { CLERK_CAPTURE_CUES, CLERK_CAPTURE_TIME, CLERK_REVIVAL_TIME } from './mourning-capture.js';
 import { hazardBeat, hazardDischarging, hazardInPhase } from './machinery-motion.js';
 import { difficultyRules } from '../player-settings.js';
+import { createRoofCombat, updateRoofCombat } from './roof-combat.js';
 
 export const SAVE_KEY = 'last-light-3d-v1';
 export const STEP = 1 / 120;
@@ -111,6 +112,7 @@ export class Simulation3D {
       stepDistance: 0, hazardClock: 0, tension: 0, pursuer: null, atRisk: false, gaze: 0, watching: false,
       mourningCapture: null
     });
+    this.roofCombat = this.level.id === 'roof' && this.levelIndex === this.levels.length - 1 ? createRoofCombat() : null;
     this.ghosts = this.map.ghosts.map((tile, i) => ({
       x: tile.x, z: tile.z, home: tile, key: this.tileKey(tile), index: i,
       ...(tile.creature === 'mourning' ? { kind: 'mourning', gaze: 0, watching: false, charging: false, lockTime: 0, nextCry: this.time } : {}),
@@ -140,7 +142,7 @@ export class Simulation3D {
 
   syncGhosts() {
     const phase = this.night ? 'night' : 'day';
-    for (const g of this.ghosts) g.active = !g.phase || g.phase === phase || g.phase === 'both';
+    for (const g of this.ghosts) g.active = !g.banished && (!g.phase || g.phase === phase || g.phase === 'both');
   }
 
   togglePhase() {
@@ -331,7 +333,9 @@ export class Simulation3D {
     const here = this.map.at(this.x, this.z);
     const chapter = this.levelIndex;
     for (const ghost of this.ghosts) {
+      if (ghost.banished) { ghost.active = false; ghost.alert = 0; ghost.target = null; continue; }
       if (!ghost.active) { ghost.alert = 0; ghost.target = null; continue; }
+      if (ghost.stagger > 0) continue;
       const range = distance(ghost, this);
       const hear = (this.sprint ? 9.6 : this.quiet ? 0 : this.moving ? 3.5 : 0) * rules.ghostAlert;
       const confront = !sanctuary && range < (.65 + (this.quiet ? 4.55 : 6.3) + chapter * .72) * rules.ghostAlert && this.canSee(ghost, this);
@@ -475,6 +479,9 @@ export class Simulation3D {
         this.moving = this.sprint = false;
         this.emit('sound', { name:'door', position:this.map.exit });
       }
-    } else this.updateGhosts(dt);
+    } else {
+      updateRoofCombat(this, dt, input.attack, (x, z) => floorActive(this.map.at(x, z), this.night));
+      this.updateGhosts(dt);
+    }
   }
 }

@@ -490,7 +490,7 @@ function deskRegister(visual, x, z) {
 }
 
 function filingCabinet(visual, x, z) {
-  const kit = new Kit(visual, 'Personnel drawers', x, z, Math.PI / 2);
+  const kit = new Kit(visual, 'Personnel drawers', x, z, Math.PI);
   const { graphite, steel, paint, brass } = kit.materials;
   kit.rect(graphite, 0, .925, .034, 1.29, 1.81, .48, .038);
   kit.rect(paint, 0, .98, .073, 1.27, 1.66, .48, .025);
@@ -677,8 +677,8 @@ export function decorateModels(visual) {
   } else if (visual.theme === 1) {
     deskRegister(visual, x - 2.52, z - 4.63);
     archiveCeiling(visual, x - .52, z - 7.40);
-    const cabinet = visual.decoded.get(8, 14);
-    if (cabinet?.kind === '.') filingCabinet(visual, cabinet.x - 1.04, cabinet.z);
+    const cabinet = visual.decoded.get(9, 16);
+    if (cabinet?.kind === '.') filingCabinet(visual, cabinet.x, cabinet.z + .76);
     const wall = visual.decoded.get(9, 0);
     if (wall?.kind === '#') handoverBoard(visual, wall.x, wall.z + 1.25);
   } else {

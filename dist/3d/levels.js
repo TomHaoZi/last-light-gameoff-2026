@@ -1,4 +1,5 @@
 export const TILE = 2.4;
+export const ROOF_WALL_HEIGHT = 1.38;
 
 const DAY = "day";
 const NIGHT = "night";
@@ -124,7 +125,10 @@ const office = plan(25, 18, [
 
 const roof = plan(27, 19, [
   [8, 14, 15, 17],    // Lift landing
-  [11, 11, 12, 13, "n"],
+  [5, 12, 6, 14, "d"],// Lower west catwalk: landing to the planting beds
+  [7, 14, 7, 14, "d"],
+  [11, 11, 12, 13, "n"], // Original central route stays available
+
   [8, 6, 15, 10],     // Roof greenhouse
   [9, 6, 9, 7, "#"],
   [1, 5, 5, 11],      // West planting beds
@@ -137,13 +141,17 @@ const roof = plan(27, 19, [
   [8, 1, 17, 3],      // Independent power and final exit
   [11, 4, 12, 5, "n"],
   [23, 2, 24, 4, "n"],// Service route to lookout
+  [23, 2, 23, 2],     // Solid turning plate after the first span
+  [18, 2, 20, 2, "n"], // Upper catwalk: lookout directly to the exit deck
   [21, 1, 25, 1],
   [21, 2, 22, 2],
+  [24, 1, 24, 2, "#"],// Wind screen: breaks sightline to the outer lookout
+  [25, 2, 25, 4],     // Outer lookout rim leads behind the sprint line
 ], [
   ["S", 11, 16], ["L", 11, 15], ["L", 10, 10], ["L", 14, 3], ["L", 15, 15],
   ["A", 13, 8], ["1", 3, 10], ["B", 3, 7], ["2", 9, 2],
-  ["C", 23, 7], ["P", 12, 2], ["E", 15, 2], ["G", 5, 5], ["H", 14, 6],
-  ["J", 24, 11], ["!", 20, 7], ["~", 22, 6], ["!", 21, 1],
+  ["C", 23, 7], ["P", 12, 2], ["E", 15, 2], ["G", 1, 5], ["H", 14, 6],
+  ["J", 25, 1], ["!", 20, 7], ["~", 22, 6], ["!", 21, 1],
 ], { enclosed: false, shortcut: shortcuts[2] });
 
 export const LEVELS = [
@@ -202,8 +210,8 @@ export const LEVELS = [
     zh: "屋顶花园",
     subtitle: "03 / SERVICE ROOF · OUTSIDE",
     subtitleZh: "03 / 检修天台 · 室外",
-    objective: "Water the rooftop beds and leave a light for the last person.",
-    objectiveZh: "给屋顶的三处花床浇水，为最后一个人留灯。",
+    objective: "Start west by day. Water the beds, then take the night crossing to the exit.",
+    objectiveZh: "白天先往西，完成浇水后，走黑夜通道去出口。",
     rows: roof,
     shortcut: shortcuts[2],
     spawnYaw: 0,
@@ -284,6 +292,9 @@ export function decodeLevel(spec) {
     }
   }
   if (!spawn || !exit) throw new Error(`Level ${spec.id} requires a spawn and an exit`);
+  // Relocating a rooftop apparition must not silently change its patrol seed,
+  // body variant or spatial voice slot because of row-major scanning.
+  if (spec.id === 'roof') ghosts.sort((a,b) => 'GHJ'.indexOf(a.kind) - 'GHJ'.indexOf(b.kind));
   const get = (col, row) => cells[row]?.[col] ?? null;
   const shortcut = spec.shortcut && {
     title: spec.shortcut.title,

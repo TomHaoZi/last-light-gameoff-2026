@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Simulation } from '../dist/simulation.js';
-import { freshSave, normalizeSave, storeSave, restartSave, loadSave, SAVE_KEY as CLASSIC_KEY } from '../dist/save.js';
+import { freshSave, normalizeSave, storeSave, commitSave, restartSave, loadSave, SAVE_KEY as CLASSIC_KEY } from '../dist/save.js';
 import { defaultProgress, SAVE_KEY } from '../dist/3d/simulation.js';
-import { loadRun, restartRun, storeRun } from '../dist/3d/save.js';
+import { loadRun, restartRun, storeRun, commitRun } from '../dist/3d/save.js';
 
 test('a classic completed run can resume a revisit and keep its earned ending', () => {
   const completed = { ...freshSave(), floor: 2, sector: 5, finished: true, ending: 'complete' };
@@ -54,7 +54,7 @@ test('3D protects future or unreadable data until a confirmed restart backs up i
 test('a failed 3D backup leaves the original slot intact', () => {
   const prior = '{"schema":1,"chapter":2}';
   const storage = {
-    getItem: () => prior,
+    getItem: key => key === SAVE_KEY ? prior : null,
     setItem(key) {
       assert.equal(key, SAVE_KEY + '-backup');
       throw Error('Storage quota reached');
@@ -82,7 +82,7 @@ test('an older classic tab cannot clobber an upgraded or unreadable save, and ex
 });
 test('classic leaves the original intact when an explicit restart backup fails', () => {
   const storage = {
-    getItem: () => '{"schemaVersion":9}',
+    getItem: key => key === CLASSIC_KEY ? '{"schemaVersion":9}' : null,
     setItem(key) {
       assert.ok(key.startsWith(CLASSIC_KEY + '-before-restart-'));
       throw Error('Quota');
@@ -90,3 +90,46 @@ test('classic leaves the original intact when an explicit restart backup fails',
   };
   assert.throws(() => restartSave(storage, freshSave()), /Quota/);
 });
+
+function memorySlot() {
+  const slots = new Map();
+  return { getItem: key => slots.get(key) ?? null, setItem: (key, value) => slots.set(key, value) };
+}
+
+const editions = [
+  {name:'Classic', key:CLASSIC_KEY, fresh:freshSave, load:loadSave, commit:commitSave,
+    reset:restartSave, completed:{floor:2,sector:5,finished:true,ending:'complete'}},
+  {name:'3D', key:SAVE_KEY, fresh:()=>({schema:1,...defaultProgress()}), load:loadRun, commit:commitRun,
+    reset:restartRun, completed:{chapter:2,finished:true}}
+];
+for (const {name,key,fresh,load,commit,reset,completed} of editions) {
+  test(name+' saves a completed run from a newer tab without letting stale tabs replace it',async()=>{
+    const storage=memorySlot(), older=load(storage), newer=load(storage);
+    assert.equal(await commit(storage,{...fresh(),...completed},newer),null);
+    assert.equal(await commit(storage,fresh(),older),'staleSave');
+    assert.equal(JSON.parse(storage.getItem(key)).finished,true);
+    const opened=load(storage);
+    assert.equal(await commit(storage,{...fresh(),...completed,deaths:1},opened),null);
+  });
+
+  test(name+' guards queued writes and keeps an intentional restart distinct from the original save',async()=>{
+    const storage=memorySlot(), session=load(storage);
+    const data=fresh();
+    const queued=commit(storage,data,session);
+    data.finished=true;
+    assert.equal(await queued,null);
+    assert.equal(JSON.parse(storage.getItem(key)).finished,false);
+    assert.deepEqual(await Promise.all([commit(storage,fresh(),session),commit(storage,{...fresh(),...completed},session)]),[null,null]);
+    assert.equal(JSON.parse(storage.getItem(key)).finished,true);
+    const fromPriorRun=load(storage), original=storage.getItem(key);
+    reset(storage,fresh());
+    assert.notEqual(storage.getItem(key),original);
+    assert.equal(JSON.parse(storage.getItem(key)).finished,false);
+    assert.equal(await commit(storage,{...fresh(),...completed},fromPriorRun),'staleSave');
+    const firstReset=load(storage), emptyRun=load(storage);
+    reset(storage,fresh());
+    assert.notEqual(storage.getItem(key),firstReset.raw);
+    assert.equal(await commit(storage,{...fresh(),...completed},emptyRun),'staleSave');
+    assert.equal(await commit(storage,fresh(),load(storage)),null);
+  });
+}

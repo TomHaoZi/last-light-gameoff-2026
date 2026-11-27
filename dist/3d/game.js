@@ -4,10 +4,13 @@ import { HorrorAudio } from './audio.js';
 import { Dialogue } from './dialogue.js';
 import { Simulation3D, SAVE_KEY, STEP } from './simulation.js';
 import { clerkCaptureFrame } from './mourning-capture.js';
-import { loadRun, storeRun, restartRun } from './save.js';
+import { openRun, commitRun, restartRunSession } from './save.js';
 import { bindRightMouse, createPlayerSettings } from '../player-settings.js';
 import { mountPlayerSettings } from '../settings-panel.js';
 import { clearMobileMotion, isMobilePlay, mobileMotion } from '../mobile-play.js';
+import { bindMobileHud } from './mobile-hud.js';
+import { TILE } from './levels.js';
+import { SHIFT_SHOTS, ordinaryLifeShot, shiftShot } from './shift-cinematics.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -27,7 +30,7 @@ const strings = {
     pause: 'Pause', paused: 'Take a breath.', pausedStory: 'When you’re ready, go back in. Your work is recorded at the last lamp.',
     resume: 'Resume shift', before: 'DAY · BEFORE THE FIRE', after: 'NIGHT · AFTER THE FIRE',
     chapter: 'CHAPTER', hp: 'INTEGRITY', journal: 'Journal',
-    tip: 'Headphones recommended · Flashing lights and horror themes',
+    tip: 'Headphones recommended · Flashing lights, blood and horror',
     controlsTitle: 'Controls', phaseControl: 'Switch day / night', toDay: 'Switch to day', toNight: 'Switch to night',
     move: 'Move', look: 'Look around', use: 'Interact', jump: 'Jump', mouse: 'Move the mouse',
     drag: 'Drag the scene', onScreen: 'On-screen buttons', tapDayNight: 'Day / Night button',
@@ -45,6 +48,8 @@ const strings = {
     mourningRevival: 'Use the sound to find it. Keep your eyes low.',
     roofExit: 'The roof exit is open. Leave when you’re ready.',
     roofCircuit: 'The exit is open. Its independent light is still off.',
+    strike: 'Strike', tool: 'Pipe wrench', toolReady: 'Aim at an apparition at close range', toolSwing: 'Swinging',
+    toolHit: 'Staggered', toolBanished: 'Apparition banished', toolMiss: 'Miss · close the distance and aim',
     lampSteps: 'Switch to night to reveal the bridge ahead.',
     shortcutKeys: (sprint, jump, shift) => `Hold ${sprint}, jump with ${jump}, switch midair with ${shift}.`,
     shortcutTouch: 'Hold Sprint, tap Jump, then tap Day / Night in the air.',
@@ -66,6 +71,8 @@ const strings = {
     full: 'You restored the record. Gary stayed. He held the doors while the others got out. You leave his name on the register and a light for the next person.',
     run: 'Shift complete', fps: '3D could not start. This build requires a browser with WebGL 2 enabled.', saveFailed: 'Browser storage is unavailable. You can play, but progress will not persist.',
     protectedSave: 'Your existing save cannot be loaded in this version. It is protected. Play for this session, or choose Restart in Settings to back it up and begin a new save.',
+    staleSave: 'Another tab updated the save. Pause and continue to load the latest progress.',
+    newerSave: 'Loaded the progress saved in the other tab.',
     quiet: 'Quiet', sprint: 'Sprint', shift: 'Day / Night', touchUse: 'Use', directions: ['Forward', 'Left', 'Back', 'Right']
   },
   zh: {
@@ -74,7 +81,7 @@ const strings = {
     start: '玩 3D 版', resumeSave: '继续 3D 版', play2D: '玩 2D 版', settings: '设置', on: '声音开', off: '声音关',
     pause: '暂停', paused: '喘口气。', pausedStory: '准备好再回去。已经完成的工作会保存在最近的应急灯。',
     resume: '继续值班', before: '白天 · 火灾之前', after: '黑夜 · 火灾之后', chapter: '章节', hp: '生命', journal: '日志',
-    tip: '推荐戴耳机 · 含闪光与恐怖元素',
+    tip: '推荐戴耳机 · 含闪光、血腥和恐怖画面',
     controlsTitle: '操作指南', phaseControl: '切换白天 / 黑夜', toDay: '切到白天', toNight: '切到黑夜',
     move: '移动', look: '转动视角', use: '互动', jump: '跳跃', mouse: '直接移动鼠标',
     drag: '拖动画面', onScreen: '屏幕按钮', tapDayNight: '「昼夜」按钮',
@@ -92,6 +99,8 @@ const strings = {
     mourningRevival: '听哭声辨位。把视线放低。',
     roofExit: '屋顶出口已打开。准备好就可以离开。',
     roofCircuit: '屋顶出口已打开，门边的独立应急灯还没通电。',
+    strike: '挥击', tool: '管钳', toolReady: '靠近并对准显形的鬼影', toolSwing: '挥击中',
+    toolHit: '鬼影被打退', toolBanished: '鬼影已驱散', toolMiss: '未命中 · 靠近并对准',
     lampSteps: '切到黑夜，让前方的桥出现。',
     shortcutKeys: (sprint, jump, shift) => `按住 ${sprint} 冲刺，用 ${jump} 跳跃，在空中按 ${shift} 切换。`,
     shortcutTouch: '按住「冲刺」，点「跳跃」，再在半空点「昼夜」。',
@@ -112,6 +121,8 @@ const strings = {
     full: '你修正了登记簿。Gary 没有离开，他一直撑着门，直到其他人出去。你把他的名字留在纸上，也为下一个人留了一盏灯。',
     run: '交班完成', fps: '3D 版启动失败。请用支持并启用了 WebGL 2 的浏览器。', saveFailed: '浏览器存储不可用。可以继续玩，但本次进度无法保存。',
     protectedSave: '此版本无法读取现有存档，已保留原档。可以临时游玩，或在设置里选择重新开始，备份原档后建立新存档。',
+    staleSave: '其他标签页更新了存档。暂停后点继续，即可载入最新进度。',
+    newerSave: '已载入另一标签页保存的进度。',
     quiet: '轻声', sprint: '冲刺', shift: '昼夜', touchUse: '互动', directions: ['前进', '左移', '后退', '右移']
   }
 };
@@ -126,11 +137,11 @@ let mouseSensitivity = Number.isFinite(prefs.mouseSensitivity) ? Math.max(.5, Ma
 let storage;
 try { storage = window.localStorage; } catch {}
 const preferences = createPlayerSettings('3d', storage);
-let storedRun = loadRun(storage);
-const state = new Simulation3D({ progress: storedRun.progress });
+let storedRun = await openRun(storage);
+let state = new Simulation3D({ progress: storedRun.progress });
 state.difficulty = preferences.difficulty;
 state.quality = ['high', 'medium', 'low'].includes(prefs.quality) ? prefs.quality : (coarsePointer.matches ? 'medium' : 'high');
-state.autoResolution = prefs.adaptive !== false;
+state.autoResolution = typeof prefs.adaptive === 'boolean' ? prefs.adaptive : state.quality !== 'high';
 let showFps = prefs.showFps === true;
 state.reduceMotion = typeof prefs.reduced === 'boolean' ? prefs.reduced : matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sound = new HorrorAudio();
@@ -141,6 +152,8 @@ const touchKeys = new Map();
 let edges = {}, noticeUntil = 0, lastChapter = -1, lastFrame = 0, accumulator = 0;
 let previouslyLocked = false, freeMouse = null, dragging = null, previousHUD = '', previousStamina = -1, visual = null, error = null;
 let overlayMode = '';
+let cinematic = null;
+let settledSuccess = null;
 const t = () => strings[lang];
 const screenText = (id, value) => { $(id).textContent = value; };
 const primaryBindings = new Map();
@@ -158,10 +171,11 @@ function savePrefs() {
 }
 
 function saveProgress() {
-  const progress = state.saveData();
-  const issue = storeRun(storage, progress);
-  storedRun = { progress: issue ? storedRun.progress : progress, issue };
-  if (issue) notice(t()[issue], 5);
+  const session = storedRun, previousIssue = session.issue;
+  if (previousIssue === 'staleSave' || previousIssue === 'protectedSave') return;
+  commitRun(storage, state.saveData(), session).then(issue => {
+    if (storedRun === session && issue && issue !== previousIssue) notice(t()[issue], 5);
+  });
 }
 
 function notice(copy, secs = 3) {
@@ -198,15 +212,25 @@ function currentObjective() {
   const { level, completed, map, progress } = state;
   if (state.chase && state.departing) return lang === 'zh' ? '门开了。你可以喘口气了。' : 'The door gives. You can breathe.';
   if (state.chase?.started) return lang === 'zh' ? '奔向绿灯防火门。' : 'Reach the green fire door.';
+  if (level.id === 'roof' && !state.chase) {
+    const zh = lang === 'zh';
+    if (!completed.has('B')) return zh ? '白天：从电梯向西跨桥，到种植区。' : 'Day: take the west catwalk from the lift to the planting beds.';
+    if (!completed.has('A')) return zh ? '留在白天，向东过桥，到中央温室。' : 'Stay in day and cross east to the central greenhouse.';
+    if (!completed.has('C')) return zh ? '沿南侧白天桥去水塔；在白天操作水泵。' : 'Take the south day bridge to the towers. Operate the pump in day.';
+    const crossing = zh ? '水塔北侧：站稳后切到黑夜，沿瞭望台向西到出口。' : 'North of the towers: switch to night on solid ground, then cross the lookout west to the exit.';
+    if (state.z >= 4 * TILE || state.x >= 18 * TILE) return crossing;
+  }
   if (state.chase || completed.size < map.stations.length) return lang === 'zh' ? level.objectiveZh : level.objective;
   if (map.power) return progress.powered ? t().roofExit : t().roofCircuit;
   return level.id === 'office' ? t().archiveExit : t().exitReady;
 }
 
+let refreshTouchLayout=()=>{};
 function updateScreen(force = false) {
   const mode = error ? 'error' : state.mode;
   if (mode === overlayMode && !force) return;
   overlayMode = mode;
+  refreshTouchLayout();
   const copy = t();
   const active = mode === 'playing';
   const caption = $('dialogue');
@@ -234,6 +258,55 @@ function updateScreen(force = false) {
   screenText('screen-tip', storedRun.issue ? copy[storedRun.issue] : copy.tip);
 }
 
+const cinematicLayer = $('shift-cinematic');
+const cinematicCopy = $('shift-cinematic-copy');
+const cinematicSkip = $('shift-cinematic-skip');
+
+function beginCinematic(kind) {
+  settledSuccess = null;
+  cinematic = {kind, time: 0};
+  cinematicLayer.dataset.shot = kind;
+  cinematicLayer.hidden = false;
+  cinematicSkip.hidden = kind !== 'arrival';
+  cinematicCopy.hidden = kind !== 'arrival';
+  cinematicCopy.textContent = kind === 'arrival' ?
+    (lang === 'zh' ? '17:59。值完这班，把出口那盏灯留着。' : '17:59. Finish the handover. Leave the exit light on.') : '';
+  cinematicSkip.textContent = lang === 'zh' ? '跳过开场' : 'Skip opening';
+}
+
+function finishCinematic() {
+  if (cinematic?.kind === 'success') {
+    settledSuccess = {...shiftShot('success', SHIFT_SHOTS.success, state.reduceMotion), settled:true};
+  }
+  cinematic = null;
+  cinematicLayer.hidden = true;
+  $('intro').removeAttribute('data-finishing');
+}
+
+function advanceCinematic(dt) {
+  if (!cinematic) return state.mode === 'won' ? settledSuccess : null;
+  const {kind} = cinematic;
+  const mode = kind === 'arrival' ? 'playing' : 'won';
+  cinematic.time += dt;
+  if (cinematic.time >= SHIFT_SHOTS[kind] || state.mode !== mode || state.life !== 'alive' || error) {
+    finishCinematic();
+    return state.mode === 'won' ? settledSuccess : null;
+  }
+  const frame = shiftShot(kind, cinematic.time, state.reduceMotion);
+  cinematicLayer.style.setProperty('--scene-black', frame.black.toFixed(3));
+  cinematicLayer.style.setProperty('--scene-caption', frame.caption.toFixed(3));
+  if (kind === 'success') {
+    $('intro').dataset.finishing = '';
+    $('intro').style.setProperty('--finish-caption', frame.caption.toFixed(3));
+  }
+  return frame;
+}
+
+cinematicSkip.onclick = () => {
+  finishCinematic();
+  focusScene();
+};
+
 function labels() {
   const copy = t();
   for (const { id } of preferences.actions) primaryBindings.set(id, preferences.label(id, lang, true));
@@ -246,7 +319,7 @@ function labels() {
     ['volume-label', copy.volume], ['mouse-sensitivity-label', copy.mouseSensitivity], ['quality-label', copy.quality], ['adaptive-label', copy.adaptive], ['fps-label', copy.fpsMonitor], ['reduced-label', copy.reduced],
     ['voice-edits', lang === 'zh' ? '录音为 LAST LIGHT 剪辑、均衡和混音。' : 'Edited, equalized and mixed for LAST LIGHT.'],
     ['voice-credits', lang === 'zh' ? '配音演员与录音来源' : 'Voice cast and recording credits'], ['restart', copy.restart], ['confirm-restart', copy.restartConfirm], ['health-label', copy.hp],
-    ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse],
+    ['touch-quiet', copy.quiet], ['touch-sprint', copy.sprint], ['touch-jump', copy.jump], ['touch-shift', copy.shift], ['touch-use', copy.touchUse], ['touch-attack', copy.strike],
     ['guide-title', copy.controlsTitle], ['guide-phase', copy.phaseControl], ['primer-action', copy.phaseControl], ['guide-move', copy.move], ['guide-look', copy.look],
     ['guide-use', copy.use], ['guide-jump', copy.jump], ['mouse-look', copy.capture],
     ['panel-edition', lang === 'zh' ? '第一人称版' : 'First-person edition'],
@@ -331,7 +404,10 @@ function pursuitPrompt() {
 }
 
 function updateHUD() {
-  const status = [state.level.id, state.chase?.started, state.departing, state.chase ? Math.floor(state.chase.distance / 2) : '', state.night, state.hp, state.completed.size, state.progress.powered].join('/');
+  const objective = state.chase && !state.chase.started
+    ? (lang === 'zh' ? '电梯停在夹层。你出来时，身后又响起了脚步声。' : 'The lift stopped between floors. A second pair of footsteps followed you out.')
+    : currentObjective();
+  const status = [state.level.id, state.chase?.started, state.departing, state.chase ? Math.floor(state.chase.distance / 2) : '', state.night, state.hp, state.completed.size, objective].join('/');
   if (status !== previousHUD) {
     const copy = t();
     previousHUD = status;
@@ -340,9 +416,6 @@ function updateHUD() {
     screenText('floor-label', state.chase ? 'B½' : copy.chapter + ' ' + (levelIndex + 1) + ' / ' + state.levels.length);
     screenText('room-title', lang === 'zh' ? level.zh : level.title);
     screenText('station-progress', state.chase ? Math.max(0, Math.ceil(BACKROOMS_TRACK.length - state.chase.distance)) + ' m' : completed.size + ' / ' + map.stations.length + ' ' + copy.workCount);
-    const objective = state.chase && !state.chase.started
-      ? (lang === 'zh' ? '电梯停在夹层。你出来时，身后又响起了脚步声。' : 'The lift stopped between floors. A second pair of footsteps followed you out.')
-      : currentObjective();
     screenText('objective', ' · ' + objective);
     screenText('phase-time', night ? '18:00' : '17:59');
     screenText('phase-label', night ? copy.after : copy.before);
@@ -356,6 +429,21 @@ function updateHUD() {
     previousStamina = stamina;
     $('stamina').style.width = state.stamina * 100 + '%';
     $('stamina-meter').setAttribute('aria-valuenow', stamina);
+  }
+  const tool = state.roofCombat;
+  const armed = !!tool && state.mode === 'playing' && state.life === 'alive' && !state.departing;
+  const toolHUD = $('roof-tool');
+  toolHUD.hidden = !armed;
+  $('touch-attack').hidden = !armed;
+  const result = armed && tool.feedbackTime > 0 ? tool.feedback : '';
+  if ($('reticle').dataset.strike !== result) $('reticle').dataset.strike = result;
+  if (armed) {
+    const copy = t();
+    const message = ({ hit: copy.toolHit, banished: copy.toolBanished, miss: copy.toolMiss })[result] ||
+      (tool.swinging ? copy.toolSwing : copy.toolReady);
+    const trigger = isMobilePlay() ? copy.strike : (lang === 'zh' ? '左键' : 'LMB') + ' / ' + binding('attack');
+    const status = `${trigger} · ${copy.tool} — ${message}`;
+    if (toolHUD.textContent !== status) screenText('roof-tool', status);
   }
   const target = state.mode === 'playing' ? state.getInteraction() : null;
   const shortcut = state.map.shortcut;
@@ -391,7 +479,11 @@ function updateHUD() {
       death.style.setProperty('--execution-veil', execution.veil.toFixed(3));
       death.style.setProperty('--execution-caption', execution.caption.toFixed(3));
     } else {
-      death.style.opacity = state.life === 'dying' ? Math.min(1, .2 + state.lifeTimer) : Math.max(0, 1 - state.lifeTimer / .68);
+      const frame = ordinaryLifeShot(state.life, state.deathCause, state.lifeTimer, state.reduceMotion);
+      death.style.opacity = frame ? 1 : 0;
+      death.classList.toggle('lamp-return', Boolean(frame?.revival));
+      death.style.setProperty('--life-black', (frame?.black ?? 0).toFixed(3));
+      death.style.setProperty('--life-caption', (frame?.caption ?? 0).toFixed(3));
     }
   }
   $('flash').style.opacity = state.reduceMotion ? 0 : state.shiftFx * .57;
@@ -401,11 +493,14 @@ function processEvents() {
   for (const event of state.drain()) {
     if (event.type === 'sound') {
       sound.cue(event.name, event.position);
+      if (event.name === 'ending') beginCinematic('success');
       if (['interact', 'pickup', 'door'].includes(event.name)) visual?.janitorHands.operate();
       if (event.name === 'mourning-bind' || event.name === 'mourning-floor') {
         visual?.air?.captureDust(state, event.name === 'mourning-floor');
+        if (event.name === 'mourning-bind') visual?.air?.contactBlood(state,state.pursuer,10);
       }
     }
+    if (event.type === 'roof-impact') visual?.air?.roofImpact(state, event);
     if (event.type === 'warning') { sound.cue('warning', event.ghost); notice(t().warning, 2.6); }
     if (event.type === 'notice') {
       const firstLamp = event.id === 'lamp' && state.levelIndex === 0 && state.completed.size === 0 && !state.night;
@@ -420,7 +515,10 @@ function processEvents() {
       noticeUntil = 0;
       $('notice').hidden = true;
     }
-    if (event.type === 'death') { clearInput(); dialogue.stop(); }
+    if (event.type === 'death') {
+      if (state.deathCause === 'ghost' && state.pursuer?.kind !== 'mourning') visual?.air?.contactBlood(state,state.pursuer,7);
+      clearInput(); dialogue.stop();
+    }
     if (!state.chase) dialogue.onGameEvent(event, state);
   }
 }
@@ -445,8 +543,8 @@ function updateMouseLook() {
   screenText('key-legend', t().legend(movementKeys(), binding('interact')) + showPause);
 }
 
-function requestMouseLook() {
-  if (state.mode !== 'playing' || isMobilePlay() || !finePointer.matches ||
+function requestMouseLook(entering = false) {
+  if ((!entering && state.mode !== 'playing') || isMobilePlay() || !finePointer.matches ||
     !canvas.requestPointerLock || document.pointerLockElement === canvas) return;
   // Request during the trusted click, before audio startup or other async work.
   // Older implementations signal a failure through pointerlockerror only.
@@ -454,22 +552,72 @@ function requestMouseLook() {
   catch { notice(t().captureFailed, 5); }
 }
 
-function start() {
-  if (error) return;
+async function reconcileRun() {
+  if (state.mode === 'playing') return false;
+  const session = storedRun;
+  await session.pending;
+  const latest = await openRun(storage);
+  if (storedRun !== session || state.mode === 'playing') return false;
+  if (latest.raw === storedRun.raw) return false;
+  if (latest.issue) {
+    if (storedRun.issue !== latest.issue) notice(t()[latest.issue], 5);
+    storedRun.issue = latest.issue;
+    return false;
+  }
+  const { quality, autoResolution, reduceMotion } = state;
+  storedRun = latest;
+  state = new Simulation3D({ progress: latest.progress });
+  Object.assign(state, { quality, autoResolution, reduceMotion, difficulty: preferences.difficulty });
+  dialogue.reset();
+  accumulator = 0;
+  lastChapter = -1;
+  loadChapter();
+  labels();
+  return true;
+}
+
+let starting = false;
+async function start() {
+  if (error || starting) return;
+  starting = true;
+  const entering = state.mode !== 'won';
+  if (entering) {
+    focusScene();
+    requestMouseLook(true);
+    sound.setMuted(muted);
+    sound.setVolume(volume);
+    sound.start().catch(e => console.warn('Audio unavailable.', e));
+  }
+  let updated;
+  try { updated = await reconcileRun(); }
+  finally { starting = false; }
+  if (error || document.hidden || $('panel').open) {
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+    return;
+  }
+  if (state.mode === 'won' && document.pointerLockElement === canvas) document.exitPointerLock();
   if (state.mode === 'won') return showPanel('journal');
-  const firstShift = state.mode === 'menu' && !storedRun.progress;
+  const fromMenu = state.mode === 'menu';
+  const firstShift = fromMenu && !storedRun.progress;
   clearInput();
   state.mode = 'playing';
   updateScreen();
-  if (firstShift) notice(storedRun.issue ? t()[storedRun.issue] : t().firstSteps, 8);
+  if (updated) notice(t().newerSave, 5);
+  else if (firstShift) notice(storedRun.issue ? t()[storedRun.issue] : t().firstSteps, 8);
   sound.setMuted(muted);
   sound.setVolume(volume);
   focusScene();
-  requestMouseLook();
-  sound.start().catch(e => console.warn('Audio unavailable.', e));
+  if (!entering) {
+    requestMouseLook();
+    sound.start().catch(e => console.warn('Audio unavailable.', e));
+  }
   sound.update(soundState());
   dialogue.resume();
-  if (firstShift) dialogue.play('boilerGuide');
+  if (firstShift) {
+    beginCinematic('arrival');
+    dialogue.play('boilerGuide');
+  }
+  else if (fromMenu && state.roofCombat && state.completed.size === 0) dialogue.play('roofGuide');
 }
 
 function focusResume() {
@@ -588,12 +736,18 @@ $('fps-visible').onchange = () => { showFps = $('fps-visible').checked; savePref
 $('reduced').checked = state.reduceMotion;
 $('reduced').onchange = () => { state.reduceMotion = $('reduced').checked; savePrefs(); };
 $('restart').onclick = () => { $('confirm-restart').hidden = false; $('confirm-restart').focus(); };
-$('confirm-restart').onclick = () => {
-  if (!restartRun(storage)) {
+$('confirm-restart').onclick = async () => {
+  const button = $('confirm-restart');
+  if (button.disabled) return;
+  button.disabled = true;
+  let restarted;
+  try { restarted = await restartRunSession(storage); }
+  finally { button.disabled = false; }
+  if (!restarted) {
     notice(t().saveFailed, 5);
     return;
   }
-  storedRun = loadRun(storage);
+  storedRun = restarted;
   state.reset();
   state.difficulty = preferences.difficulty;
   dialogue.reset();
@@ -607,7 +761,7 @@ document.addEventListener('pointerlockchange', () => {
   const wasLocked = previouslyLocked;
   previouslyLocked = locked;
   freeMouse = null;
-  if (locked && state.mode !== 'playing') document.exitPointerLock();
+  if (locked && state.mode !== 'playing' && !starting) document.exitPointerLock();
   if (!locked && wasLocked) {
     if (state.mode === 'playing') pause();
     else requestAnimationFrame(focusResume);
@@ -627,7 +781,7 @@ document.addEventListener('mousemove', event => {
 });
 canvas.addEventListener('pointerleave', () => { freeMouse = null; });
 
-const edgeActions = new Set(['jump', 'shift', 'interact']);
+const edgeActions = new Set(['jump', 'shift', 'interact', 'attack']);
 function held(action) {
   if (touchKeys.has(action)) return true;
   for (const pressed of keys.values()) if (pressed === action) return true;
@@ -662,8 +816,13 @@ function releaseBinding(code) {
   if (keys.delete(code)) releaseJump(action);
 }
 window.addEventListener('keydown', event => {
+  if (!event.defaultPrevented && event.code === 'Enter' && cinematic?.kind === 'arrival' && !$('panel').open) {
+    cinematicSkip.click();
+    event.preventDefault();
+    return;
+  }
   const { code, repeat, target } = event;
-  if (event.defaultPrevented || $('panel').open || event.isComposing || event.metaKey || event.altKey ||
+  if (event.defaultPrevented || $('panel').open || $('touch-layout-editor').open || event.isComposing || event.metaKey || event.altKey ||
     (event.ctrlKey && code !== 'ControlLeft' && code !== 'ControlRight') ||
     target.closest?.('input,select,textarea,[contenteditable]')) return;
   if ((code === 'Space' || code === 'Enter' || code === 'NumpadEnter') && target.closest?.('button,a,summary')) return;
@@ -707,6 +866,8 @@ for (const button of document.querySelectorAll('[data-touch]')) {
   });
 }
 canvas.addEventListener('pointerdown', event => {
+  if (state.mode === 'playing' && state.life === 'alive' && state.roofCombat && !state.departing &&
+      event.button === 0 && event.pointerType === 'mouse' && !isMobilePlay()) edges.attack = true;
   if (state.mode !== 'playing' || event.button !== 0 || document.pointerLockElement === canvas || dragging) return;
   focusScene();
   if (event.pointerType === 'mouse') return;
@@ -763,10 +924,12 @@ function frame(time) {
   if (state.mode === 'won' && document.pointerLockElement === canvas) document.exitPointerLock();
   updateScreen();
   updateHUD();
+  const shot = advanceCinematic(dt);
   if (time >= noticeUntil) $('notice').hidden = true;
-  if (!error) visual?.render(state, dt, elapsed);
+  if (!error) visual?.render(state, dt, elapsed, shot);
   const stats = visual?.frameBudget;
-  const fpsLabel = showFps && stats?.fps ? Math.round(stats.fps) + ' FPS' : '';
+  const fpsLabel = showFps && stats?.fps ?
+    Math.round(stats.fps) + ` FPS · ${canvas.width} × ${canvas.height}` : '';
   if ($('fps-readout').textContent !== fpsLabel) {
     screenText('fps-readout', fpsLabel);
     $('fps-readout').hidden = !fpsLabel;
@@ -776,6 +939,7 @@ function frame(time) {
 labels();
 requestAnimationFrame(frame);
 // Read-only smoke-test and accessibility diagnostics.
+refreshTouchLayout=bindMobileHud({isMobilePlay,open:pause,close:()=>{if(!document.hidden&&document.hasFocus())start();},state:()=>state.mode});
 window.lastLight3D = Object.freeze({
   snapshot: () => ({
     chapter: state.levelIndex, mode: state.mode, phase: state.night ? 'night' : 'day', difficulty: state.difficulty,
@@ -783,6 +947,10 @@ window.lastLight3D = Object.freeze({
     mouseLocked: document.pointerLockElement === canvas, hp: state.hp, deaths: state.progress.deaths,
     work: [...state.completed], evidence: [...state.progress.evidence], life: state.life, deathCause: state.life === 'dying' ? state.deathCause : null,
     capture: state.mourningCapture ? {beat: clerkCaptureFrame(state)?.beat, time: state.lifeTimer} : null,
+    roofCombat: state.roofCombat ? { ...state.roofCombat, figures: state.ghosts.map(ghost => ({
+      key: ghost.key, x: ghost.x, z: ghost.z, phase: ghost.phase, active: ghost.active,
+      stagger: ghost.stagger ?? 0, strikes: ghost.strikes ?? 0, banished: !!ghost.banished
+    })) } : null,
     chase: state.chase ? { ...state.chase, length: BACKROOMS_TRACK.length, exiting: state.departing,
       pursuer: { x: state.ghosts[0].x, z: state.ghosts[0].z } } : null,
     gaze: state.level.mourning ? {

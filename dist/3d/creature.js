@@ -5,6 +5,8 @@ import { makeCreatureBody, animateCreatureBody } from './creature-body.js';
 import { fingerJoints } from './creature-rig.js';
 import { createSculptedHead, animateSculptedHead } from './creature-head.js';
 import { applyPreparedCreatureTextures } from './creature-textures.js';
+import { creaturePressure } from './creature-pressure.js';
+import { faceDetails, installWoundFinish, woundKind } from './wound-finish.js';
 
 import { createMourningFigure, isSharedMourningGeometry, poseMourningFigure, prepareMourningTextures } from './mourning-figure.js';
 
@@ -69,12 +71,15 @@ function authoredRig(theme, seed) {
 
   const joints = new Map();
   const skeletons = new Map();
+  const wounds = [];
   group.traverse(object => {
     if (object.isBone) joints.set(object.userData.name ?? object.name, object);
     if (!object.isMesh) return;
     // The GLB supplies immutable vertices. Each actor has its own pose and
     // materials, while authored geometry stays reusable across chapters.
     object.material = object.material.clone();
+    const wet = installWoundFinish(object.material, woundKind(object.material.name), theme===1 ? -1 : 1);
+    if (wet) wounds.push(wet);
     object.castShadow = true;
     object.receiveShadow = true;
     if (object.isSkinnedMesh) {
@@ -134,7 +139,7 @@ function authoredRig(theme, seed) {
     object.matrixAutoUpdate = false;
   });
   return {
-    body, head, jaw, eyes, facialMuscles, hipsBaseline: body.hips.position.y - .906,
+    body, head, jaw, eyes, facialMuscles, wounds, hipsBaseline: body.hips.position.y - .906,
     torsoBaseline: body.torso.position.z - .012
   };
 }
@@ -174,9 +179,10 @@ export function createCreature(index = 0, theme = 0, renderer = null, kind = nul
 }
 
 export function updateCreature(actor, { time, threat = 0, attack = 0, night = false,
-  distance = 10, reduced = false, moving = false, dt = 0, travel = 0, gazeLock = 0, charging = false, capture = null }) {
+  distance = 10, reduced = false, moving = false, dt = 0, travel = 0, gazeLock = 0, watching = false,
+  charging = false, capture = null, stagger = 0, transfer = null }) {
   if (actor.kind === 'mourning') {
-    poseMourningFigure(actor, { time, gaze: gazeLock, charging, attack, reduced, moving, travel, capture });
+    poseMourningFigure(actor, { time, gaze: gazeLock, watching, charging, attack, reduced, moving, travel, capture, dt });
     return;
   }
   if (template && !actor.group.userData.authoredCreature) {
@@ -186,9 +192,12 @@ export function updateCreature(actor, { time, threat = 0, attack = 0, night = fa
     actor.group.userData.authoredCreature = true;
   }
   if (actor.group.userData.authoredCreature) applyPreparedCreatureTextures(actor);
+  const beats=creaturePressure({threat,distance,attack,stagger});
   const urgency = smoothstep(threat, .26, .89);
   const reach = Math.max(attack, urgency * (1 - smoothstep(distance, .70, 3.85)));
-  if (moving) actor.movementTime += Math.min(dt * 2.1, travel * .56);
+  const vault = transfer?.started ? smoothstep(transfer.vault, 0, .75) * (1 - attack) : 0;
+  const pursuit = transfer?.started ? smoothstep(transfer.danger, .12, .86) * (1 - attack) : 0;
+  if (moving) actor.movementTime += Math.min(dt * (transfer?.started ? 3.5 : 2.1), travel * .56);
   animateCreatureBody(actor.body, {
     time, threat, reach, moving, reduced, movementTime: actor.movementTime
   });
@@ -200,20 +209,28 @@ export function updateCreature(actor, { time, threat = 0, attack = 0, night = fa
   const gaze = Math.tanh(2.4 * Math.sin(searchTime)) * (1 - urgency);
   const glance = Math.tanh(1.76 * Math.sin(searchTime - .34)) * (1 - urgency);
   actor.body.torso.rotation.z += (.030 * Math.sin(actor.seed) + posture.list) * (1 - .65 * reach);
-  actor.body.torso.rotation.x += (.045 + posture.lean) * (1 - reach);
+  actor.body.torso.rotation.x += (.045 + posture.lean) * (1 - reach) - .13*beats.closing + .24*beats.recoil;
+  actor.body.torso.rotation.y = posture.reachingSide*(.06*beats.listen - .17*beats.brace + .14*vault);
+  actor.body.torso.rotation.x += .14*pursuit - .26*vault;
+  for (const { hip,knee,side } of actor.body.legs) {
+    hip.rotation.x -= vault*(side===1 ? .65 : .28);
+    knee.rotation.x += vault*(side===1 ? .63 : .93);
+  }
   const flinch = reduced ? 0 : Math.sin(time * 14.1 + actor.seed) * .016 * urgency;
   actor.body.neck.rotation.set(
-    -.095 - urgency * .11 - reach * .22 + breath * .028 + posture.chin * (1 - reach),
-    glance * posture.search + flinch,
-    (.035 + posture.tilt) * (1 - reach) + glance * .048 - reach * .025
+    -.095 - urgency * .11 - reach * .22 + breath * .028*(1-beats.breathHold) + posture.chin * (1 - reach) + .12*beats.listen + .25*beats.recoil,
+    glance * posture.search + flinch + .11*posture.reachingSide*beats.listen,
+    (.035 + posture.tilt) * (1 - reach) + glance * .048 - reach * .025 + .12*beats.listen*posture.reachingSide
   );
   const yell = smoothstep(threat, .32, .77) * (.24 + .48 * Math.abs(Math.sin(time * 4.1 + actor.seed)));
-  const howl = MathUtils.clamp(.046 + yell * .30 + reach * .13 + attack * .38 + breath * .021, 0, .83);
+  const howl = MathUtils.clamp(.046 + yell * .30 + reach * .13 + attack * .38 + breath * .021 + .12*beats.brace - .13*beats.listen + .11*beats.recoil + .18*pursuit - .12*vault, 0, .83);
+  const expression=faceDetails(time,actor.seed,Math.max(threat,stagger),attack,reduced);
   if (actor.jaw) {
+    for(const wet of actor.wounds) wet.value=Math.max(expression.wet,.82*beats.recoil);
     actor.body.hips.position.y += actor.hipsBaseline;
     actor.body.torso.position.z += actor.torsoBaseline;
-    actor.jaw.rotation.x = howl * .60;
-    actor.jaw.rotation.z = Math.sin(actor.seed) * howl * .055;
+    actor.jaw.rotation.x = howl * .60 + expression.chatter;
+    actor.jaw.rotation.z = Math.sin(actor.seed) * howl * .055 + (expression.right-expression.left)*.055;
     const eyeTurn = reduced ? 0 : MathUtils.clamp(gaze * .19 - glance * posture.search, -.16, .16);
     const eyeLift = reach * .086 + urgency * .052;
     for (const eye of actor.eyes) eye.rotation.set(-eyeLift, eyeTurn, 0);
@@ -223,25 +240,28 @@ export function updateCreature(actor, { time, threat = 0, attack = 0, night = fa
       const injured = muscle.sign === posture.reachingSide;
       const beat = (time + actor.seed + (injured ? .045 : 0)) % 4.73;
       const blink = (1 - smoothstep(Math.abs(beat - .103), .014, .103)) * (1 - reach);
-      muscle.lid.rotation.x = blink * (injured ? .33 : .46) + urgency * .05;
-      muscle.lowerLid.rotation.x = -blink * .088 - urgency * .044;
-      muscle.brow.position.y = muscle.browY - urgency * (injured ? .0029 : .0046);
+      muscle.lid.rotation.x = blink * (injured ? .33 : .46) + urgency * .05 + .32*beats.recoil - .085*beats.listen;
+      muscle.lowerLid.rotation.x = -blink * .088 - urgency * .044 - .13*beats.brace;
+      muscle.brow.position.y = muscle.browY - urgency * (injured ? .0029 : .0046) + (injured ? .003 : .006)*beats.listen - .004*beats.brace;
       muscle.cheek.position.y = muscle.cheekY + howl * (injured ? .008 : .0041);
-      muscle.lip.position.y = muscle.lipY + howl * (injured ? .0105 : .0069);
+      const twitch = muscle.sign === 1 ? expression.left : expression.right;
+      muscle.lip.position.y = muscle.lipY + howl * (injured ? .0105 : .0069) + twitch*(injured ? .0058 : .0025);
+      muscle.cheek.rotation.z = -muscle.sign * twitch*.065;
     }
     for (const { shoulder, elbow, fingers, side } of actor.body.arms) {
       // The original MakeHuman bind pose already has a bend at the elbow
       // and the arms away from the body; ground them before the chase pose.
       const handReach = side === posture.reachingSide ? reach : reach * smoothstep(reach, .18, .90);
       shoulder.rotation.z -= side * (.64 - handReach * .14);
-      shoulder.rotation.y -= side * handReach * .25;
-      elbow.rotation.x *= .83;
+      shoulder.rotation.y -= side * (handReach * .25 + .18*beats.recoil);
+      shoulder.rotation.x += .20*beats.listen + .28*beats.recoil - .16*beats.closing + vault*(side===1 ? -.48 : .47);
+      elbow.rotation.x = elbow.rotation.x*.83 - .32*beats.recoil - .52*vault;
       elbow.rotation.y = -side * handReach * .32;
       for (const { bone, axis, depth } of fingers) {
-        bone.quaternion.setFromAxisAngle(axis, depth * (.18 + .62 * handReach + .16 * attack));
+        bone.quaternion.setFromAxisAngle(axis, depth * (.18 + .62 * handReach + .23 * expression.grip + .17*beats.recoil));
       }
     }
     return;
   }
-  animateSculptedHead(actor.face, { jaw: howl, night, threat, time });
+  animateSculptedHead(actor.face, { jaw: howl+expression.chatter, night, threat, time });
 }

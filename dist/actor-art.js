@@ -75,13 +75,12 @@ export function drawJanitor(a, frame, legs, arm, squash, grounded, running, dir,
   a.line(-3, 21 + lag, 3, CAP[0]);
 }
 
-const CLERK_HAIR = ['#8c9390', '#626e70', '#46575c', '#273a40'];
+const CLERK_WRAP = ['#e7d7b6', '#bda98b', '#907765', '#575052'];
 const CLERK_SKIN = ['#f3e6cc', '#c9c8af', '#899c95', '#45595a'];
-const CLERK_COAT = ['#a4acaf', '#788893', '#52626f', '#303f4b'];
+const CLERK_COAT = ['#e1d9c1', '#b3b4a5', '#7e8a84', '#4d5c60'];
 const CLERK_BLOUSE = ['#e5d8b6', '#b4b8ab', '#899b96', '#45585b'];
 const CLERK_LEATHER = ['#ad9a84', '#877b73', '#66595b', '#423b48'];
 const CLERK_STAIN = ['#b48c83', '#946360', '#704850', '#523a46'];
-const PINION = ['#9da9a3', '#788e91', '#536e78', '#31464f'];
 
 function pixelStroke(a, start, end, width, ramp, taper = 0) {
   const steps = Math.max(1, Math.ceil(Math.hypot(end[0] - start[0], end[1] - start[1]) / 1.6));
@@ -93,28 +92,6 @@ function pixelStroke(a, start, end, width, ramp, taper = 0) {
     a.rect(x, y, size, size, ramp[3]);
     if (size > 2) a.rect(x, y, size - 1, size - 1, ramp[2]);
     if (size > 3) a.rect(x + 1, y, size - 3, 2, ramp[1]);
-  }
-}
-
-function drawClerkWings(a, x, y, spread, fold, facing) {
-  for (const side of [-facing, facing]) {
-    const near = side === facing;
-    const span = 1 + spread * .29 - fold * .39;
-    const lift = spread * 12 - fold * 5;
-    const point = (dx, dy) => [x + dx * side * span, y + dy - lift * Math.min(1, dx / 24)];
-    const ramp = near ? PINION : [PINION[1], PINION[2], '#425a66', '#2a3e49'];
-    for (let feather = 6; feather >= 0; feather--) {
-      const tip = point(31 - feather * 3.4 - (near ? 0 : 2), 9 + feather * 2 + (feather === 1 && near ? -4 : 0));
-      const shaft = point(21 - feather * 2.15, -10 + feather * 2.4);
-      pixelStroke(a, shaft, tip, 5, ramp, 3);
-    }
-    pixelStroke(a, point(6, -7), point(15, -17), 7, ramp, 1);
-    pixelStroke(a, point(14, -17), point(24, -11), 6, ramp, 3);
-    for (let covert = 0; covert < 4; covert++) {
-      pixelStroke(a, point(11 + covert * 3, -12), point(14 + covert * 3, -3), 4, ramp, 2);
-    }
-    const seam = point(near ? 17 : 9, near ? -16 : -13);
-    a.rect(seam[0], seam[1], 3, 1, near ? '#b49b82' : ramp[0]);
   }
 }
 
@@ -178,29 +155,17 @@ export function drawJanitorCapture(a, { x, feet, direction, tilt, lift, appeal, 
 }
 
 export function drawMourningClerk(a, ghost, x, y) {
-  const {gaze = 0, looking, charging, capture} = ghost;
+  const {gaze = 0, looking, charging, capture, recoil = 0} = ghost;
   const direction = ghost.facing === -1 ? -1 : 1;
-  const lean = charging ? direction * 4 : 0;
-  const stride = charging && !capture ? Math.round(Math.sin(a.t * 26) * 2) : 0;
-  const hairLag = charging ? -direction * 3 : Math.round(Math.sin(a.t * 2.4 + (ghost.seed || 0)));
-  const faceY = looking ? -25 : -22;
+  const lean = capture ? 0 : charging ? direction * 4 : recoil > .07 ? -direction * 2 : looking ? direction : 0;
+  const stride = charging && !capture ? Math.round(Math.sin(a.t * 26) * 3) : 0;
+  const faceY = looking ? -25 : -22 + (recoil > .07 ? 2 : 0);
   const rect = (dx, dy, w, h, color) => a.rect(x + dx, y + dy, w, h, color);
   const face = (dx, dy, w, h, color) => rect(lean + dx, faceY + dy, w, h, color);
   const forward = (dx, dy, w, h, color) => rect(direction === 1 ? dx : 1 - dx - w, dy, w, h, color);
 
   a.glow(x, y - 3, 30, 37, charging ? '#c58573' : '#a3bdb4', .07 + gaze * .1);
-  const spread = capture?.spread ?? (charging ? .45 : looking ? .23 : .10 + Math.sin(a.t * 2.7) * .06);
-  drawClerkWings(a, x, y, spread, capture?.fold ?? 0, direction);
-  // The hanging hair remains behind her shoulders. The ends lag the lunge.
-  face(-9, 4, 18, 17, CLERK_HAIR[3]);
-  face(-10, 8, 5, 15, CLERK_HAIR[2]);
-  face(-9, 10, 2, 13, CLERK_HAIR[1]);
-  face(7, 11, 3, 15, CLERK_HAIR[3]);
-  face(-8 + hairLag, 20, 4, 8, CLERK_HAIR[2]);
-  face(-8 + hairLag, 21, 1, 6, CLERK_HAIR[1]);
-  face(6 + hairLag, 22, 3, 7, CLERK_HAIR[2]);
-
-  // Tailored archive uniform, stocking seams, and practical shoes.
+  // Tailored ward uniform, stocking seams, and practical shoes.
   rect(-5 - stride, 22, 4, 8, CLERK_SKIN[3]);
   rect(-5 - stride, 23, 2, 6, CLERK_SKIN[2]);
   rect(2 + stride, 22, 4, 8, CLERK_SKIN[3]);
@@ -281,44 +246,32 @@ export function drawMourningClerk(a, ghost, x, y) {
     rect(-8, 9, 1, 3, CLERK_SKIN[2]);
   }
 
-  // Asymmetrical part and stepped cheekbones keep the eyes legible at 480×270.
-  face(-5, 0, 10, 2, CLERK_HAIR[2]);
-  face(-8, 2, 15, 5, CLERK_HAIR[3]);
-  face(-8, 3, 8, 3, CLERK_HAIR[1]);
-  face(-6, 1, 6, 2, CLERK_HAIR[0]);
-  face(-9, 4, 4, 8, CLERK_HAIR[2]);
-  face(-9, 6, 2, 5, CLERK_HAIR[1]);
-  face(3, 3, 5, 7, CLERK_HAIR[2]);
-  face(-5, 5, 10, 11, CLERK_SKIN[2]);
-  face(-4, 6, 8, 9, CLERK_SKIN[1]);
-  face(-4, 6, 4, 2, CLERK_SKIN[0]);
-  face(-5, 10, 2, 3, CLERK_SKIN[0]);
-  face(-3, 15, 7, 3, CLERK_SKIN[2]);
-  face(-2, 16, 5, 1, CLERK_SKIN[1]);
-  face(-7, 4, 4, 5, CLERK_HAIR[1]);
-  face(-7, 7, 2, 7, CLERK_HAIR[2]);
-  face(-7, 8, 1, 5, CLERK_HAIR[0]);
-  face(4, 6, 3, 8, CLERK_HAIR[3]);
-  face(5, 7, 2, 7, CLERK_HAIR[1]);
-  face(6, 11, 2, 7, CLERK_HAIR[2]);
-  face(-5, 11, 1, 2, CLERK_LEATHER[0]);
-
-  face(-4, 8, 3, 1, CLERK_SKIN[3]);
-  face(2, 8, 2, 1, CLERK_SKIN[3]);
-  face(-4, 9, 3, looking ? 2 : 1, CLERK_SKIN[3]);
-  face(2, 9, 3, looking ? 2 : 1, CLERK_SKIN[3]);
-  if (looking) {
-    face(-3, 9, 2, 1, '#e2baa4');
-    face(2, 9, 2, 1, '#cba18f');
+  // Wrapped silhouette, offset coils and a folded ward cap at native pixel scale.
+  face(-6, 0, 12, 6, CLERK_WRAP[3]);
+  face(-5, 0, 10, 4, CLERK_COAT[1]);
+  face(-4, 0, 8, 1, CLERK_COAT[0]);
+  face(-1, 2, 2, 2, CLERK_STAIN[2]);
+  face(-7, 4, 14, 10, CLERK_WRAP[3]);
+  face(-6, 5, 13, 3, CLERK_WRAP[1]);
+  face(-5, 5, 9, 1, CLERK_WRAP[0]);
+  face(-7, 8, 12, 3, CLERK_WRAP[2]);
+  face(-6, 8, 10, 1, CLERK_WRAP[0]);
+  face(-5, 11, 11, 3, CLERK_WRAP[1]);
+  face(-4, 12, 8, 1, CLERK_WRAP[0]);
+  face(-4, 14, 8, 2, CLERK_WRAP[2]);
+  face(-3, 16, 6, 2, CLERK_SKIN[2]);
+  face(-2, 16, 4, 1, CLERK_SKIN[1]);
+  face(2, 8, 2, 2, CLERK_STAIN[2]);
+  face(2, 11, 2, 2, CLERK_STAIN[1]);
+  face(-5, 10, 3, 3, '#4d292e');
+  face(-4, 13, 2, 3, '#653237');
+  face(-3, 15, 2, charging || capture ? 3 : 1, '#862d36');
+  if (charging || capture) {
+    const clench = Math.sin(a.t * 19) > .4 ? 2 : 1;
+    face(-1, 16, 4, clench, '#33181e');
+    face(0, 16, 2, 1, '#b6a480');
+    face(-3, 17, 1, 1, '#b94440');
   }
-  face(-3, 11, 1, 3, CLERK_STAIN[1]);
-  face(3, 11, 1, 4, CLERK_STAIN[2]);
-  face(0, 10, 1, 3, CLERK_SKIN[0]);
-  face(0, 13, 2, 1, CLERK_SKIN[2]);
-  if (charging) {
-    face(-1, 14, 4, 2, CLERK_STAIN[3]);
-    face(0, 14, 2, 1, CLERK_BLOUSE[1]);
-  } else face(-1, 15, 3, 1, CLERK_STAIN[2]);
 }
 
 export function drawApparition(a, ghost, x, y) {
@@ -326,10 +279,16 @@ export function drawApparition(a, ghost, x, y) {
     drawMourningClerk(a, ghost, x, y);
     return;
   }
-  const pulse = .73 + Math.sin(a.t * 4 + (ghost.seed || 0)) * .14;
-  const chase = ghost.state === 'chase';
-  const face = chase ? '#e8a286' : '#c5c5a3';
-  const sway = Math.round(Math.sin(a.t * 4 + (ghost.seed || 0)) * 2);
+  const chase = ghost.state === 'chase', alert = ghost.state === 'alert', search = ghost.state === 'search';
+  const dir = ghost.facing === -1 ? -1 : 1;
+  const clock = a.t * (chase ? 19 : search ? 6 : 4) + (ghost.seed || 0);
+  const step = Math.sin(clock);
+  const pulse = alert ? .9 : .76 + step * (chase ? .095 : .12);
+  const face = chase ? '#e8a286' : alert ? '#e2d7a7' : '#c5c5a3';
+  const sway = alert ? 0 : Math.round(step * (chase ? 4 : 2));
+  const lean = chase ? dir*3 : alert ? dir : search ? Math.round(step*2) : 0;
+  const lift = alert ? -2 : chase ? Math.round(Math.abs(step)*2) : 0;
+  const blink = !chase && !alert && Math.sin(clock*.55)>.975;
   const c = a.c;
   a.glow(x, y - 6, 26, 36, '#8bb0bc', .11 + pulse * .045);
   c.save();
@@ -350,20 +309,30 @@ export function drawApparition(a, ghost, x, y) {
   a.rect(x + 5 + sway, y + 17, 4, 5, GHOST[2]);
   a.rect(x - 12 + sway, y + 21, 3, 3, GHOST[2]);
 
-  a.rect(x - 10, y - 5, 4, 12, GHOST[2]);
-  a.rect(x - 12, y + 6, 5, 3, GHOST[1]);
-  a.rect(x - 13, y + 8, 3, 2, GHOST[2]);
-  a.rect(x + 8, y - 3 + sway, 4, 10, GHOST[2]);
-  a.rect(x + 10, y + 5 + sway, 4, 2, GHOST[1]);
-  a.rect(x + 13, y + 4 + sway, 2, 2, GHOST[2]);
+  const arm = chase ? -6 : alert && ghost.kind === 'listener' ? -8 : search ? -3 : 0;
+  const left = dir < 0 ? arm : -sway;
+  const right = dir > 0 ? arm : sway;
+  a.rect(x - 10, y - 5 + Math.min(0,left), 4, 12, GHOST[2]);
+  a.rect(x - 12, y + 6 + left, 5, 3, GHOST[1]);
+  a.rect(x - 13, y + 8 + left, 3, 2, GHOST[2]);
+  a.rect(x + 8, y - 3 + right, 4, 10, GHOST[2]);
+  a.rect(x + 10, y + 5 + right, 4, 2, GHOST[1]);
+  a.rect(x + 13, y + 4 + right, 2, 2, GHOST[2]);
 
-  a.rect(x - 5, y - 15, 10, 7, GHOST[1]);
-  a.line(x - 4, y - 16, 5, GHOST[0]);
-  a.rect(x - 4, y - 13, 3, 3, GHOST[3]);
-  a.rect(x + 2, y - 13, 3, 3, GHOST[3]);
-  a.line(x - 4, y - 13, 2, face);
-  a.line(x + 2, y - 13, 2, face);
-  a.rect(x - 1, y - 9, 3, 2, GHOST[3]);
+  a.rect(x - 5 + lean, y - 15 + lift, 10, 7, GHOST[1]);
+  a.line(x - 4 + lean, y - 16 + lift, 5, GHOST[0]);
+  a.rect(x - 4 + lean, y - 13 + lift, 3, 3, GHOST[3]);
+  a.rect(x + 2 + lean, y - 13 + lift, 3, 3, GHOST[3]);
+  if (!blink) {
+    a.line(x - 4 + lean, y - 13 + lift, 2, face);
+    a.line(x + 2 + lean, y - 13 + lift, 2, face);
+  }
+  a.rect(x - 1 + lean, y - 9 + lift, 3, chase ? 4 : 2, GHOST[3]);
+  if (chase) {
+    a.line(x - 1 + lean, y - 9 + lift, 2, '#b8ad91');
+    a.rect(x + lean + dir, y - 7 + lift, 2, 3, '#701f2c');
+    a.rect(x + lean + dir, y - 7 + lift, 1, 1, '#bd4a49');
+  }
   a.rect(x - 3, y - 7, 3, 9, GHOST[1]);
   a.rect(x - 2, y - 2, 1, 7, GHOST[0]);
 
@@ -386,16 +355,31 @@ export function drawApparition(a, ghost, x, y) {
     a.rect(x - 7, y - 5, 3, 3, dried);
   }
   if (ghost.kind === 'listener') {
-    a.rect(x - 9, y - 16, 4, 7, GHOST[2]);
-    a.rect(x + 5, y - 17, 4, 7, GHOST[2]);
-    a.line(x - 9, y - 16, 3, GHOST[0]);
-    a.line(x + 5, y - 17, 3, GHOST[1]);
+    a.rect(x - 9 + lean, y - 16 + lift, 4, 7, GHOST[2]);
+    a.rect(x + 5 + lean, y - 17 + lift, 4, 7, GHOST[2]);
+    a.line(x - 9 + lean, y - 16 + lift, 3, GHOST[0]);
+    a.line(x + 5 + lean, y - 17 + lift, 3, GHOST[1]);
   } else if (ghost.kind === 'watcher') {
-    a.rect(x - 6, y - 20, 13, 3, GHOST[1]);
-    a.line(x - 7, y - 18, 15, GHOST[0]);
-    a.rect(x + (ghost.facing === 1 ? 4 : -7), y - 18, 3, 2, face);
+    a.rect(x - 6 + lean, y - 20 + lift, 13, 3, GHOST[1]);
+    a.line(x - 7 + lean, y - 18 + lift, 15, GHOST[0]);
+    a.rect(x + lean + (dir === 1 ? 4 : -7), y - 18 + lift, 3, 2, face);
   }
   c.restore();
+}
+
+export function drawContactDrops(a, x, y, time, direction = 1, reduced = false) {
+  if (reduced || time <= 0 || time > .52) return;
+  const age = time/.52;
+  a.c.save();
+  a.c.globalAlpha = Math.min(1,age*14)*(1-age*age);
+  for(let i=0;i<9;i++) {
+    const angle = (i+.4)*2.399;
+    const dx = (Math.cos(angle)*12+direction*14)*age;
+    const dy = -(17+Math.sin(angle)*10)*age+28*age*age;
+    a.rect(x+dx-1,y+dy,2+i%3,1+(i%3===0),'#68212e');
+    if(i%2===0) a.rect(x+dx,y+dy,1,1,'#b5484b');
+  }
+  a.c.restore();
 }
 
 export function drawPhaseRipple(a, s) {

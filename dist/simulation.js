@@ -139,7 +139,13 @@ export class Simulation{
     }
    }else{
     if(hit)this.beginDeath('ghost',g);
-    if(g.state==='alert'&&before!=='alert')this.emit('sound',{name:'ghostAlert',position:g.xNow});
+    else if(g.state!==before && ['alert','chase','search'].includes(g.state)){
+     const name={alert:'ghostAlert',chase:'ghostPursuit',search:'ghostSearch'}[g.state];
+     this.emit('sound',{name,position:g.xNow,surface:g.kind});
+    } else if((g.state==='patrol'||g.state==='return') && Math.abs(p.x+7-g.xNow)<142 && Math.abs(p.y+14-g.yNow)<62 && this.time>=(g.nextRustle??0)){
+     this.emit('sound',{name:'ghostPass',position:g.xNow,surface:g.kind});
+     g.nextRustle=this.time+2.1+g.seed%1.2;
+    }
    }
   }
   if(this.expanded&&this.pursuit){const chase=this.pursuit;chase.warning=Math.max(0,chase.warning-dt);if(!chase.warning){chase.active=true;chase.x+=92*dt;if(Math.abs(p.x+7-chase.x)<15&&Math.abs(p.y+14-chase.y)<23)this.beginDeath('ghost',{xNow:chase.x,yNow:chase.y});}}

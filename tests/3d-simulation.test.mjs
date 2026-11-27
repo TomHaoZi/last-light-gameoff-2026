@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Simulation3D, STEP } from "../dist/3d/simulation.js";
+import { Simulation3D, STEP, floorActive } from "../dist/3d/simulation.js";
+import { LEVELS, decodeLevel } from '../dist/3d/levels.js';
 import { mourningHiddenByPartition } from "../dist/3d/mourning-gaze.js";
 import { CLERK_CAPTURE_TIME, CLERK_REVIVAL_TIME } from "../dist/3d/mourning-capture.js";
 
@@ -318,13 +319,9 @@ const completeRoutes = [
     E5 S E6 E! S E3 N2 E2 S E @B
     N E @2
     N W N3 E N @E`,
-  `* N E N5 E N N! @A
-    W N6 @P
-    W3 @2
-    S E2 S3 * W S2 W2 N W2! S W N W2 @B
-    S3 @1
-    E N E N E3 * E2 N E9 * E4 @C
-    * W2 W2! S! W N W3 N W3 N3 E N E2 @E`,
+  `N2 W6 N4 W2 @1 N3 @B
+    S E10! @A S2 E10! N3! @C N2 * N3 W11! @P W3 @2 E6 @E`,
+
 ];
 
 function playRoute(sim, route) {
@@ -342,6 +339,19 @@ function playRoute(sim, route) {
     }
   }
 }
+
+test('new rooftop links only support their phase, and legacy save sockets stay in place', () => {
+  const roof=decodeLevel(LEVELS[2]);
+  for (const [cells,night] of [[[[5,12],[6,13],[7,14]],false],[[[23,4],[23,3],[20,2],[19,2],[18,2]],true]]) {
+    for (const [x,z] of cells) {
+      assert.ok(floorActive(roof.get(x,z),night));
+      assert.ok(!floorActive(roof.get(x,z),!night));
+    }
+  }
+  for (const [x,z,kind] of [[11,15,'L'],[10,10,'L'],[14,3,'L'],[15,15,'L'],[13,8,'A'],[3,7,'B'],[23,7,'C'],[12,2,'P'],[15,2,'E'],[3,10,'1'],[9,2,'2']]) {
+    assert.equal(roof.get(x,z).kind,kind,`${kind} at ${x}/${z}`);
+  }
+});
 
 test("an authored route clears all three chapters and reaches the complete ending", () => {
   const sim = start();

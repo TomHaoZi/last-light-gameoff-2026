@@ -21,6 +21,7 @@
         <button id="mouse-look" hidden>Capture mouse</button>
         <button id="language" aria-label="Switch language">中文</button>
         <button id="mute" aria-pressed="false" aria-label="Mute audio">Sound on</button>
+        <button id="touch-layout-open" type="button" hidden>HUD layout</button>
         <button id="pause" hidden>Pause</button>
       </div>
     </header>
@@ -38,7 +39,7 @@
           <a class="edition-choice" href="../" id="classic-link">Play 2D</a>
           <button id="settings-button">Settings</button>
         </div>
-        <p class="tip" id="screen-tip">Headphones recommended · Contains flashing lights and horror themes</p>
+        <p class="tip" id="screen-tip">Headphones recommended · Flashing lights, blood and horror</p>
       </div>
       <aside class="quick-guide" id="quick-guide" aria-labelledby="guide-title">
         <h2 id="guide-title">Controls</h2>
@@ -69,7 +70,8 @@
           <span class="fps-readout" id="fps-readout" aria-hidden="true" hidden></span>
         </div>
       </div>
-      <div class="reticle" aria-hidden="true"></div>
+      <div class="reticle" id="reticle" aria-hidden="true"></div>
+      <p class="roof-tool" id="roof-tool" aria-live="polite" hidden></p>
       <div class="gaze-warning" id="gaze-warning" hidden>
         <p id="gaze-command" aria-live="assertive"></p>
         <div id="gaze-meter" role="meter" aria-label="Mourning Clerk aggression" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -85,7 +87,7 @@
         <div class="touch" aria-label="Touch controls">
           <div id="mobile-stick" class="mobile-stick" role="group" aria-label="Movement joystick"><span class="mobile-thumb" aria-hidden="true"></span></div>
           <div class="pad"><button data-touch="forward" aria-label="Forward">↑</button><button data-touch="left" aria-label="Left">←</button><button data-touch="back" aria-label="Back">↓</button><button data-touch="right" aria-label="Right">→</button></div>
-          <div class="touch-actions"><button data-touch="sprint" id="touch-sprint">Sprint</button><button data-touch="walk" id="touch-quiet">Quiet</button><button data-touch="jump" id="touch-jump">Jump</button><button data-touch="interact" id="touch-use">Use</button><button data-touch="shift" id="touch-shift">Day / Night</button></div>
+          <div class="touch-actions"><button data-touch="sprint" id="touch-sprint">Sprint</button><button data-touch="walk" id="touch-quiet">Quiet</button><button data-touch="jump" id="touch-jump">Jump</button><button data-touch="interact" id="touch-use">Use</button><button data-touch="shift" id="touch-shift">Day / Night</button><button data-touch="attack" id="touch-attack" hidden>Strike</button></div>
         </div>
         <div class="bottom-bar">
           <div class="vitals">
@@ -101,6 +103,20 @@
 
     <div id="flash" aria-hidden="true"></div>
     <div id="death" aria-live="polite" hidden><p id="death-copy"></p></div>
+    <section id="shift-cinematic" aria-label="Handover" hidden>
+      <p id="shift-cinematic-copy" aria-live="polite"></p>
+      <button id="shift-cinematic-skip" type="button">Skip</button>
+    </section>
+    <dialog id="touch-layout-editor" aria-labelledby="touch-layout-title">
+      <div class="touch-layout-plane"></div>
+      <div class="touch-layout-tools">
+        <h2 id="touch-layout-title">Touch layout</h2>
+        <p id="touch-layout-note"></p>
+        <label for="touch-layout-size"><span id="touch-layout-size-label">Size</span> <output id="touch-layout-value" for="touch-layout-size"></output></label>
+        <input type="range" id="touch-layout-size" min="44" max="112" step="1">
+        <div class="touch-layout-actions"><button id="touch-layout-reset" type="button">Reset</button><button id="touch-layout-cancel" type="button">Cancel</button><button id="touch-layout-save" class="primary" type="button">Save</button></div>
+      </div>
+    </dialog>
     <dialog id="panel" aria-labelledby="panel-title">
       <div class="panel-header">
         <div><p id="panel-edition" class="panel-edition">First-person edition</p><h2 id="panel-title">Settings</h2></div>

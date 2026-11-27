@@ -1,0 +1,62 @@
+{
+  "3d-normal": {
+    "chapters": 3,
+    "deaths": 0,
+    "annexObstacles": 28,
+    "annexSeconds": 45.43,
+    "records": 0,
+    "saved": true,
+    "endingRestored": "normal",
+    "editionRoundtrip": true
+  },
+  "classic-normal": {
+    "passed": true,
+    "sections": 18,
+    "browserErrors": 0,
+    "records": 0,
+    "annexObstacles": 37,
+    "annexSeconds": 45.05,
+    "deaths": 0,
+    "endingRestored": "normal"
+  },
+  "3d-complete": {
+    "chapters": 3,
+    "deaths": 0,
+    "annexObstacles": 28,
+    "annexSeconds": 45.43,
+    "records": 6,
+    "saved": true,
+    "endingRestored": "complete",
+    "editionRoundtrip": true
+  },
+  "classic-complete": {
+    "passed": true,
+    "sections": 18,
+    "browserErrors": 0,
+    "records": 6,
+    "annexObstacles": 37,
+    "annexSeconds": 45.05,
+    "deaths": 0,
+    "endingRestored": "complete"
+  },
+  "audio-3d": {
+    "duration": 197.58,
+    "channels": 2,
+    "sampleRate": 44100,
+    "peak": 0.6856681108474731,
+    "dBFS": -3.277720965921386,
+    "rmsDbFS": -21.26327368680149,
+    "nearClip": 0,
+    "silentWindows": 0
+  },
+  "audio-classic": {
+    "duration": 518.0399773242631,
+    "channels": 2,
+    "sampleRate": 44100,
+    "peak": 0.6276991367340088,
+    "dBFS": -4.04496937256215,
+    "rmsDbFS": -28.765068508464214,
+    "nearClip": 0,
+    "silentWindows": 0
+  }
+}

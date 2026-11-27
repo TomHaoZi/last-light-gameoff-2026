@@ -1,0 +1,17 @@
+# RC32 · Wall fit and edge finishes
+
+Play locally: [LAST LIGHT 3D](http://127.0.0.1:8774/). Exact ZIP: `releases/last-light-3d-3.0.0-rc.32-html5.zip` (45,668,229 bytes, SHA-256 `502ac617d2047d99133dd2b59eb9a2f3959f943ae9267d0b4a668e171e1dbc27`). Local RC24–RC31 origins were left intact. Nothing was published.
+
+- **Archive:** five near-face rays at each of 29 mounted sockets. RC31 had two blocked samples on the north handover wall at wall column 9/row 0, from the public-register board, not the suspected arrival cabinet. RC32 shifts the socket 0.194 m and aligns the procedural fallback with the authored plate. The close-up also exposed a second ornamental sash peeking out behind the board; the redundant sash and its fallback were removed on that face only. All 145 RC32 socket samples cleared; day and night first-person shots document the corrected wall bay.
+- **Annex:** 68 stitched bindings on permanent carpet and 22 beveled recess-bar segments with rubber keys and screws. The binding was moved inboard in response to the first-person review: the previous cove toe covered the stitches in the initial candidate. The final transfer run sampled all 90 instances and asserted none spanned any of the six fixed pits or six phase spans. These are render-only pieces.
+- **Roof:** one folded zinc return at the three-backed-slab re-entrant corner (55.2, −0.081, 4.8). The neighboring night tile remains phase-owned; the return does not support the player. The reachability walk and actual day/night switch captured both states. The source has 3 assemblies / 36 editable mesh parts in `art/blender/fit-rc32.blend`; rebuild via `art/blender/build_fit_rc32.py`.
+
+## Validation
+
+`npm test`: 144 passed. `npm run check`: 115 modules. `python3 scripts/package-3d.py`, `unzip -tq`, and `diff -qr` verified the extracted candidate and the local preview. Chrome ran from `/tmp/ll-rc32-final.Qni9QZ/site`, an independent extraction. Both endings cleared nine stations and 28 transfer obstacles with no deaths; six versus zero records; ending and journal persisted through reload and a Classic round trip. Deliberate annex capture, fixed and phase-gap falls, revival and terminal side-wall blocking passed. Roof combat, touch emulation and English playback with Chinese captions were checked, as was English Classic dialogue with Chinese UI. A concurrent combat run timed out at the Chrome protocol and passed on its separate retry. Physical-device testing and full AV sign-off are still open. Narration is synthetic.
+
+Exact-package evidence: [`docs/evidence/rc32/`](evidence/rc32/). Reproduce using `TEST_DIST` and `scripts/browser-3d-shortcuts.mjs`: `FIT_STILLS` with `FIT_VISUAL_STILLS=1`, `TRIM_STILLS`, `JOURNEY=complete|normal`, `ROOF_COMBAT_STILLS`, `CLASSIC_ENGLISH_VOICE=1`, and `TRANSFER_RECOVERY=1 TRANSFER_MISSES=1 TRANSFER_SIDE_WALL=1`.
+
+## Next placement checks
+
+`FIT_DIAGNOSTIC_STILLS` saved 710 additional samples over 142 mounted fixtures. Front-ray candidates are not automatically defects. Prioritize the one of 17 ornamental archive door surrounds screened by register cabinet geometry, then the five of 41 sashes screened by hand-painted signs/cabinet/ticket case, then the 11 of 49 boiler controls with unnamed blockers. None of the 35 louvres were blocked at the five sampled positions. Compare side-on and inspect whether the object is intentionally screened before relocating it. Then inspect reachable skyline edges and remaining perimeter seams. This is not full-map per-placement approval.

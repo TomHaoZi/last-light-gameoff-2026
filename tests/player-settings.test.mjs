@@ -72,6 +72,20 @@ test('legacy default X migrates in each edition, and new X custom bindings stay 
   assert.equal(keyLabel(MOUSE_RIGHT, 'zh'), '鼠标右键');
 });
 
+test('adding the roof strike does not overwrite a legacy F binding or change Classic', () => {
+  const storage = memoryStorage();
+  const slot = 'last-light-3d-player-settings';
+  const old = JSON.stringify({difficulty:'hard', bindings:{interact:['KeyF'], shift:['KeyR']}});
+  storage.setItem(slot, old);
+  const prefs = createPlayerSettings('3d', storage);
+  assert.equal(prefs.actionFor('KeyF'), 'interact');
+  assert.equal(prefs.actionFor('KeyR'), 'shift');
+  assert.equal(prefs.actionFor('KeyV'), 'attack');
+  assert.equal(prefs.difficulty, 'hard');
+  assert.equal(storage.getItem(slot), old);
+  assert.equal(createPlayerSettings('2d', storage).actionFor('KeyF'), null);
+});
+
 test('damaged data and blocked storage preserve default controls and a working session', () => {
   const storage = memoryStorage();
   storage.setItem('last-light-2d-player-settings', JSON.stringify({
@@ -90,4 +104,20 @@ test('damaged data and blocked storage preserve default controls and a working s
   assert.equal(blocked.setDifficulty('hard'), true);
   assert.equal(blocked.difficulty, 'hard');
   assert.ok(difficultyRules('hard').gazeDelay < difficultyRules('easy').gazeDelay);
+});
+
+test('roof migration finds a non-letter binding when a legacy profile uses every letter',()=>{
+  const storage=memoryStorage(),slot='last-light-3d-player-settings';
+  const oldActions=createPlayerSettings('3d',storage).actions.filter(action=>action.id!=='attack');
+  const used=[...Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ',key=>'Key'+key),
+    ...Array.from('0123456789',key=>'Digit'+key),...Array.from('0123456789',key=>'Numpad'+key),'Space','Enter'];
+  const bindings=Object.fromEntries(oldActions.map(({id})=>[id,used.splice(0,3)]));
+  const raw=JSON.stringify({difficulty:'hard',bindingsVersion:1,bindings});
+  storage.setItem(slot,raw);
+  const prefs=createPlayerSettings('3d',storage);
+  for(const [action,codes] of Object.entries(bindings))assert.deepEqual(prefs.keys(action),codes);
+  const [strike]=prefs.keys('attack');
+  assert.ok(strike&&!strike.startsWith('Key'));
+  assert.equal(prefs.actionFor(strike),'attack');
+  assert.equal(storage.getItem(slot),raw);
 });

@@ -12,6 +12,26 @@ const SURFACES = {
   'archive-plaster': { tint: '#b5beb3', normal: .76 }
 };
 
+function varyArchivePlaster(material) {
+  material.customProgramCacheKey = () => 'archive-plaster-panel-uv-v1';
+  material.onBeforeCompile = shader => {
+    // Offset each wall column horizontally. Salt and damp still run down
+    // the wall, and all four material channels stay registered.
+    shader.vertexShader = shader.vertexShader.replace('#include <uv_vertex>', `
+      #include <uv_vertex>
+      #ifdef USE_INSTANCING
+        vec2 wallCell = (modelMatrix * instanceMatrix[3]).xz;
+        float plasterOffset = fract(dot(wallCell, vec2(.373, .629)));
+        vMapUv.x += plasterOffset;
+        vNormalMapUv.x += plasterOffset;
+        vAoMapUv.x += plasterOffset;
+        vRoughnessMapUv.x += plasterOffset;
+        vMetalnessMapUv.x += plasterOffset;
+      #endif
+    `);
+  };
+}
+
 export async function mountPhotoSurfaces(visual) {
   const stage = visual.stage;
   const loader = new TextureLoader();
@@ -62,6 +82,7 @@ export async function mountPhotoSurfaces(visual) {
     material.metalnessMap = surfaceMap;
     material.color.set(tint);
     material.roughness = roughness;
+    if (asset === 'archive-plaster') varyArchivePlaster(material);
     material.needsUpdate = true;
     for (const texture of previous) texture?.dispose();
     visual.localTextures = visual.localTextures.filter(texture => !previous.has(texture));

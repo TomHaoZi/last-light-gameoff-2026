@@ -81,7 +81,9 @@ export function plantPlacementPlan(theme, map) {
     add('Planter', top(map,2,5,0));
     for (const [col,row,side] of [[9,14,NORTH],[13,14,NORTH],[9,17,SOUTH],[4,11,SOUTH],
         [14,10,SOUTH],[22,12,SOUTH],[24,10,EAST]]) {
-      add('Planter', edge(map,col,row,side,-.181));
+      const mount = edge(map,col,row,side,-.181);
+      add('Planter', mount);
+      add('PlanterBracket', mount);
     }
     for (const [col,row,side] of [[8,16,WEST],[9,17,SOUTH],[4,11,SOUTH],[8,9,WEST],
         [20,12,SOUTH],[22,12,SOUTH],[24,10,EAST],[11,1,NORTH]]) {
@@ -172,7 +174,7 @@ export async function mountPlantSets(visual) {
       const mesh = new InstancedMesh(source.geometry, source.material, transforms.length);
       mesh.name = source.name;
       mesh.matrixAutoUpdate = false;
-      mesh.castShadow = ['ReliefSkid','Gantry','WaterTower','Glasshouse','LouvreHood','Planter'].includes(name);
+      mesh.castShadow = ['ReliefSkid','Gantry','WaterTower','Glasshouse','LouvreHood','Planter','PlanterBracket'].includes(name);
       mesh.receiveShadow = true;
       owned.geometries.add(source.geometry);
       owned.materials.add(source.material);

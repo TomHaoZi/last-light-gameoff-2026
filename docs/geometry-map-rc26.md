@@ -1,0 +1,28 @@
+# RC26 · Geometry across all four 3D areas
+
+**Local preview:** `http://127.0.0.1:8768/` · [HTML5 ZIP](../releases/last-light-3d-3.0.0-rc.26-html5.zip), 45,026,365 bytes, SHA-256 `156424c2dcf499213a031e19c9b7442d04ee9cff945f2b31ee4b8684f8a8e5eb`. RC24 and RC25 archives and preview origins are unchanged. Nothing was uploaded.
+
+This pass changes repeated parts throughout the full route, not just individual showcase rooms. It does not certify that every visible surface or object has been replaced.
+
+- **Boiler:** All 23 generic cylinder positions and 22 maintenance-box positions use instanced Poly Haven meshes. The cylinder includes its valve, collar and welded base, and the toolbox includes the tray, lid, handle and latches. The earlier wall extractor and tool chest remain. [Cylinder close-up](evidence/rc26/boiler-cylinder-repeat.jpg) · [Toolbox close-up](evidence/rc26/boiler-toolbox-repeat.jpg)
+- **Archive:** 34 work desks with 34 stationery sets and 14 repeated drawer cabinets have modeled faces and supported placement. Existing hero equipment keeps its own assets. [Desk in the actual corridor](evidence/rc26/archive-desk-and-stationery-repeat.jpg)
+- **Transfer floor:** Four latch-and-plank crates per hurdle replace the earlier barrier mesh at all seven hurdles. The nine rack obstacles retain the textured rack mesh with an exact visual fit to the established course. Collision and all six phase bridges are untouched. [First hurdle](evidence/rc26/annex-crate-hurdle.jpg) · [Rack bypass](evidence/rc26/annex-steel-rack.jpg)
+- **Roof:** Thirteen removable nurseries have bolted galvanized saddles and isolation pads. Seven exterior troughs have separate wall plates, diagonal knees and retaining stops; the top-mounted planter is not given a floating bracket. Three original city blocks cover 48 midground skyline placements with recessed panes, lintels, parapets, rooftop plant and phase-responsive windows. [Saddle close-up](evidence/rc26/roof-nursery-saddle.jpg) · [Day skyline](evidence/rc26/roof-skyline-day.jpg) · [Night skyline](evidence/rc26/roof-skyline-night.jpg)
+
+## Editable sources
+
+- [Full-map Blender layout](../art/blender/full-map-layout.blend): four separate scenes matching actual play coordinates, with permanent floor, wall, both phase-specific collections, checkpoint/station/evidence anchors and the annex's obstacle envelopes. It is a layout reference, not a replacement for the decorated runtime. Rebuild with `blender -b -P art/blender/build_full_map_layout.py`; reopening verified 1,072 objects and 87 phase-specific floor meshes. [Reopen log](evidence/rc26/blender-layout-verification.txt).
+- [Poly Haven source library](../art/blender/polyhaven-rc26.blend), with the original component objects and embedded textures. Four new CC0 downloads were verified against Poly Haven's size and checksum manifest and embedded losslessly. [Artist credits](../dist/3d/assets/env/CREDITS.md). Recreate the combined library with `blender -b -P art/blender/open_polyhaven_rc25.py -- --rc26`.
+- [Skyline source](../art/blender/roof-skyline.blend), [garden assemblies](../art/blender/roof-garden.blend) and [pressure plant / roof services](../art/blender/pressure-and-roof.blend). Their corresponding `art/blender/build_*.py` scripts generate the production GLBs. Instancing normalizes the environment assets to their visual envelopes without changing simulation predicates or save data. Skyline midground uses fifteen mesh batches with 328,992 submitted triangles across the 48 instances; the far silhouettes are separate and keep their coarse geometry.
+
+## Exact-package checks
+
+- `npm test`: 144 passing. `npm run check`: 113 JavaScript modules checked.
+- `TEST_DIST=<extraction> MAP_DRESSING_STILLS=<output> node scripts/browser-3d-shortcuts.mjs`: browser matched each repeat family's instance count and hid its fallback. The chase then cleared all 28 obstacles using real input. [Run data](evidence/rc26/map-dressing.json).
+- `TEST_DIST=<extraction> SKYLINE_CHECK=1 ROOF_GARDEN_STILLS=<output> node scripts/browser-3d-shortcuts.mjs`: all 48 skyline instances, all 13 nursery placements and seven edge supports mounted; first-person shots captured across the day/night roof route. [Run data](evidence/rc26/roof-models.json).
+- `TEST_DIST=<extraction> ROOF_COMBAT_STILLS=<output> node scripts/browser-3d-shortcuts.mjs`: combat, checkpoint reset, and emulated landscape touch still work. Chinese UI and captions still use the English roof recording. The extracted ZIP contains no `-zh.m4a` tracks. [Run data](evidence/rc26/roof-combat.json).
+- `TEST_DIST=<extraction> JOURNEY=complete node scripts/browser-3d-shortcuts.mjs`: a fresh browser profile completed all nine stations and all six records, crossed all 28 transfer obstacles, enabled auxiliary power, and reached the complete ending with zero deaths. Reloaded the ending, reopened the journal and returned from Classic with the same save. [Run data](evidence/rc26/complete-campaign.json). The normal ending was not replayed on this candidate (RC25 has separate normal-ending evidence).
+
+## Remaining model families
+
+The next architectural pass should replace the boiler wall vent/pipe junctions and the archive's generic wall-window and door surrounds, then audit junctions, floor edges and ceiling faces at close range. Annex wall, doors and floor/ceiling tiles have original kit geometry but not every room junction has been checked close-up; the pit lining and fire-door trim are next. The roof still has simplified deck undersides, copings and far city silhouettes. Check every family in both phases where applicable and keep the stage neutrals distinct from simulation-owned platforms. Physical mobile and full audiovisual sign-off are still open.

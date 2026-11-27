@@ -14,11 +14,12 @@ const journeys = [
     E5 S E6 E! E2! * N2 E4 S2 * @B
     N * E @2
     N W N3 E N @E`,
-  `* N E N5 * E N N! @A
-    W5 W2! W * N W2 @B
-    S3 @1
-    E N E N * E3! E7 * E4! N * E4 @C
-    W3! S3! W7! W * N8! @P * W3 @2 E6 @E`,
+  {
+    complete: `N2 W6 N4 W2 @1 N3 @B
+      S E10! @A S2 E10! N3! @C N2 * N3 W11! @P W3 @2 E6 @E`,
+    normal: `N2 W6 N7 W2 @B
+      S E10! @A S2 E10! N3! @C N2 * N3 W8! @E`,
+  },
 ];
 
 const directions = {
@@ -28,15 +29,17 @@ const centre = tile => (tile + .5) * TILE;
 
 // This circuit stays on the regular corridors. It shares the trusted-input
 // browser session with the separate shortcut and recovery checks.
-async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, aim, readHud, pauseAndReadGuide, runTransfer }, ending, chapter, route) {
+async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, aim, readHud, pauseAndReadGuide,
+  showOfficeNote, showOfficeNurse, inspectRecord, inspectExit, recordRoofBeat, runTransfer }, ending, chapter, route) {
   const start = await snapshot();
   assert.equal(start.chapter, chapter);
   assert.ok(Math.abs(start.yaw) < .01);
   let col = Math.floor(start.x / TILE);
   let row = Math.floor(start.z / TILE);
-  const proof = { chapter, phaseChanges: [], interactions: [] };
+  const proof = { chapter, tilesWalked: 0, phaseChanges: [], interactions: [] };
   if (pauseAndReadGuide) proof.pauseGuide = await pauseAndReadGuide();
   if (start.gaze) {
+    await showOfficeNote?.();
     await aim('pitch', -.42);
     proof.officeLookPitch = (await snapshot()).pitch;
   }
@@ -50,17 +53,32 @@ async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, aim, read
         await tap('MouseRight');
         const shifted = await whenPlaying(state => state.phase !== before.phase, 'accepted phase switch');
         proof.phaseChanges.push({ x: shifted.x, z: shifted.z, phase: shifted.phase });
+        if (chapter === 2) await recordRoofBeat?.('north-night-crossing', shifted);
         continue;
       }
       if (command.startsWith('@')) {
         const marker = command[1];
         if (ending === 'normal' && '12P'.includes(marker)) continue;
+        if ('12'.includes(marker)) await inspectRecord?.(chapter,marker,before);
+        if (marker==='E') await inspectExit?.(chapter,before);
         const hudBefore = await readHud?.();
         await tap('KeyE');
         const state = await snapshot();
         const hudAfter = await readHud?.();
-        if ('ABC'.includes(marker)) assert.ok(state.work.includes(marker), 'Station worked');
-        if ('12'.includes(marker)) assert.ok(state.evidence.includes(chapter + '/' + marker), 'Record found');
+        if ('ABC'.includes(marker)) {
+          assert.ok(state.work.includes(marker), 'Station worked');
+          if (chapter === 2) await recordRoofBeat?.('station-'+marker.toLowerCase(), state);
+        }
+        if (chapter === 1 && marker === 'A') await showOfficeNurse?.();
+        if ('12'.includes(marker)) {
+          assert.ok(state.evidence.includes(chapter + '/' + marker), 'Record found');
+          if (inspectRecord) {
+            assert.equal(hudBefore.clueModels[marker].visible,true);
+            assert.ok(hudBefore.clueModels[marker].parts>=2 && hudBefore.clueModels[marker].fallbackHidden,
+              'the authored page assembly replaced its fallback before reading it');
+            assert.equal(hudAfter.clueModels[marker].visible,false,'the collected mesh itself is hidden');
+          }
+        }
         if (marker === 'E') {
           if (chapter === 1) {
             await whenPlaying(progress => progress.chase && !progress.chase.started, 'archive lift opens onto the transfer floor');
@@ -74,6 +92,7 @@ async function walkChapter({ snapshot, whenPlaying, moveTo, hold, tap, aim, read
         continue;
       }
       const [, direction, count = '1', sprint] = /^([NESW])(\d+)?(!)?$/.exec(command);
+      proof.tilesWalked += Number(count);
       const [dx, dz, key] = directions[direction];
       if (dx) await moveTo('z', centre(row));
       else await moveTo('x', centre(col));
@@ -94,11 +113,14 @@ export async function play3DJourney(browser, ending) {
   assert.ok(['complete', 'normal'].includes(ending));
   const chapters = [];
   const recoveries = [];
-  for (const [chapter, route] of journeys.entries()) {
+  for (const [chapter, routes] of journeys.entries()) {
+    const route = typeof routes === 'string' ? routes : routes[ending];
     for (let attempt = 0; attempt < 3; attempt++) {
       const start = await browser.snapshot();
       try {
+        browser.onChapter?.(chapter, attempt ? `retry ${attempt}` : 'started');
         chapters.push(await walkChapter(browser, ending, chapter, route));
+        browser.onChapter?.(chapter, 'completed');
         break;
       } catch (error) {
         const stopped = await browser.snapshot();

@@ -4,6 +4,24 @@ import { Dialogue } from '../dist/3d/dialogue.js';
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+test('Chinese captions preload and play only the English guide recording', async t => {
+  const requested = [];
+  t.mock.method(globalThis, 'fetch', async url => {
+    requested.push(new URL(url).pathname.split('/').at(-1));
+    return { ok: true, arrayBuffer: async () => new ArrayBuffer(1) };
+  });
+  const { dialogue, sources, words } = fixture(t);
+  dialogue.setLanguage('zh');
+  dialogue.play('mourningGuide');
+  await settle();
+  assert.deepEqual(requested, ['mourning-guide-en.m4a']);
+  assert.equal(sources.length, 1);
+  assert.match(words.textContent, /[\u4e00-\u9fff]/);
+  dialogue.setLanguage('en');
+  assert.doesNotMatch(words.textContent, /[\u4e00-\u9fff]/);
+  assert.equal(sources.length, 1, 'changing captions does not restart speech');
+});
+
 function fixture(t, decode = () => ({ duration: 1.8 })) {
   const speaker = {}, words = {};
   const caption = { hidden: true, querySelector: tag => tag === 'strong' ? speaker : words };

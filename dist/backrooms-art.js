@@ -1,6 +1,7 @@
 import { ANNEX_WINGS, CHASE_DOOR, CHASE_LAMP, CHASE_OBSTACLES, CHASE_START, annexFloorAt, annexWingAt } from './backrooms.js';
 import {drawChaseProp} from './chase-props.js';
-import {drawApparition,drawPhaseRipple} from './actor-art.js';
+import {drawApparition,drawContactDrops,drawPhaseRipple} from './actor-art.js';
+import {drawLifeShading} from './cinematic-art.js';
 
 const WALL_DAY=['#e1d194','#b5a265','#8e7b4f','#514f3b'];
 const WALL_NIGHT=['#a7b399','#738474','#505f58','#303e41'];
@@ -306,7 +307,7 @@ export function drawBackrooms(a,s){
   // Bent reaching arm and fingers extend from the service clerk's sleeve.
   a.rect(4,-5,9,5,'#28383b');a.rect(11,-6,8,4,'#485954');a.rect(18,-7,6,3,'#929a82');
   a.rect(23,-8,3,1,'#b7b696');a.rect(24,-6,3,1,'#9d9e84');c.restore();
-  a.player(p);
+  a.player(p,s.reducedEffects);
   if(!s.reducedEffects&&chase.active){
     const lamp=wing.name==='stair'?'#e5ad89':night?'#b7d9d9':'#e1d5a3';
     for(let i=0;i<14;i++){
@@ -328,6 +329,8 @@ export function drawBackrooms(a,s){
     }
   }
   if(!s.reducedEffects&&s.shiftFx>0)drawPhaseRipple(a,s);
+  if(s.death?.kind==='ghost'&&p.lifeState==='dying')drawContactDrops(a,p.x-a.cam+7,p.y+11,s.death.time-.04,p.dir,s.reducedEffects);
+  drawLifeShading(a,s);
   a.rect(0,0,480,13,'#283b3b');a.label('017 / '+(zh?wing.zh:wing.en),8,9,'#e0d3a4',7);
   const progress=Math.max(0,Math.min(1,(p.x-CHASE_START)/(CHASE_DOOR-CHASE_START)));
   a.label('HP',243,9,'#c7c9ad',7);

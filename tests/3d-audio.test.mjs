@@ -15,12 +15,39 @@ test('audio directions follow the rotating listener and distant sounds decay', (
   assert.ok(sound.spatial({ x: 3, z: -1 }).pan > 0.6);
 });
 
-test('three room transitions, threats and overlapping effects produce bounded stereo PCM', async () => {
+test('a three-room cue timeline with threats and overlapping effects produces bounded stereo PCM', async () => {
   const rate = 48_000;
   const seconds = 11;
   const context = new OfflineAudioContext(2, seconds * rate, rate);
+  let clock = 0;
+  const clocked = new Proxy(context, { get(target, key) {
+    if (key === 'currentTime') return clock;
+    const value = Reflect.get(target, key, target);
+    return typeof value === 'function' ? value.bind(target) : value;
+  }});
   const sound = new HorrorAudio();
-  sound.initialize(context);
+  sound.initialize(clocked);
+  // Count scheduled sources only while they are live on the fixture's clock.
+  // The real onended callbacks cannot run until the renderer processes audio.
+  const voices = [];
+  const trackVoice = sound.trackVoice.bind(sound);
+  sound.trackVoice = (source, effects) => {
+    trackVoice(source, effects);
+    const voice = { end: Infinity };
+    voices.push(voice);
+    if (source.buffer) {
+      const start = source.start.bind(source);
+      source.start = (at, offset = 0, duration = source.buffer.duration - offset) => {
+        voice.end = at + duration / source.playbackRate.value;
+        start(at, offset, duration);
+      };
+    }
+    const stop = source.stop.bind(source);
+    source.stop = at => {
+      voice.end = Math.min(voice.end, at);
+      stop(at);
+    };
+  };
   const cues = new Map([
     [2, 'step'], [6, 'interact'], [11, 'pickup'], [22, 'door'], [35, 'shift'],
     [42, 'warning'], [43, 'howl'], [45, 'blocked'], [49, 'jump'], [52, 'land'], [59, 'hit'],
@@ -42,13 +69,19 @@ test('three room transitions, threats and overlapping effects produce bounded st
     else if (cue) sound.cue(cue);
   }
 
-  const updates = Array.from({ length: 100 }, (_, frame) => (
-    context.suspend(0.085 + frame * 0.105).then(() => {
-      scene(frame);
-      return context.resume();
-    })
-  ));
-  const [buffer] = await Promise.all([context.startRendering(), ...updates]);
+  // Keep the original suspension grid and quantum rounding, without asking
+  // the native renderer to register 100 suspension jobs before its own start.
+  const quantum = 128;
+  for (let frame = 0; frame < 100; frame++) {
+    clock = Math.ceil((.085 + frame * .105) * rate / quantum) * quantum / rate;
+    sound.liveVoices = voices.filter(voice => voice.end > clock).length;
+    scene(frame);
+  }
+  assert.equal(sound.level, 2);
+  assert.ok(sound.night);
+  assert.ok(sound.lastCues.get('ending') > 9, 'the route stopped before the final cue');
+  sound.liveVoices = voices.length;
+  const buffer = await context.startRendering();
   const left = buffer.getChannelData(0);
   const right = buffer.getChannelData(1);
   let peak = 0;

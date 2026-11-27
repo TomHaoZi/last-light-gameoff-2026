@@ -1,5 +1,115 @@
 # Progress · 2.0.0-rc.1
 
+## RC40 · Save safety, close-up animation and 1440p rendering
+
+Both editions protect newer saves from stale tabs and read the latest save before resuming. The touch layout protects live HUD hit areas. The Clerk has refined facial contours and hand geometry. The opening, death/recovery and ending use synchronized staging in each edition. Boiler room prop batching preserves original models, textures and lighting. [RC40 verification](docs/releases-rc40.md).
+
+## RC39 · Exact-package closeout
+
+Both fresh endings replayed on the unchanged ZIP; zero deaths, saves reopened, returned from Classic. Fixed the combined mobile test's false reload; real refresh + two orientation changes + reset now ends with all six input moves and 0.39 rad yaw in Chrome emulation. Saved actual stereo master recordings of the full 3D complete route and standard/reduced Clerk encounters in both editions with no measured sample clipping. Rechecked 2,341 architecture mounts, 36 Annex groups, wall/socket fits and roof corner/splice phase checks; sampled later Annex and rooftop views separately from geometry assertions. 154 tests/124 modules. [Commands, audio and evidence](docs/closeout-rc39.md). Open gates: physical iOS/Android, listening by ear and remaining point-by-point visual review. No publication.
+
+## RC39 · Localized wounds and close-contact performance
+
+Live http://127.0.0.1:8781/ matches final extraction `/tmp/ll-rc39-final.2A6Z87/site`; ZIP SHA-256 `ee529c611e8912ad512e86799f07f516b13635f000d84ccee59414bbbf548d28`. Added pose-stable wound masks on skin, wrappings, teeth and knuckles, asymmetric facial pulls, uneven stride, first-person hand transfer, local blood droplets and short sound layers. Classic gains pixel wounds/contact effects. Simulation/levels byte-match RC38. 154 tests, 123 modules; both fresh zero-death journeys with 28 obstacles each and save/Classic round trip; 3D/Classic capture, roof combat/recovery, Chrome mobile layout, normal/reduced effects and English voice checks passed. Read `docs/contact-horror-rc39.md` and `docs/evidence/rc39/`. Next: full mix listening, physical phone/tablet checks, and continue detailed visual review across remaining placements.
+
+## RC38 · Rooftop loop and apparition performance
+
+Live local preview http://127.0.0.1:8780/ matches `/tmp/ll-rc38-final.mQz4fu/site`; ZIP 60,144,333 bytes SHA-256 `5a92e5580c02826559c59ba2c76f3858bce8480ad6ddfb714099b2007fd17da7`. West lower day catwalk, upper night lookout, separate optional evidence/lighting, all old markers and stable ghost seeds. Both real Chrome endings zero-death, saved/reopened and Classic round trip; from RC37's 79 tiles/eight shifts to RC38 56 (normal) or 68 (complete) tiles/one shift on the audited routes. Real fall/recovery and combat passed. Added Clerk recognition/charge/recoil and timed foley, Annex vault pose/spatial foley, and Classic alert/search/charge portrayal. 151 tests/121 modules. Chrome mobile swipes passed both orientations, concurrent stick and after a separate touch-close/rotation. Longer edit/reload/twice-rotate/reset probe delivered no final pointer events; retry that combined sequence on a physical phone/tablet, then review the mix by ear and continue the all-placement geometry sweep. Evidence and exact commands: `docs/roof-loop-rc38.md`, `docs/evidence/rc38/`.
+
+## RC37 · Ash Front and mobile HUD
+
+Verified exact extraction `/tmp/ll-rc37-ash.qtvsWQ/site` (60,141,971 bytes, SHA-256 `78d284fa11375aeef13318151620ec6a964c547101712f54103e73bcd2452bf3`) at http://127.0.0.1:8779/; earlier previews preserved. Low roof cloud ceiling and cold backlighting retain path lighting; worker listening/closing/recoil blends coordinate hands, face and spatial breath. Round 3D touch controls can be moved and resized per orientation. 150 tests/121 modules; both fresh zero-death endings, reopened saves and Classic round trip; rooftop day/night, combat, fall/revival, English voice, HUD drag/scale/reload/multitouch/reset passed. Touch swipe was not verified: CDP touches on the canvas produced no yaw. See `docs/ash-front-rc37.md`, `docs/evidence/rc37/`; exact-route logs are `complete.log` and `normal.log` beside the extraction. Next: reproduce swipe on a physical device against RC36, then reduce mandatory roof backtracking and extend creature choreography beyond workers. Full listening remains open.
+
+## RC36 · Fitted CC0 service props
+
+Exact local preview http://127.0.0.1:8778/ serves RC36 (60,135,922 bytes, SHA-256 `a44bf147613c3ab59ceb640169464bcc6b6660b90855ae97cbca7aa97cbf879b`); RC35/8777 preserved. Imported five official Poly Haven originals with 1K maps across 17 locations, adjusting hose, utility box and Annex props after actual rendered review. Annex props clear the corridor by ≥0.59 m. Both zero-death endings, persistence, real Annex fall/recovery, roof combat/touch emulation and English speech passed. See `docs/online-models-rc36.md`, `docs/evidence/rc36/` and editable `art/blender/polyhaven-rc36.blend`. Next online wave: assess `power_box_01`, `industrial_pipe_lamp`, `small_oil_can_01` and `ladder_sectioned_01`, preferring real replacement targets and reducing texture payload before increasing kit count. Full visual sweep, device touch, and listening sign-off are open.
+
+## RC35 · City streets and straight fascia joins
+
+Exact local preview http://127.0.0.1:8777/ serves RC35 (45,813,020 bytes, SHA-256 `3f716175a9204e71784312ccd98c560ac06338a1ff986b0eccb4fa4c3952294d`); RC34/8776 preserved. Added ring boulevard, 29 city lots, 58 streetlights, 116 tower foundations and 112 roof straight splices. Three walked skyline points in both phases; all final geometry families and below-roof bounds, forced GLB failure, 336 straight-splice rays and actual fall/revival passed. Map mount audit: 2,318 kit placements in the main maps and 34 named transfer instance groups. Both exact-package campaigns, annex recovery/sidewall, combat/emulated touch and English voice in both editions passed. See `docs/city-and-fascia-rc35.md` and `docs/evidence/rc35/`. Remaining: use `whole-map-mounts.json` for the visual placement queue, prioritizing unsampled interior wall bays and later transfer recesses; complete physical touch and full AV review on appropriate devices. No claim of universal visual approval or publication.
+
+## RC34 · Closed roof fascia corners
+
+Exact local preview http://127.0.0.1:8776/ serves RC34 (45,715,123 bytes; SHA-256 `a8afa52e4d714f5ddfc164995bc297d009f8cfe750c998d9e8416db3af29ba29`); RC33/8775 preserved. All 25 convex fascia intersections now have lapped drip and soffit returns (17 editable Blender parts, five runtime batches). All 150 corner rays hit the new metal/return; all three phase neighbors retained correct visibility in both phases. Actual walk-off at roof 22/2 fell and revived, both campaigns finished zero deaths, and transfer recovery/side-wall, roof combat/touch emulation and both editions' English speech passed. See `docs/roof-corners-rc34.md` and `docs/evidence/rc34/`. Next: walked south-landing shots show blank ground and ungrounded-looking tower feet. Probe west/east perimeter sightlines and consider modeled city-base roads/lots; also inspect remaining straight fascia splices. Whole-map close-up acceptance, physical touch, and full AV remain open.
+
+## RC33 · Boiler controls and archive wall fit
+
+Local preview http://127.0.0.1:8775/ serves exact RC33 (45,679,908 bytes; SHA-256 `935c9bce9df5d701b0f8d41d9e3f445136a511cc73ae175f1c164ccbaf6fef47`); preserved RC32 and earlier. Resolved the 11 boiler junction-block overlaps, five archive sash conflicts and one decorative door conflict. Modeled five sign trays and raised the cabinet-side plaque; 705 mounted geometry samples plus 145 separate socket samples clear. Both zero-death endings, persistence, roof combat/touch emulation and English speech in both editions passed using the independent ZIP extraction. See `docs/wall-fit-rc33.md`. Next: inspect the 25 convex roof fascia seams in `docs/evidence/rc33/next-roof-edge-candidates.json`, starting with the three phase-adjacent edges. Review underside and reachable skyline angles; whole-map acceptance, physical touch and full AV remain open.
+
+## RC32 · Wall fit and edge finishes
+
+Local preview http://127.0.0.1:8774/ serves exact RC32 (45,668,229 bytes; SHA-256 `502ac617d2047d99133dd2b59eb9a2f3959f943ae9267d0b4a668e171e1dbc27`); preserved RC24–RC31. Fixed socket/board overlap and removed the duplicate sash at archive north wall 9/0; all 145 socket rays now clear. Added 68 visible stitched edges, 22 clipped recess bars and one roof inside return. Chrome exact package, both zero-death endings, phase clearance, falls/revival, roof combat/touch emulation and English speech in both editions passed. See `docs/fit-rc32.md` and `docs/evidence/rc32/` for commands, screenshots and logs. Next: side-on check of the one door-surround candidate, five sash candidates and eleven boiler controls (`docs/evidence/rc32/fit-review-candidates.json`), then reachable skyline/perimeter joints. Physical mobile, full AV and per-placement close-ups remain open.
+
+## RC31 · Interior electrical and seam details
+
+`releases/last-light-3d-3.0.0-rc.31-html5.zip`: 45,645,277 bytes, SHA-256 `63239bde79717503e999808ee21b61a252beaa95bf5834bc3580e58bfa221f16`. [Port 8773](http://127.0.0.1:8773/) serves `outputs/local-play/rc31/site` (PID 26881 at launch), identical to `/tmp/ll-rc31.7C9szs/site`; RC24–RC30 hashes and preview ports preserved. `art/blender/detail-rc31.blend`: 11 roots, 130 editable parts. Actual mount counts, sampled camera checks and both endings verified on the exact bytes. Mounted mesh rays found ribs on 184/184 neutral roof tiles and no neutral underside mesh at 32/32 phase cells. Annex airborne phase swap altered fitting visibility in the same group as the bridge; capture, two intentional falls and revival still worked. Both full routes: nine stations, 28 obstacles, zero deaths, endings survived reload/Classic round trip. Roof battle with emulated landscape touch, English speech in both editions, 144 unit tests and 115 syntax-checked modules passed. [Commands and evidence](docs/detail-rc31.md).
+
+Next: start the placement-level interference sweep, first at the archive arrival socket/shelf and door jambs on wall seams; then finish secondary carpet and recess borders, inspect all roof corner joints, and verify reachable skyline viewpoints by coordinate. Whole-map close-up, physical touch and full AV sign-off still open.
+
+## RC30 · Utility, threshold and distant-city families
+
+`releases/last-light-3d-3.0.0-rc.30-html5.zip`: 45,579,961 bytes, SHA-256 `5ba016e04a6f3dcd718907f3b9dad7655943b077135d4fb760faecca0748925d`. [Port 8772](http://127.0.0.1:8772/) serves `outputs/local-play/rc30/site` (PID 21770 at launch), verified identical to `/tmp/ll-rc30-final.7bE1V8/site`. RC24–RC29 hashes and independent preview origins verified unchanged. Blender kit `art/blender/utilities-rc30.blend`: ten assemblies, 187 mesh parts. Exact-package camera/mesh pass verified 19 pipe bends, 67 stops, 41 firestops, 13 lamps, 68 distant buildings, two-sided fixed pit edges and floor seam, 28 transfer crossings; final flange clears old beam in real camera. Both exact-package campaigns completed nine stations and 28 obstacles with zero deaths, retained both endings through reload and the Classic round trip, and verified all six record models on the complete route. In separate checks: deliberate capture, both missed-gap failure paths and checkpoint recovery; roof combat and emulated touch; 3D and Classic English speech with Chinese UI. `npm test`: 144 passing; `npm run check`: 115 modules. [Evidence](docs/utilities-rc30.md).
+
+Next: inventory active wall/ceiling and panel-junction placements; replace old electrical plates, conduit and ceiling fixtures, then run placement/overlap checks under both phases. Also inspect roof underside fields, inside corners, annex wall material joins, physical touch and full AV.
+
+## RC29 · Junctions and landings
+
+`releases/last-light-3d-3.0.0-rc.29-html5.zip`: 45,505,431 bytes, SHA-256 `7978e693e08af6f150df004173b7e71cec56894f384b091f496826a88c56f8a0`. [Port 8771](http://127.0.0.1:8771/) serves `outputs/local-play/rc29/site` (PID 14833 at launch), verified identical to `/tmp/ll-rc29-final.Bhwb6o/site`; RC24–RC28 hashes and ports preserved. New editable kit `art/blender/junctions-rc29.blend`: eleven assemblies / 107 parts. Standalone close-up run verified all mount counts and phases, wall collision at the doorway, leaf motion against static casing, and 28 obstacle crossings. Exact ZIP normal and complete endings passed with nine stations, 28 obstacles and zero deaths, including the complete retest with screenshots of all three landings; saves reopened and survived the Classic round trip. Roof combat/emulated touch, Classic English playback and deliberate transfer capture/revival also passed. `npm test`: 144 passing; `npm run check`: 115 modules. [Evidence](docs/junctions-rc29.md).
+
+Next: boiler elbows and penetrations, annex pit-mouth nosings and floor transition seams, rooftop fixture housings and sightline audit of coarse skyline. Then run the placement/overlap sweep, physical touch and AV review; don't treat family coverage as close-up sign-off.
+
+## RC28 · Hazards, archive floor fit and evidence details
+
+The exact archive `releases/last-light-3d-3.0.0-rc.28-html5.zip` (45,409,575 bytes, SHA-256 `22f2264657dde5e4efeebdc0fcc86bbaeb44d1633178beca09b9b03fed3fc495`) is extracted to `outputs/local-play/rc28/site`, served on [8770](http://127.0.0.1:8770/) (PID 11540 at launch). RC24–RC27 archives and origins are unchanged. `art/blender/inspection-rc28.blend` and its builder hold two grate families for all eight placements, three stands and six records. Close-up review found missing visual slabs beneath both archive hazards; corrected `archive-interior.js` to identify phase bridge tiles by kind, not generic phase metadata. Corrected shape does not change collision. Final-package outlet, combat, and Classic sound checks passed. Both fresh campaign routes completed nine stations and all 28 obstacles with zero deaths; collection of all six records hid the corresponding models, and both endings survived reload and Classic round trips. `npm test`: 144 passing; `npm run check`: 115 modules. [Evidence and commands](docs/inspection-rc28.md).
+
+Next: audit wall/ceiling/lift junctions by family; build landing threshold and corner-cap assemblies before closing the seam checklist. Then address roof coping/underside and transfer-floor joinery.
+
+## Verified local candidate · RC27 close-up architectural geometry
+
+[RC27 preview](http://127.0.0.1:8769/) serves `outputs/local-play/rc27/site` (PID 9962 at launch). `releases/last-light-3d-3.0.0-rc.27-html5.zip`: 45,270,865 bytes, SHA-256 `845477bb07e1366fa3c0bba5f21705e88e522d5f0afab5b4299d36894b6d1d54`. Earlier ZIP hashes and preview ports remain unchanged.
+
+Nine editable modules in `art/blender/architecture-rc27.blend` replace the repeated boiler louvers/saddles/unions, archive sashes/door surrounds, 155 roof fascia segments, all 81 phase deck tiles in the main maps, and the lining of all 12 annex shafts. Verified on the extracted package: both endings from fresh Chrome profiles, nine stations and 28 obstacles per run, zero deaths, reload and Classic round trips, real phase and mesh assertions, roof combat/revival, emulated touch and English recordings in both editions. `npm test`: 144 passing; `npm run check`: 114 modules. [Close-up evidence and commands](docs/architecture-rc27.md).
+
+Full-detail acceptance remained open after RC27. RC28 above covers hazards and records; wall/floor/ceiling junctions, coping and roof undersides, and annex trim still need the same review. The [detail register](docs/detail-register.md) keeps remaining source locations and the close-up criteria explicit.
+
+## Verified local candidate · RC26 geometry across all four areas
+
+[RC26 preview](http://127.0.0.1:8768/) serves the exact release extraction from `outputs/local-play/rc26/site` (PID 8168 at launch). `releases/last-light-3d-3.0.0-rc.26-html5.zip`: 45,026,365 bytes, SHA-256 `156424c2dcf499213a031e19c9b7442d04ee9cff945f2b31ee4b8684f8a8e5eb`. Both earlier preview ports and archived ZIP hashes remain unchanged.
+
+Whole-route batch: 127 repeated boiler/archive props, all seven annex crate hurdles, 13 nursery saddles, seven fascia brackets, and 48 modeled midground buildings. `art/blender/full-map-layout.blend` is a separate editable four-area spatial reference; reopened in Blender to verify 1,072 objects and 87 phase-specific floor pieces. Asset-level evidence and layers are in [the RC26 map record](docs/geometry-map-rc26.md). On the exact ZIP, Chrome completed nine stations, all 28 transfer obstacles, six records and the complete ending with zero deaths; reload and Classic round trip preserved the ending. Roof keyboard/mouse combat, checkpoint recovery, emulated touch and English audio in Chinese UI still pass. `npm test`: 144 passing; `npm run check`: 113 modules.
+
+Next: replace the boiler wall vent and pipe junctions and archive window/door surrounds, then inspect all architectural junctions, roof edges/undersides and annex trim close-up. This is map-wide coverage, not every detail finished. RC26 normal ending was not replayed; physical mobile and full audiovisual sign-off remain open.
+
+## Verified local candidate · RC25 roof combat and online geometry batch
+
+`releases/last-light-3d-3.0.0-rc.25-html5.zip` is 36,693,291 bytes, SHA-256 `02fa6671e322ab95c32f6a9720535a718abede109d4d2f85ec2651ddfa7be3f0`. The [RC25 preview](http://127.0.0.1:8767/) serves its exact extraction from `outputs/local-play/rc25/site` (Python PID 5361 at launch). The 8766 RC24 session and its archived bytes remain unchanged.
+
+Four CC0 Poly Haven imports (roof wrench, boiler tool chest, office drawer cabinet, transfer rack), the original Blender wall extractor and the new janitor grip are visible in play. Both editions now use only English speech; the ZIP excludes the Mandarin takes. 144 tests and 110 syntax checks pass. Exact-package Chrome played both endings from fresh saves (9 stations, 28 obstacles, zero deaths), checked reload and Classic round trip, demonstrated English audio with Chinese UI, and exercised roof keyboard/mouse combat, checkpoint reset and emulated touch. [Sources, screenshots, commands and run logs](docs/geometry-combat-rc25.md).
+
+Next: inventory remaining generic props by floor and replace the boiler manifolds/pressure hardware and archive furniture first; then annex obstacles, roof edge mounts and skyline. Whole-game model acceptance, physical mobile testing and full audiovisual sign-off remain open.
+
+## RC24 · Visible complete playthrough and recording
+
+Played the exact extracted RC24 game through twice from separate fresh profiles: a 1280×720 recording and a headed Chrome pass in the signed-in macOS Aqua desktop. Both used Chrome game inputs, completed all three chapters and 28 transfer obstacles, collected all six records, reached the complete ending with zero deaths, and retained it after reload and a Classic round trip. [Full 3:24 recording](media/LAST_LIGHT_RC24_Complete_Playthrough.mp4) · [Commands and verification](docs/archive-nurse-rc24.md#complete-route). No public upload. Physical mobile, normal ending on these exact bytes and whole-asset acceptance remain open.
+
+## RC24 · Archive nurse fan redesign (local review)
+
+The archive enemy has been replaced with a LAST LIGHT fan redesign using the existing CC0 human rig; the old wings are absent and Classic has matching pixel art. Chrome on the extracted final ZIP verified the actual rig, pursuit, capture and lamp recovery in 3D and the corresponding encounter/capture/bypass in Classic. [Source, package verification, exact hash and visual evidence](docs/archive-nurse-rc24.md).
+
+The separately listed CC BY `Nurse of Horror` was not used; Sketchfab's download endpoint required authentication (public metadata was accessible). No official or fan download was incorporated. Next: roof edge mounts, then boiler arrival machinery. Full asset replacement and final campaign verification remain open.
+
+## RC23 · Roof garden replacements (local review)
+
+The [RC23 package](releases/last-light-3d-3.0.0-rc.23-html5.zip) uses three new Blender assemblies: the entrance trough, 13 portable nursery boxes, and the wall irrigation header. Chrome verified the actual replacement meshes and both phases on the extracted ZIP; all three main-floor shortcut routes still pass. [Reproduction, screenshots, exact hash and evidence](docs/model-quality-rc23.md).
+
+Bounded online searches did not identify a verified original 2024 remake nurse asset authorized for use; no unverified model was embedded. Resume with modeled edge-planter supports, near skyline and boiler arrival machinery while the original nurse asset remains unresolved. RC22 remains the rollback baseline, and this is not full asset or campaign acceptance.
+
+## RC22 · First 3D geometry pass (local review)
+
+The local RC22 ZIP contains an editable checkpoint lantern shared by the three main floors, a refined gramophone and modeled architectural details. Chrome on the extracted package validated actual lantern mesh instancing, the three main-floor shortcut routes, the existing office capture and revival, and Classic smoke. The whole-campaign run is not complete for this candidate. [Exact commands, screenshots, evidence and next gate](docs/model-quality-rc22.md).
+
+The user confirmed the target is the Bubble Head Nurse from the 2024 Silent Hill 2 remake, not the 2001 model or an original redesign. The existing Clerk remains unchanged because no model or textures were supplied. Next concrete step: inspect the authorized source asset's rig and UVs once it is available. Continue editable geometry passes on the remaining 3D models; no public upload.
+
 ## RC21 · Mobile controls and modeled facilities
 
 Both editions offer **Play in Mobile** and use right-click for the default phase switch. Classic also keeps Shift. Settings can rebind the phase switch to X or another key. Existing custom bindings are preserved.
@@ -48,6 +158,8 @@ Fresh Chrome keyboard runs finished the normal and complete endings of both edit
 
 The release fixes overlapping checkpoint triggers, inconsistent phase feedback on revival, guidance after completing the work, and edition switching after a 3D ending. The 900 × 506 browser frame now shows the whole 2D playfield after clock-in. Both editions protect progress from older tabs and unreadable saves. See the [section-by-section acceptance record](docs/gameplay-flow-rc15.md).
 
+Public verification matched all 113 files in itch embed 20794041 with the release archive, allowing for the itch loader added to the HTML. Signed-out Chrome played both openings and changed phase. GitHub main was verified at 53eaeb15.
+
 ## Blender character and horror pass · 3.0.0-rc.14
 
 Three skinned workers have separate facial damage, hair, missing teeth, uniforms and work equipment. Edited Blender sources ship with the repository. The first-person janitor operates stations, raises a hand during capture and checks a working watch. The three instruments, folding inspection gates, phase light, breath and dust render in the playable floors. Classic ghost sprites carry their own small injuries.
@@ -55,6 +167,19 @@ Three skinned workers have separate facial damage, hair, missing teeth, uniforms
 Two fresh Chrome keyboard runs completed both 3D endings from the packaged build with zero deaths. The complete ending recovered all six records. Ten optional jumps and seven airborne switches passed alongside a deliberate fall and checkpoint recovery on each floor. The 2D keyboard run completed all 18 work areas and saved the complete ending. All 92 automated tests passed. Three 1440p High archive trials on Apple M4 kept the release build at 2× MSAA. See the [measurements](docs/character-review-rc14.json) for timing distributions and the [in-engine screenshots](media/character-art-rc14.jpg) for the final character art.
 
 Twelve performed English lines include eight new cues with English and Chinese subtitles. The 60-second audio engine render peaked at −1.31 dBFS with zero invalid or clipped samples. Physical headphone listening was unavailable.
+
+Public itch build 20792997 and GitHub main commit 83f9a36 were verified after publication. Signed-out Chrome entered both editions and changed phase. All 112 game files matched the packaged bytes after accounting for the standard itch.io loader appended to the two HTML files.
+
+## Dual-edition gameplay trailer · 3.0.0-rc.13
+
+- The 38.9 s trailer uses actual Chrome footage and original game audio across both editions. Rooftop relay jumps, airborne phase changes, ghost encounters and Gary’s handover are shown. The stairwell performance is the in-game CC0 recording by BlueSiren.
+- The 1920×1080 master completed browser playback and full-stream video and audio analysis. The caption matched the locally transcribed line. Eight source cues matched their edit positions within 20 ms, with no clipped samples. Subjective headphone listening was unavailable in the agent environment.
+- The [unlisted YouTube trailer](https://www.youtube.com/watch?v=uExhewpGUe4) played inside the [public itch.io page](https://tomhao.itch.io/last-light). Master: `media/LAST_LIGHT_2D_3D_Gameplay_Trailer_rc13.mp4` (34,437,584 bytes).
+
+## BIG Festival 2027 · Submission 5454
+
+- The official [entry](https://festival.bigfestival.com.br/inscription/5454) retains the new [gameplay trailer](https://www.youtube.com/watch?v=uExhewpGUe4) and [public play link](https://tomhao.itch.io/last-light) after reopening. Festival status is **Not sent**. The form requires proof of enrollment for the developer's confirmed student status.
+- Fresh Chrome guest sessions reached active play in both editions from the public build. In this network's Incognito session, YouTube applied its anti-bot sign-in prompt to both the video page and the itch.io embed. The published video plays in a signed-in session.
 
 ## Browser title navigation · 3.0.0-rc.13
 

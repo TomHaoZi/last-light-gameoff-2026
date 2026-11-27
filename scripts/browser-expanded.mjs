@@ -1,6 +1,7 @@
 import { CHASE_DOOR, CHASE_LAMP, CHASE_OBSTACLES } from '../dist/backrooms.js';
 import {playAnnex} from './play-annex.mjs';
 import {playOfficeGaze} from './play-office-gaze.mjs';
+import {installMixTap,saveMix} from './record-browser-mix.mjs';
 import {freshSave} from '../dist/save.js';
 import {join,resolve,dirname} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -17,6 +18,8 @@ const replayAnnex=process.env.CHECK_ANNEX_REPLAY==='1',checkAnnex=replayAnnex||p
 const checkOfficeGaze=process.env.CHECK_OFFICE_GAZE==='1';
 const checkRelays=process.env.CHECK_RELAYS==='1';
 const checkRecovery=process.env.CHECK_RELAY_RECOVERY==='1';
+const sceneStills=process.env.SCENE_STILLS==='1';
+const storyFrameTimes={clock:[.68,.36,1.62],'ending-normal':[.9,2.25,2.28],'ending-complete':[.9,2.25,1.45,1.68]};
 if(!Number.isInteger(limit)||limit<1||limit>18)throw Error('MAX_SECTORS must be between 1 and 18');
 await mkdir(out,{recursive:true});
 const servedRoot=resolve(process.env.SERVE_DIR||'dist'),pagePath=process.env.PLAYTEST_URL_PATH||'/';
@@ -77,6 +80,19 @@ try{
  let tabs;for(let i=0;i<50;i++){try{tabs=await(await fetch(`http://127.0.0.1:${debug}/json`)).json();if(tabs.some(t=>t.type==='page'))break;}catch{}await sleep(100);}
  ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j;});ws.onmessage=e=>{const m=JSON.parse(e.data),w=wait.get(m.id);if(w){clearTimeout(w.timer);wait.delete(m.id);m.error?w.reject(Error(JSON.stringify(m.error))):w.resolve(m.result);}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);};
  await send('Runtime.enable');await send('Page.enable');
+ await send('Emulation.setFocusEmulationEnabled',{enabled:true});
+ await send('Page.addScriptToEvaluateOnNewDocument',{source:`(() => {
+  window.qaFocus=[];
+  function record(event) {
+   const events=window.qaFocus;
+   events.push({type:event.type,at:performance.now(),hidden:document.hidden,focused:document.hasFocus()});
+   if(events.length>40)events.shift();
+  }
+  window.addEventListener('focus',record);
+  window.addEventListener('blur',record);
+  document.addEventListener('visibilitychange',record);
+ })()`});
+ if(process.env.RECORD_MIX)await installMixTap(send);
  for(let n=0;n<40;n++){try{if((await fetch(`http://127.0.0.1:${port}/`)).ok)break;}catch{}await sleep(100);}
  await send('Page.navigate',{url:`http://127.0.0.1:${port}${pagePath}`});await sleep(200);let ready=false;for(let n=0;n<90;n++){if(n===25||n===55){log.push({event:'startup-reload',retry:n});await send('Page.reload');await sleep(250);}ready=await evaluate("document.readyState==='complete'&&typeof window.lastLight?.snapshot==='function'&&!!document.getElementById('start')");if(ready)break;await sleep(100);}if(!ready){log.push({event:'startup-diagnostic',page:await evaluate("({url:location.href,ready:document.readyState,title:document.title,body:document.body?.textContent?.slice(0,180)})")});throw Error('Game module readiness timed out');}if(checkAnnex||checkOfficeGaze){
   const fixture=freshSave();
@@ -86,8 +102,10 @@ try{
   }
   else if(replayAnnex)Object.assign(fixture,{floor:2,sector:5,finished:true,ending:'complete',mechanisms:['1/archive'],evidence:['night-letter']});
   else Object.assign(fixture,{floor:1,sector:2,mechanisms:['1/archive'],events:['backrooms-entered']});
-  await send('DOMStorage.enable');
-  await send('DOMStorage.setDOMStorageItem',{storageId:{securityOrigin:'http://127.0.0.1:'+port,isLocalStorage:true},key:'last-light-v3',value:JSON.stringify(fixture)});
+  const module = new URL('save.js',`http://127.0.0.1:${port}${pagePath}`).href;
+  const result = await send('Runtime.evaluate',{awaitPromise:true,returnByValue:true,expression:`import(${JSON.stringify(module)}).then(async ({openSave,commitSave}) =>
+    commitSave(localStorage,${JSON.stringify(fixture)},await openSave(localStorage)))`});
+  if(result.exceptionDetails||result.result.value!==null)throw Error('Private chapter fixture could not be committed');
   await send('Page.reload');await sleep(300);
   if(checkAnnex&&!replayAnnex&&!(await snapshot()).backrooms)throw Error('Entry lamp save did not load');
  }
@@ -99,8 +117,10 @@ try{
  }
  let room='',data,graph,action=null,lastDeath=0,lastScene='',lastAdvance=0,lastProgress=Date.now(),lastSupport='',stuck=0,goalWatch=null,navigation=null;
  const deadline=Date.now()+Number(process.env.PLAYTEST_MS||900000);
+ let focusResumes=0;
  if(checkOfficeGaze){
   const receipt=await playOfficeGaze({snapshot,key,tap,stop,sleep,screenshot,evaluate});
+  if(process.env.RECORD_MIX)console.log(JSON.stringify({liveMix:await saveMix(send,process.env.RECORD_MIX,5)}));
   log.push({event:'office-gaze-complete',receipt});passed=true;
  }
  while(!checkOfficeGaze&&Date.now()<deadline){
@@ -135,18 +155,38 @@ try{
    log.push({event:'ending',snapshot:s});await screenshot('ending');
    if(!continuation)routeEvidence.verifyEnding(s,complete?'complete':'normal',expectedRooms,checkRelays);
    else if(complete&&s.ending!=='complete')throw Error('Full evidence run did not reach complete ending');
+   if(process.env.RECORD_MIX)console.log(JSON.stringify({liveMix:await saveMix(send,process.env.RECORD_MIX)}));
    passed=true;console.log(`${s.ending} ending reached`);break;
   }
   if(limit<18&&routeEvidence.rooms.filter(item=>item.cleared).length>=limit){
    passed=true;log.push({event:'bounded-section-goal',completed:limit,snapshot:s});break;
   }
   if(s.mode==='between'){await stop();log.push({event:'chapter-complete',snapshot:s});await click();await sleep(300);room='';continue;}
+  if(s.mode==='paused'){
+   await stop();
+   log.push({event:'focus-resume',at:s.time,room:s.room,focus:await evaluate('window.qaFocus')});
+   if(++focusResumes>3)throw Error('Headless browser repeatedly lost focus');
+   await click();
+   await sleep(300);
+   action=null;
+   lastProgress=Date.now();
+   continue;
+  }
   if(s.mode!=='playing')throw Error(`Unexpected mode ${s.mode}`);
   if(s.worldRevision!==2)throw Error('Expected expanded world, not retained-map save');
   const current=`${s.floor}/${s.sector}`;
   if(current!==room){room=current;data=buildSector(s.floor,s.sector,s.mechanisms);graph=graphs.get(data.id);action=null;lastSupport='';lastProgress=Date.now();console.log('Section',room,graph.id);log.push({event:'section',snapshot:s});}
   if(s.deaths>lastDeath){lastDeath=s.deaths;log.push({event:'death',snapshot:s});console.log(`Death ${lastDeath}/3`,s.player.x,s.player.y);if(lastDeath>=3)throw Error('Stopped after three deaths');await stop();action=null;goalWatch=null;await sleep(1750);continue;}
-  if(s.scene){await stop();action=null;const sceneKey=`${s.scene.id}/${s.scene.beat}`;if(sceneKey!==lastScene){lastScene=sceneKey;log.push({event:'scene',snapshot:s});await screenshot(`scene-${s.floor}-${s.sector}-${s.scene.id}-${s.scene.beat}`);}if(s.scene.time>1.1&&Date.now()-lastAdvance>500){await tap('KeyE');lastAdvance=Date.now();}lastProgress=Date.now();await sleep(60);continue;}
+  if(s.scene){
+   await stop();action=null;
+   const sceneKey=`${s.scene.id}/${s.scene.beat}`;
+   const shotName=`scene-${s.floor}-${s.sector}-${s.scene.id}-${s.scene.beat}`;
+   if(sceneKey!==lastScene){lastScene=sceneKey;log.push({event:'scene',snapshot:s});await screenshot(shotName);}
+   const stillAt=sceneStills?storyFrameTimes[s.scene.id]?.[s.scene.beat]:undefined;
+   if(stillAt!==undefined&&s.scene.time>=stillAt)await screenshot(shotName+'-action');
+   if(!stillAt&&s.scene.time>1.1&&Date.now()-lastAdvance>500){await tap('KeyE');lastAdvance=Date.now();}
+   lastProgress=Date.now();await sleep(60);continue;
+  }
   if(!['alive','hurt'].includes(s.player.lifeState)){await stop();action=null;await sleep(30);lastProgress=Date.now();continue;}
   if(checkRelays&&!completedRelays.has(data.id)){
    if(!data.relay)throw Error(`Missing relay layout in ${data.id}`);

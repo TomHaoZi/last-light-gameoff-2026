@@ -1,0 +1,16 @@
+# RC33 · Boiler controls and archive wall fit
+
+[Play the local candidate](http://127.0.0.1:8775/). Package: `releases/last-light-3d-3.0.0-rc.33-html5.zip`, 45,679,908 bytes, SHA-256 `935c9bce9df5d701b0f8d41d9e3f445136a511cc73ae175f1c164ccbaf6fef47`. RC32 stays on port 8774 with its original ZIP and save origin; no public upload.
+
+- Boiler: RC32's anonymous blockers were the 11 vertical feed junction blocks (`.112 × .105 × .091` m; confirmed by instance transforms and a paired side view). Shift those 11 control plates and their fallbacks by 0.32 m along the wall; the pipes and louvres stay in place. All 49 control plates and 35 louvres were probed again.
+- Archive: remove one purely ornamental door and its fallback behind a register cabinet (wall 16/2 east). Remove five ornamental sashes overlapping signs, register cabinets or the outgoing ticket case; the adjacent lamp/grille and cabinets are unchanged. The phases and all simulated doors, stations and collisions are unchanged.
+- Rebuild five office plaques on beveled folded-metal trays with a gasket and brass screws. Raise and narrow **TIME & ATTENDANCE** to clear the cabinet and stay below the crown. `art/blender/sign-mount-rc33.blend`: 6 editable mesh parts; builder: `art/blender/build_sign_mount_rc33.py`. The atlas retains original type and wording, while its geometry now aligns with the tray. On GLB failure the plaque still has a beveled backing.
+
+## Verification and limits
+
+- `npm test`: 144 passed; `npm run check`: 115 modules. Blender reopened the source; ZIP integrity and `diff -qr` against the preview passed. Chrome ran from independent extraction `/tmp/ll-rc33.vBEg0d/site`.
+- `ASSERT_FIT_RC33=1 FIT_PHOTO_CASES=1 FIT_DIAGNOSTIC_STILLS=… node scripts/browser-3d-shortcuts.mjs` with `TEST_DIST` set to the extraction: 141 placements across five families, five sample rays each. No depth occluders in those samples, including 25 plaque queries that hit the print in front of the actual tray. Separately, `FIT_STILLS` and `FIT_VISUAL_STILLS=1` rechecked all 29 sockets (145 rays, clear).
+- [`evidence/rc33/before/`](evidence/rc33/before/) and [`evidence/rc33/after/`](evidence/rc33/after/) hold the paired day/night oblique photos. The paired shots use a render-only camera pose in Chrome, not player movement. The two `archive-time-sign-walked-*` photos were independently reached with normal controls and phase switching, with no camera override.
+- `JOURNEY=complete` and `JOURNEY=normal`: nine stations and 28 transfer obstacles each, zero deaths, six versus zero records. Reload and Classic round trip retained the endings. `ROOF_COMBAT_STILLS` verified roof combat, banishment across phase shifts, checkpoint reset and Chrome touch emulation. 3D and Classic played the English recordings with Chinese UI. Narration is synthetic. Physical touch and full AV sign-off remain open.
+
+Next: [`next-roof-edge-candidates.json`](evidence/rc33/next-roof-edge-candidates.json) logs 25 convex fascia junctions (three beside a phase tile), based on the actual map topology. These are inspection coordinates, not confirmed defects. Start with a landing and each phase-adjacent exception; inspect below the coping and from reachable perimeter/skyline angles. The whole-map close-up walkthrough is not yet complete.

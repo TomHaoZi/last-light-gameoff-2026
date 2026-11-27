@@ -21,7 +21,7 @@ export function transferControls(state) {
     shift: part?.kind === 'bridge' && ahead <= 3.25 && (part.phase === 'night') !== state.night };
 }
 
-export async function runTransfer({snapshot,input,onCrossing,onShift,miss,testSideWall=false}) {
+export async function runTransfer({snapshot,input,onCrossing,onShift,onFrame,miss,testSideWall=false}) {
   const held = new Set();
   async function set(key, on) {
     if (held.has(key) === on) return;
@@ -68,6 +68,7 @@ export async function runTransfer({snapshot,input,onCrossing,onShift,miss,testSi
       }
       await set('MouseRight',controls.shift);
       if (state.chase.started) minimumLead = Math.min(minimumLead,state.chase.headStart);
+      onFrame?.(state);
       for (const part of BACKROOMS_TRACK.obstacles) {
         if (!passed.has(part.id) && state.chase.distance >= part.at) {
           passed.set(part.id,{id:part.id,kind:part.kind,phase:state.phase,y:state.y,x:state.x,elapsed:state.chase.elapsed});

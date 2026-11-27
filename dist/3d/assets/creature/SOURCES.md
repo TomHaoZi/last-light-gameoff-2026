@@ -25,7 +25,17 @@ blender -b --python-exit-code 1 -P scripts/blender/build-late-workers.py -- \
 
 The RC18 female limestone archivist originated as a LAST LIGHT sculpture. The editable facial mesh, slate braid, archive dress and pose pivots are in `art/blender/mourning-clerk.blend`. The current human figure and replacement wings assemble at the upper back in the game. Build scripts sit beside the editable files.
 
-### RC19 · Human figure
+### RC24 · Archive nurse fan redesign
+
+`archive-nurse.glb` is a LAST LIGHT fan redesign, not a Konami model and not the separately listed *Nurse of Horror*. It reuses the licensed RC19 human rig, weights, exposed skin and shoes listed below. The layered linen sculpt, folded ward cap, metal snaps, revised uniform, complexion around the wraps and baked textile maps were authored for LAST LIGHT. It does not load the old wings, and none of the shipped files were extracted from a Silent Hill game.
+
+The editable source is `art/blender/archive-nurse.blend`. Rebuild from the retained RC19 source:
+
+```sh
+blender -b --python-exit-code 1 -P art/blender/build_archive_nurse.py
+```
+
+### RC19 · Historical human figure
 
 The current Clerk uses the MakeHuman Team's `hm08` topology, adult female targets, default armature and skin weights, and the high-poly eye geometry from the [pinned CC0 source](https://github.com/makehumancommunity/makehuman/tree/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/makehuman/data). The photographic `middleage_caucasian_female` skin, `long01` hair, `shoes02` shoes, `teeth_base` geometry, `eyebrow001` brows and `eyelashes01` lashes are from the [official CC0 system asset pack](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html). Its source credits name Data Collection AB, Joel Palmius and Jonas Hauquier.
 

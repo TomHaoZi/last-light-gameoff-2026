@@ -2,6 +2,7 @@ import { SOB_FILES } from './mourning-audio.js';
 import { ChaseScore, softPeakCeiling } from './chase-score.js';
 import { CREATURE_SAMPLE_RATE, renderCreatureVoice } from './creature-voice.js';
 import { FIELD_FOLEY, fieldFoleyURL } from './field-foley.js';
+import { creaturePressure } from './creature-pressure.js';
 
 const SILENCE = 0.0001;
 const MAX_VOICES = 70;
@@ -12,9 +13,9 @@ const DIALOGUE_DUCK = [
 ];
 const CUE_COOLDOWN = {
   step: .105, warning: 1.38, howl: 7.8, snarl: 2.65, breath: 2.25,
-  'mourning-cry': 2.7, 'mourning-lock': .45, 'mourning-strike': 1.2
+  'mourning-cry': 2.7, 'mourning-lock': .45, 'mourning-rush': .52, 'mourning-release': .6, 'mourning-strike': 1.2
 };
-const MOURNING_SOUNDS = new Set(['mourning-cry', 'mourning-lock', 'mourning-strike', 'mourning-bind', 'mourning-floor']);
+const MOURNING_SOUNDS = new Set(['mourning-cry', 'mourning-lock', 'mourning-rush', 'mourning-release', 'mourning-strike', 'mourning-bind', 'mourning-floor']);
 const VOCAL_GAIN = {
   howl: .57,    // At range its reverb and shape carry before the peak level.
   scream: .69,  // The short alert must sit above the pursuit score.
@@ -516,18 +517,19 @@ export class HorrorAudio {
     const grabbed = now - (this.lastCues.get('death') ?? -Infinity) < 1.55;
     this.ghosts.forEach((slot, index) => {
       const source = grabbed ? null : nearby[index];
-      const proximity = source ? clamp((7.1 - source.distance) / 4.9, 0, 1) : 0;
-      const airLevel = this.recordings.has('creature-exhale') ? .28 : .63;
+      const proximity = source ? clamp((8.35 - source.distance) / 6.2, 0, 1) : 0;
+      const alert = clamp(finite(source?.ghost.alert, this.tension), 0, 1);
+      const beats=creaturePressure({threat:alert,distance:source?.distance,stagger:source?.ghost.stagger});
+      const airLevel = (this.recordings.has('creature-exhale') ? .28 : .63)*(1-.74*beats.breathHold);
       ramp(slot.gate.gain, now, proximity * (source?.amplitude ?? 0) * airLevel, 0.11);
       if (proximity <= 0) return;
-      const alert = clamp(finite(source.ghost.alert, this.tension), 0, 1);
-      const rhythm = now * (2.05 + alert * 2.8) + index * 2.37 + .24 * Math.sin(now * 1.83);
+      const rhythm = now * (2.05 + alert * 2.8 + beats.closing*.76) + index * 2.37 + .24 * Math.sin(now * 1.83);
       const inhale = (.5 - .5 * Math.sin(rhythm)) ** 3.1;
       const rattle = .77 + .23 * Math.sin(now * 33 + index * 6);
       ramp(slot.pan.pan, now, source.pan, 0.08);
       ramp(slot.breath.filter.frequency, now, 490 + inhale * 420 + alert * 235, 0.11);
       ramp(slot.breath.gain.gain, now, (.12 + inhale * .64) * rattle, 0.08);
-      ramp(slot.wheeze.gain.gain, now, (.048 + inhale * .27) * (.64 + alert * .36), 0.08);
+      ramp(slot.wheeze.gain.gain, now, (.048 + inhale * .27 + beats.brace*.13) * (.64 + alert * .36), 0.08);
     });
 
     for (const emitter of this.vocalEmitters) {
@@ -549,8 +551,9 @@ export class HorrorAudio {
     if (grabbed || this.muted) return;
     const closest = nearby[0];
     if (now >= this.nextSnarl && closest && closest.distance < 6.0) {
-      const breathe = this.recordings.has('creature-exhale') && this.random() < .51;
-      this.cue(breathe ? 'breath' : 'snarl', closest.ghost);
+      const beats=creaturePressure({threat:finite(closest.ghost.alert,this.tension),distance:closest.distance,stagger:closest.ghost.stagger});
+      const breathe = this.recordings.has('creature-exhale') && (beats.listen>.36 || this.random() < .57-.43*beats.closing);
+      if(beats.listen<.68&&beats.recoil<.65)this.cue(breathe ? 'breath' : 'snarl', closest.ghost);
       this.nextSnarl = now + 2.9 + this.random() * 2.8;
     }
     if (now >= this.nextHowl && this.tension < .39) {
@@ -758,6 +761,13 @@ export class HorrorAudio {
       // Lead with an unmistakable intake rather than obscuring the warning's vowels.
       this.noise(at, .16, .12, 1350, 1.9, bus, .012, 2850);
       this.tone(at + .11, 90, 54, .23, .08, this.closeBus);
+    } else if (name === 'mourning-rush') {
+      this.playRecording('step-stone', at, bus, .36, 1.13, STEP_CLIP, .20);
+      this.noise(at+.016, .24, .12, 1690, 1.5, bus, .017, 820);
+      this.tone(at+.033, 177, 67, .25, .034, bus, 'triangle', .035);
+    } else if (name === 'mourning-release') {
+      this.noise(at, .23, .09, 920, 1.3, bus, .011, 510);
+      this.playRecording('step-stone', at+.045, bus, .21, .77, STEP_CLIP, .19);
     } else if (name === 'mourning-strike') {
       this.playRecording(SOB_FILES[1], at, bus, .68, .78, .05, 1.09);
       this.noise(at, .35, .22, 1750, 1.35, bus, .009, 690);
@@ -765,6 +775,8 @@ export class HorrorAudio {
     } else if (name === 'mourning-bind') {
       this.playRecording('eli-catch', at, this.closeBus, .45, 1.01);
       this.noise(at, .33, .152, 2700, 1.1, bus, .007, 880);
+      this.noise(at+.032,.105,.092,1190,2.5,bus,.005,390);
+      this.noise(at+.115,.069,.038,730,1.35,bus,.008,252);
       this.tone(at + .045, 390, 167, .42, .047, bus, 'triangle', .020);
       this.tone(at, 102, 55, .37, .052, this.closeBus);
     } else {
@@ -795,7 +807,7 @@ export class HorrorAudio {
       this.duck(at, 0.33, 1.18);
       return;
     }
-    const local = ['step', 'jump', 'land', 'death', 'revive', 'blocked', 'shift', 'hit', 'ending'].includes(name);
+    const local = ['step', 'jump', 'land', 'death', 'revive', 'blocked', 'shift', 'hit', 'ending', 'roof-swing'].includes(name);
     let bus = local ? this.closeBus : this.worldBus;
     if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) {
       bus = this.positionBus(position, at, name === 'ending' ? 3.5 : 2.4);
@@ -857,6 +869,22 @@ export class HorrorAudio {
         [0, 3, 7].forEach((note, i) => this.bell(at + i * 0.09, freq(57 + note), 0.052, bus, 1.25));
         noise(0, 0.24, 0.082, 2750, 0.85, 0.03);
         break;
+      case 'roof-swing':
+        noise(.024,.15,.13,730,.84,.052,1420);
+        tone(.015,227,153,.15,.047,'triangle',.013);
+        break;
+      case 'roof-contact':
+      case 'roof-banish':
+        tone(0,161,62,.26,.17,'triangle');
+        noise(.003,.18,.19,2530,1.17,.005,690);
+        tone(.016,1023,569,.20,.044,'sine');
+        noise(.032,.103,.097,1120,2.1,.005,290);
+        noise(.101,.071,.043,660,1.57,.01,220);
+        if (name === 'roof-banish') {
+          noise(.042,.49,.11,1350,.62,.045,290);
+          tone(.033,123,43,.41,.096,'triangle');
+        }
+        break;
       case 'hit':
         tone(0, 105, 36, 0.32, 0.185);
         noise(0.014, 0.32, 0.27, 2800, 0.68, 0.004, 590);
@@ -874,6 +902,7 @@ export class HorrorAudio {
         }
         if (Number.isFinite(position?.x) && Number.isFinite(position?.z)) {
           this.creatureCue('grab', at, position);
+          noise(.071,.156,.089,870,1.92,.007,340);
         }
         this.playRecording('eli-catch', at, this.closeBus, .32, .93 + this.random() * .16);
         tone(0, 76, 22, 1.25, 0.23);

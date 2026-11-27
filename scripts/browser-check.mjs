@@ -9,7 +9,8 @@ const port=Number(process.env.PORT||8791),debug=Number(process.env.DEBUG_PORT||9
 const chrome=process.env.CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const server=spawn('python3',['-m','http.server',String(port),'-d',process.env.SERVE_DIR||'dist'],{cwd:root,stdio:'ignore'});
-const browser=spawn(chrome,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--autoplay-policy=no-user-gesture-required',`--remote-debugging-port=${debug}`,`--user-data-dir=/tmp/last-light-check-${process.pid}`,'--window-size=1280,1100',`http://127.0.0.1:${port}/`],{stdio:'ignore'});
+const entry=process.env.ENTRY_PATH||'/';
+const browser=spawn(chrome,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--autoplay-policy=no-user-gesture-required',`--remote-debugging-port=${debug}`,`--user-data-dir=/tmp/last-light-check-${process.pid}`,'--window-size=1280,1100',`http://127.0.0.1:${port}${entry}`],{stdio:'ignore'});
 let socket;const errors=[],logs=[];let next=0;const waiting=new Map();
 const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;const timer=setTimeout(()=>{waiting.delete(id);reject(Error(`CDP timeout: ${method}`));},8000);waiting.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});
 try{
@@ -25,7 +26,13 @@ try{
   await send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'right',buttons:2,clickCount:1});
   await send('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'right',buttons:0,clickCount:1});
  };
- await send('Runtime.enable');await send('Page.enable');await delay(700);await shot('01-menu');
+ await send('Runtime.enable');await send('Page.enable');
+ const startupEnd=Date.now()+8000;
+ while(!(await evaluate('Boolean(window.lastLight?.snapshot && document.getElementById("start"))'))){
+  if(Date.now()>=startupEnd)throw Error('Classic runtime did not start');
+  await delay(150);
+ }
+ await shot('01-menu');
  const box=await evaluate("(()=>{const b=document.getElementById('start');b.scrollIntoView({block:'center'});const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
  await send('Input.dispatchMouseEvent',{type:'mousePressed',...box,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',...box,button:'left',clickCount:1});await delay(400);
  logs.push({step:'start',snapshot:await evaluate('window.lastLight.snapshot()')});

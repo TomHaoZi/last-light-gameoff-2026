@@ -43,7 +43,8 @@ export const GUIDANCE_LINES = Object.freeze({
 });
 
 export const SOB_FILES = ['mourning-sob-soft', 'mourning-sob-held'];
-export const fileForVoice = (line, language) => line.stem + (language === 'zh' ? '-zh' : '-en');
+// Interface language only selects captions. Every spoken take is English.
+export const fileForVoice = line => line.stem + '-en';
 export const mourningVoiceURL = file => new URL('./assets/dialogue/' + file + '.m4a', import.meta.url);
 export const mourningCryURL = file => new URL('./audio/' + file + '.m4a', import.meta.url);
 
